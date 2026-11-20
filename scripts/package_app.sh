@@ -92,7 +92,8 @@ exit 0
 EOF
 chmod 755 "$DEB_DIR/DEBIAN/postinst"
 
-dpkg-deb -Zgzip --root-owner-group -b "$DEB_DIR" "$DIST/${APP_NAME}_1.0.0_iphoneos-arm64.deb"
+APP_VER="$(grep '^Version:' "$ROOT/control" | awk '{print $2}' || echo "2.0.0")"
+dpkg-deb -Zgzip --root-owner-group -b "$DEB_DIR" "$DIST/${APP_NAME}_${APP_VER}_iphoneos-arm64.deb"
 
 # Clean temporary packaging directories
 rm -rf "$DIST/Payload" "$DEB_DIR"

@@ -50,7 +50,7 @@ The build produces three ready-to-deploy distribution artifacts in `dist/`:
 | :--- | :--- | :--- |
 | **`dist/ClassicTouch.tipa`** | TrollStore IPA with full entitlements | TrollStore (No revokes, full JIT & unrestricted access) |
 | **`dist/ClassicTouch.ipa`** | Standard IPA signed with debug / JIT entitlements | AltStore, SideStore, Sideloadly, Xcode |
-| **`dist/ClassicTouch_1.0.0_iphoneos-arm64.deb`** | Debian package for jailbroken environments | Sileo, Zebra, Filza, dpkg |
+| **`dist/ClassicTouch_2.0.0_iphoneos-arm64.deb`** | Debian package for jailbroken environments | Sileo, Zebra, Filza, dpkg |
 
 ---
 
@@ -60,3 +60,22 @@ The build produces three ready-to-deploy distribution artifacts in `dist/`:
 - `scripts/build_app.sh`: Compiles the Objective-C / C++ / Metal sources, links with libraries, and packages into `.ipa`, `.tipa`, and `.deb`.
 - `scripts/build_deps.sh`: Builds cross-compiled static dependencies (`pixman`, `slirp`, `openssl`, `glib`, etc.).
 - `scripts/build_firmwarekit.sh`: Compiles the Rust-based firmware preparation engine into `libfirmwarekit.a`.
+
+---
+
+## 5. Acknowledgments & Related Projects (参考・関連リポジトリ)
+
+ClassicTouch builds upon and takes inspiration from extensive prior work across the iOS emulation and virtualization community:
+
+- **[LightTouch](https://github.com/blake-lucas/LightTouch)** (`blake-lucas/LightTouch`): Core ARM emulation architecture, iBoot/kboot environment, firmware preparation pipeline, and foundational engineering for modern mobile iOS emulation.
+- **[qemu-ios (blake-lucas)](https://github.com/blake-lucas/qemu-ios)**: QEMU fork featuring Apple SoC emulation, Darwin guest service bridges, and GLES host redirection.
+- **[qemu-ios (devos50)](https://github.com/devos50/qemu-ios)**: Groundbreaking pioneering work on Apple iOS hardware emulation in QEMU.
+- **[qemu-ios (samhenrigold)](https://github.com/samhenrigold/qemu-ios)**: Enhancements, fixes, and integration improvements for Apple hardware emulation.
+- **[LightTouchMac](https://github.com/samhenrigold/LightTouchMac)**: Native macOS implementation and Metal rendering architecture for LightTouch.
+- **[Henge](https://github.com/Leviidev/Henge)**: Innovative iOS/iPadOS hypervisor research, sandboxing bypasses, and high-performance virtualization.
+- **[Podium](https://github.com/Leviidev/Podium)**: Mobile emulation framework and system bridge implementation.
+- **[Inferno](https://github.com/MakrSas/Inferno)**: Advanced iOS virtualization and hypervisor concepts.
+- **[Kernarium](https://github.com/imxieyi/Kernarium)**: iOS kernel-level virtualization and device emulation insights.
+- **[iphone-1-emulator](https://github.com/kelindi/iphone-1-emulator)**: Emulation research for early S5L8900 iPhone OS devices.
+- **[WindowsiOS](https://github.com/ammaarreshi/WindowsiOS)**: JIT acceleration and virtual machine execution techniques on modern iOS.
+- **[LinuxRunner](https://github.com/mxhm11cr/LinuxRunner)**: JIT compilation and virtual machine execution engine on iOS.
