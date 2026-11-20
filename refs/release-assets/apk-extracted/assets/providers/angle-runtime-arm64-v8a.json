@@ -1,0 +1,55 @@
+{
+  "abi": "arm64-v8a",
+  "closure_manifest_sha256": "3abde58ea5d9863453b12e3d7f67eff7c96ee989fbcfa4c00a16859cfd694945",
+  "libraries": {
+    "libEGL_lighttouch_angle.so": {
+      "load_alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "needed": [
+        "libdl.so",
+        "libc.so"
+      ],
+      "sha256": "0eb68cc4310cf9af4910b823bbc94fff4d18418e25e54d93f3f0abbcba23714f",
+      "soname": "libEGL_lighttouch_angle.so"
+    },
+    "libGLESv1_CM_lighttouch_angle.so": {
+      "load_alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "needed": [
+        "libGLESv2_lighttouch_angle.so",
+        "libdl.so",
+        "libc.so"
+      ],
+      "sha256": "fde4bb30ba73c56b29183d5087f237de7f3f869ba4a061a1955f9925152b1a60",
+      "soname": "libGLESv1_CM_lighttouch_angle.so"
+    },
+    "libGLESv2_lighttouch_angle.so": {
+      "load_alignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "needed": [
+        "libdl.so",
+        "libm.so",
+        "libnativewindow.so",
+        "liblog.so",
+        "libc.so"
+      ],
+      "sha256": "4e472b6a53297515c40f9fa3c7c8cb2e4b8b0a04baf0546790ba0ff6bf4d5ae1",
+      "soname": "libGLESv2_lighttouch_angle.so"
+    }
+  },
+  "license_compatibility": "unresolved; selected grants and complete application combination require review",
+  "notice_group": "angle-arm64-v8a",
+  "notice_manifest_sha256": "63d2221b0fab9bff7788dc0c4e9a94c74079b3ab5ed3c09bd3ef72c909d1f924",
+  "schema": 1,
+  "source_reference": "https://chromium.googlesource.com/angle/angle",
+  "source_revision": "8cd050f07ebd65cce269fc92e36699fc03b20ac3"
+}

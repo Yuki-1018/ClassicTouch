@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "source_reference": "https://github.com/openssl/openssl/releases/download/openssl-3.6.3/openssl-3.6.3.tar.gz",
+  "files": [
+    {
+      "path": "OpenSSL-LICENSE.txt",
+      "sha256": "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a"
+    }
+  ],
+  "components": [
+    {
+      "name": "OpenSSL (shared network backend)",
+      "archive_sha256": "243a86649cf6f23eeb6a2ff2456e09e5d77dd9018a54d3d96b0c6bdd6ba6c7f1",
+      "static_libraries": {
+        "libssl.a": "240a7dffc7ef8e7d7e16af520eabb4772e26b9725c759e601f3843b34ff352a7",
+        "libcrypto.a": "63f61e845e1cb6051976dfbb99ee79bbe095b606db69c1979be625f46f0a408f"
+      }
+    }
+  ]
+}

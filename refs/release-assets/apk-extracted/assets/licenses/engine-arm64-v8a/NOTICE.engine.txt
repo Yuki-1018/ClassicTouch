@@ -1,0 +1,7 @@
+Offline notices for the actual linked LightTouch portable engine.
+Library SHA256: 3f402e06da8ed47edcaccd2d18f2ceaf4f19271dd04f1273304131662b1f207c
+These notices do not determine distribution eligibility or clear the complete APK.
+Corresponding source, patches, reproducible build and applicable static LGPL
+relinking material must accompany any distribution under their license terms.
+Source-reference availability must be verified by the publisher.
+Guest firmware, ROMs, NAND and private device state are not included.

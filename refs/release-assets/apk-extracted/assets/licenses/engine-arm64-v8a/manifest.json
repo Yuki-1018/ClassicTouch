@@ -1,0 +1,288 @@
+{
+  "schema": 1,
+  "scope": "selected native engine notices; distribution review unresolved",
+  "source_reference": "https://github.com/blake-lucas/qemu-ios/tree/123cd6d9bb2ac5f884a37f77362999cf36c2a472",
+  "source_revision": "123cd6d9bb2ac5f884a37f77362999cf36c2a472",
+  "generator_revision": "123cd6d9bb2ac5f884a37f77362999cf36c2a472",
+  "generator_script_sha256": "f8087126abe805a087b7c7b2bef82fbc2fefdc32b9d49b9a5da035f26feebabc",
+  "source_reference_availability": "publisher must verify before distribution",
+  "library_sha256": "3f402e06da8ed47edcaccd2d18f2ceaf4f19271dd04f1273304131662b1f207c",
+  "components": [
+    {
+      "name": "QEMU/LightTouch",
+      "source_revision": "123cd6d9bb2ac5f884a37f77362999cf36c2a472",
+      "source_reference": "https://github.com/blake-lucas/qemu-ios/tree/123cd6d9bb2ac5f884a37f77362999cf36c2a472",
+      "selected_source_count": 646,
+      "selected_include_count": 1560
+    },
+    {
+      "name": "ffmpeg",
+      "source_reference": "https://ffmpeg.org/releases/ffmpeg-9.0.1.tar.xz",
+      "archive_sha256": "cf38e0e28c7e5605942c4a77755349b0145804a397af37eb1fb4c77cb237f635",
+      "linked_archives": {
+        "libavcodec.a": "00703db8a62c8cd9259bdac0be6cc25c9f2bde72f57e816d62ada1416e899383",
+        "libavutil.a": "68f0792475c7a55a971b3bd079898da1d7d70ff93633ae2be18b69c76cd0cb86"
+      }
+    },
+    {
+      "name": "glib",
+      "source_reference": "https://download.gnome.org/sources/glib/2.80/glib-2.80.0.tar.xz",
+      "archive_sha256": "8228a92f92a412160b139ae68b6345bd28f24434a7b5af150ebe21ff587a561d",
+      "linked_archives": {
+        "libglib-2.0.a": "08b48462ca0151bd863905cf1d1c47938a8e216431f536d5f8a028853990ec68"
+      }
+    },
+    {
+      "name": "pcre2",
+      "source_reference": "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.44/pcre2-10.44.tar.bz2",
+      "archive_sha256": "d34f02e113cf7193a1ebf2770d3ac527088d485d4e047ed10e5d217c6ef5de96",
+      "linked_archives": {
+        "libpcre2-8.a": "58c1308a42db1efc2e2aa10a37eb75cf7f6d1d74be6e227d1fb28adbb9835469"
+      }
+    },
+    {
+      "name": "pixman",
+      "source_reference": "https://www.cairographics.org/releases/pixman-0.44.2.tar.gz",
+      "archive_sha256": "6349061ce1a338ab6952b92194d1b0377472244208d47ff25bef86fc71973466",
+      "linked_archives": {
+        "libpixman-1.a": "4e85a423ed962cb8f21118358f2a07dfb8400d0a14bd7129703f74f15730b81b"
+      }
+    },
+    {
+      "name": "proxy-libintl",
+      "source_reference": "https://codeload.github.com/frida/proxy-libintl/tar.gz/refs/tags/0.4",
+      "archive_sha256": "13ef3eea0a3bc0df55293be368dfbcff5a8dd5f4759280f28e030d1494a5dffb",
+      "linked_archives": {
+        "libintl.a": "2697e3764df1a90f2ec9a3c374e11e3cab115f7f37b88dbd1bbe1725c3be8995"
+      }
+    },
+    {
+      "name": "libgpg-error",
+      "source_reference": "https://www.gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-1.53.tar.bz2",
+      "archive_sha256": "6a0721b52027415f53abcbf63b5c37776a0f774d9126d560a3ce76c0eb42903f",
+      "linked_archives": {
+        "libgpg-error.a": "9bef053e505718fe18ed869b52d37d5e0fe9eea53487b1b8701b7cb787ca2da2"
+      }
+    },
+    {
+      "name": "libgcrypt",
+      "source_reference": "https://www.gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-1.11.2.tar.bz2",
+      "archive_sha256": "6ba59dd192270e8c1d22ddb41a07d95dcdbc1f0fb02d03c4b54b235814330aac",
+      "linked_archives": {
+        "libgcrypt.a": "1ca90c260cdea2f0a5bc684167335ea4ec0da1103a9367b67806486e7c275a13"
+      }
+    },
+    {
+      "name": "libfdt",
+      "source_reference": "https://gitlab.com/qemu-project/dtc.git",
+      "source_revision": "b6910bec11614980a21e46fbccc35934b671bd81",
+      "linked_archive_sha256": "59a54fd3d13ccf6c28d78b544dd1ce54e363266badc650c20bb3e3ba01c4b0b8"
+    },
+    {
+      "name": "libslirp",
+      "source_reference": "https://gitlab.freedesktop.org/slirp/libslirp.git",
+      "source_revision": "d09dc9a70360ee7838acccbd234ab83f3b9b37a5",
+      "integration_patch_sha256": "5b94e627f00c365fde6148bc80232fd8ec14abc6adc224d105b4158f7b4787a9",
+      "linked_archive_sha256": "6a521e64cc30c724122aa45997ea188515ee6c1c6be3450e5b0ae6d1e5ae5797"
+    },
+    {
+      "name": "keycodemapdb generated keymaps",
+      "source_reference": "https://gitlab.com/qemu-project/keycodemapdb.git",
+      "source_revision": "f5772a62ec52591ff6870b7e8ef32482371f22c6",
+      "grant": "package and generated output dual GPL2-or-later/BSD3; upstream README"
+    },
+    {
+      "name": "Android NDK runtime/toolchain notices",
+      "version": "28.2.13676358",
+      "source_reference": "https://android.googlesource.com/toolchain/llvm-project/",
+      "scope": "release notices include components beyond the selected runtime",
+      "runtime_files": {
+        "libc++_shared.so": "ab4e6c71b96b851de45a8a9bd86369e7dbc2130a44b3b4520564be94847910f2"
+      }
+    }
+  ],
+  "empty_archive_inputs": {},
+  "empty_archive_scope": "verified regular ar magic only; zero members, no object payload",
+  "files": [
+    {
+      "path": "NOTICE.engine.txt",
+      "sha256": "0ae39302ad0c0d8169a9ac230722c46c6657b2f2867b6c55dd55dd777fd8d8e2"
+    },
+    {
+      "path": "dependencies/ffmpeg/COPYING.GPLv2",
+      "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643"
+    },
+    {
+      "path": "dependencies/ffmpeg/COPYING.GPLv3",
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+    },
+    {
+      "path": "dependencies/ffmpeg/COPYING.LGPLv2.1",
+      "sha256": "246041b6ecf9bc32d718a62c57877c78b5eb397b6467e74ed7ae2626ab189c30"
+    },
+    {
+      "path": "dependencies/ffmpeg/COPYING.LGPLv3",
+      "sha256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768"
+    },
+    {
+      "path": "dependencies/ffmpeg/LICENSE.md",
+      "sha256": "2e1d16c72fd74e12063776371da757322f8b77589386532f4fd8634bde7de1af"
+    },
+    {
+      "path": "dependencies/glib/LICENSES/Apache-2.0.txt",
+      "sha256": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff"
+    },
+    {
+      "path": "dependencies/glib/LICENSES/CC0-1.0.txt",
+      "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"
+    },
+    {
+      "path": "dependencies/glib/LICENSES/GPL-2.0-or-later.txt",
+      "sha256": "aaf135472f81c5b4a0dca9367e5bb5e9750032b5bebe5442b36e4c0a47430df3"
+    },
+    {
+      "path": "dependencies/glib/LICENSES/LGPL-2.1-only.txt",
+      "sha256": "fa6f36630bb1e0c571d34b2bbdf188d08495c9dbf58f28cac112f303fc1f58fb"
+    },
+    {
+      "path": "dependencies/glib/LICENSES/LGPL-2.1-or-later.txt",
+      "sha256": "fa6f36630bb1e0c571d34b2bbdf188d08495c9dbf58f28cac112f303fc1f58fb"
+    },
+    {
+      "path": "dependencies/glib/LICENSES/LLVM-exception.txt",
+      "sha256": "e34c58338bd89d43e709e226610d8f32b3e3c47f4ad9a99a8dc1d4ac7842488e"
+    },
+    {
+      "path": "dependencies/glib/LICENSES/LicenseRef-old-glib-tests.txt",
+      "sha256": "fb261b2d5dbe76c4850f90da763210bc385e52428df6bbfd7b06295ac8a32914"
+    },
+    {
+      "path": "dependencies/glib/LICENSES/MIT.txt",
+      "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0"
+    },
+    {
+      "path": "dependencies/glib/LICENSES/MPL-1.1.txt",
+      "sha256": "6214f8b1300bb9f37b16ebc146f8f61af0187e0025042ff95c8b3030744a8795"
+    },
+    {
+      "path": "dependencies/keycodemapdb/LICENSE.BSD",
+      "sha256": "602c4c7482de6479dd2e9793cda275e5e63d773dacd1eca689232ab7008fb4fb"
+    },
+    {
+      "path": "dependencies/keycodemapdb/LICENSE.GPL2",
+      "sha256": "ab15fd526bd8dd18a9e77ebc139656bf4d33e97fc7238cd11bf60e2b9b8666c6"
+    },
+    {
+      "path": "dependencies/keycodemapdb/README",
+      "sha256": "50b7a1bc3f1739d11c8c9e798519403814b786e2b5eab80bd636b6cacf82e649"
+    },
+    {
+      "path": "dependencies/libfdt/BSD-2-Clause",
+      "sha256": "6313108c23efffa36948f8b2cff1560a5935373b527b0e1a837cc77e6ed1bacd"
+    },
+    {
+      "path": "dependencies/libfdt/GPL",
+      "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643"
+    },
+    {
+      "path": "dependencies/libfdt/README.license",
+      "sha256": "78e1e1ce5728a990d59c7de61d4741c49185d5129daf783b386380a214328d68"
+    },
+    {
+      "path": "dependencies/libfdt/SOURCE-NOTICES.txt",
+      "sha256": "cfd8e0c1072a6cd2a75bcb43b77867b319cb086f815b535b099b232da8ceb014"
+    },
+    {
+      "path": "dependencies/libgcrypt/AUTHORS",
+      "sha256": "e05a0e32f58fe5ed7be7ac4e56c54213e659df2c2eb219b17c7a16876e886ad4"
+    },
+    {
+      "path": "dependencies/libgcrypt/COPYING",
+      "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643"
+    },
+    {
+      "path": "dependencies/libgcrypt/COPYING.LIB",
+      "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551"
+    },
+    {
+      "path": "dependencies/libgcrypt/LICENSES",
+      "sha256": "289f9561592dbcee8f1f9a1aca26df3cb0dbf3a989dbdd08effac19a8192c834"
+    },
+    {
+      "path": "dependencies/libgpg-error/AUTHORS",
+      "sha256": "b38c7a3bd3dfd836a7514b04aac900ef95a61a3284cc56cd524d3a373432deb3"
+    },
+    {
+      "path": "dependencies/libgpg-error/COPYING",
+      "sha256": "231f7edcc7352d7734a96eef0b8030f77982678c516876fcb81e25b32d68564c"
+    },
+    {
+      "path": "dependencies/libgpg-error/COPYING.LIB",
+      "sha256": "a9bdde5616ecdd1e980b44f360600ee8783b1f99b8cc83a2beb163a0a390e861"
+    },
+    {
+      "path": "dependencies/libslirp/COPYRIGHT",
+      "sha256": "5e81ad3841c9073bee91f65c8c74fdc4b67d1f6742cd35fbd22039bb1e920818"
+    },
+    {
+      "path": "dependencies/libslirp/LICENSE",
+      "sha256": "51f17bd7051622101fd3ce477ba3eca5e8f0705a523f3426dfbbddf9973a80bd"
+    },
+    {
+      "path": "dependencies/pcre2/AUTHORS",
+      "sha256": "466a8f8e30b195e8452471745b944258901b78b6c071f553ffd72d992492b06c"
+    },
+    {
+      "path": "dependencies/pcre2/COPYING",
+      "sha256": "99272c55f3dcfa07a8a7e15a5c1a33096e4727de74241d65fa049fccfdd59507"
+    },
+    {
+      "path": "dependencies/pixman/AUTHORS",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "dependencies/pixman/COPYING",
+      "sha256": "fac9270f0987b96ff4533fca3548c633e02083cbba4a0172a3b149b2e4019793"
+    },
+    {
+      "path": "dependencies/proxy-libintl/COPYING",
+      "sha256": "d245807f90032872d1438d741ed21e2490e1175dc8aa3afa5ddb6c8e529b58e5"
+    },
+    {
+      "path": "ndk/NOTICE.txt",
+      "sha256": "faf0dc52cf6ce9ab09a04b0c074a378dd2565ee1ed9bc1179d83793bcdba012e"
+    },
+    {
+      "path": "ndk/toolchains-llvm-prebuilt-linux-x86_64-NOTICE.txt",
+      "sha256": "f96f763beb66a7ba7a667647fc64c0226ace875e590c831fdd9579ec1c1d91e1"
+    },
+    {
+      "path": "ndk/toolchains-llvm-prebuilt-linux-x86_64-sysroot-NOTICE.txt",
+      "sha256": "2905ac5c59628352af990c748a8f4c3675a04f36eca7914612e3068661d2c6a6"
+    },
+    {
+      "path": "qemu/COPYING",
+      "sha256": "dd3ce02338c3a48abb6ba59b48809f7108a8bd242cb0cc8be90daafa30707c28"
+    },
+    {
+      "path": "qemu/COPYING.LIB",
+      "sha256": "31c90ce76b6f5aab90a205851e71d5c27e31c0aa3d7017a4383b98a6fe3f1faa"
+    },
+    {
+      "path": "qemu/LICENSE",
+      "sha256": "139c64b7a9ae62858ff969aae622ecfcf4f1519655bd92d2e70a1a2fb615690e"
+    },
+    {
+      "path": "qemu/SELECTED-SOURCE-NOTICES.txt",
+      "sha256": "d24f61b200e938a1bb010419ca2993d0c0b921e16e18ed13997c9c3e6b89e088"
+    },
+    {
+      "path": "qemu/hw/arm/powervr/LICENSE.md",
+      "sha256": "b1aea79afab593649ede742eccbb7feb74d216d52d120b99c4d349133871ba9f"
+    },
+    {
+      "path": "qemu/hw/arm/powervr/README.md",
+      "sha256": "be4853831534d5fcf655517e24dfc47f4a7e0d69667ecdf15459f2b3572a1f8b"
+    }
+  ]
+}

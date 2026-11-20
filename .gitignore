@@ -1,0 +1,10 @@
+build/
+dist/
+packages/
+.theos/
+*.log
+*.ipa
+*.tipa
+*.deb
+.DS_Store
+tmp/

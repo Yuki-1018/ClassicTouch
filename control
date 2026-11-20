@@ -1,0 +1,9 @@
+Package: com.yuki1018.classictouch
+Name: ClassicTouch
+Depends: firmware (>= 15.0)
+Version: 1.0.0
+Architecture: iphoneos-arm64
+Description: High performance classic iOS emulator running iPhone OS 1.x - iOS 6.x on modern iOS 15-26+
+Maintainer: Yuki-1018
+Author: Yuki-1018
+Section: Utilities

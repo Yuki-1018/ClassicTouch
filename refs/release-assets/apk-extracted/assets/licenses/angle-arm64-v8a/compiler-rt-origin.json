@@ -1,0 +1,8 @@
+{
+  "source_reference": "https://chromium.googlesource.com/external/github.com/llvm/llvm-project",
+  "source_revision": "62397f8b3c3986f54187ce08f00b3448ea1f8880",
+  "path": "compiler-rt/LICENSE.TXT",
+  "compiler_package_revision": "llvmorg-24-init-7747-g62397f8b-53",
+  "reported_compiler_revision": "86922d51225db089fffb99475eefc4904f79e3c8",
+  "qualification": "License text at pinned compiler package upstream base revision; downstream compiler build recipe/patch provenance requires separate review"
+}

@@ -1,0 +1,122 @@
+{
+  "description": "Actual compiler dependencies across selected link objects; unselected host tools excluded",
+  "objects_checked": 417,
+  "optional_dependency_counts": {
+    "third_party/abseil-cpp/": 0,
+    "third_party/perfetto/": 0
+  },
+  "headers": [
+    {
+      "path": "third_party/vulkan-headers/src/include/vk_video/vulkan_video_codec_av1std.h",
+      "sha256": "83bc45ed585e664ccd57f112ad0eaf2a83c12276bf5a30081ae9e742b8ffeb6c",
+      "spdx": [
+        "Apache-2.0 OR MIT"
+      ]
+    },
+    {
+      "path": "third_party/vulkan-headers/src/include/vk_video/vulkan_video_codec_av1std_decode.h",
+      "sha256": "e37184b12c11fe5c4990133040158c0e5ecdbafc52285880276cddee6aecb8d5",
+      "spdx": [
+        "Apache-2.0 OR MIT"
+      ]
+    },
+    {
+      "path": "third_party/vulkan-headers/src/include/vk_video/vulkan_video_codec_av1std_encode.h",
+      "sha256": "c0388defe123f7e5fc02908d6ba868f58479a323da31d8e825b5fe2ac0523acb",
+      "spdx": [
+        "Apache-2.0 OR MIT"
+      ]
+    },
+    {
+      "path": "third_party/vulkan-headers/src/include/vk_video/vulkan_video_codec_h264std.h",
+      "sha256": "072e863dd05e8151b9e0f5b18a4cb52acbe618079b4ace71e3b60cce1ec9ccbc",
+      "spdx": [
+        "Apache-2.0 OR MIT"
+      ]
+    },
+    {
+      "path": "third_party/vulkan-headers/src/include/vk_video/vulkan_video_codec_h264std_decode.h",
+      "sha256": "e401c6aea14f2e5d33cc8215d6a6725a9a6659e266a4f0b371c91d2a4cbde505",
+      "spdx": [
+        "Apache-2.0 OR MIT"
+      ]
+    },
+    {
+      "path": "third_party/vulkan-headers/src/include/vk_video/vulkan_video_codec_h264std_encode.h",
+      "sha256": "30ef5fc7be25aec0fbebde8c4908d631690f2063d33c10ccea9edaa2ed0d728a",
+      "spdx": [
+        "Apache-2.0 OR MIT"
+      ]
+    },
+    {
+      "path": "third_party/vulkan-headers/src/include/vk_video/vulkan_video_codec_h265std.h",
+      "sha256": "ba1668e412d3483d945fc3707e3b25b30c0c43ffd347d9b8b536a1cc622000a8",
+      "spdx": [
+        "Apache-2.0 OR MIT"
+      ]
+    },
+    {
+      "path": "third_party/vulkan-headers/src/include/vk_video/vulkan_video_codec_h265std_decode.h",
+      "sha256": "2da3a4c697f9b0b75a11181880e082ab13553ed5d915782c841e01be4793dfb0",
+      "spdx": [
+        "Apache-2.0 OR MIT"
+      ]
+    },
+    {
+      "path": "third_party/vulkan-headers/src/include/vk_video/vulkan_video_codec_h265std_encode.h",
+      "sha256": "bbc4a232434a2268c3689a676a488a13bf1912bfa4ff9aeb3a54077905316bd1",
+      "spdx": [
+        "Apache-2.0 OR MIT"
+      ]
+    },
+    {
+      "path": "third_party/vulkan-headers/src/include/vk_video/vulkan_video_codec_vp9std.h",
+      "sha256": "1c33ed11eda1225ba52250221378930129b9c78c4aecc91bb368fa3d00f9cf36",
+      "spdx": [
+        "Apache-2.0 OR MIT"
+      ]
+    },
+    {
+      "path": "third_party/vulkan-headers/src/include/vk_video/vulkan_video_codec_vp9std_decode.h",
+      "sha256": "37d5b7847a9dda12480ea6b27dfedb4c509eb61b91090b5b119a12bbb5c5b190",
+      "spdx": [
+        "Apache-2.0 OR MIT"
+      ]
+    },
+    {
+      "path": "third_party/vulkan-headers/src/include/vk_video/vulkan_video_codecs_common.h",
+      "sha256": "3fc937e75411bf82fd8dfaa721b07b2bb53307c891a347cc010d4747ce28f971",
+      "spdx": [
+        "Apache-2.0 OR MIT"
+      ]
+    },
+    {
+      "path": "third_party/vulkan-headers/src/include/vulkan/vk_platform.h",
+      "sha256": "a2cd9085c66776845d2524c3b0e73ccf4827ba046aa6f676c4b8ddbed47d6552",
+      "spdx": [
+        "Apache-2.0 OR MIT"
+      ]
+    },
+    {
+      "path": "third_party/vulkan-headers/src/include/vulkan/vulkan.h",
+      "sha256": "ace769f4cd4c69a846c1778be95bfcd326038c8adc7630584ba33bcadd2f70a5",
+      "spdx": [
+        "Apache-2.0 OR MIT"
+      ]
+    },
+    {
+      "path": "third_party/vulkan-headers/src/include/vulkan/vulkan_android.h",
+      "sha256": "c86a8ebfd01302838efbf3e0e763194dc8bd66fc3ac231c41ea5e840fe1d2da3",
+      "spdx": [
+        "Apache-2.0 OR MIT"
+      ]
+    },
+    {
+      "path": "third_party/vulkan-headers/src/include/vulkan/vulkan_core.h",
+      "sha256": "c3ee5b0385fa77d04ec01532066e80ae7e83bccc08095a3a7b7953343bf83065",
+      "spdx": [
+        "Apache-2.0 OR MIT"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "version": "v0.0.13",
+  "status": "alpha",
+  "application_revision": "28792077157d3d6087a7242652a402ed704e1e6a",
+  "engine_revision": "123cd6d9bb2ac5f884a37f77362999cf36c2a472",
+  "guest_tools": {
+    "files": [
+      "armv6.itpack",
+      "armv7.itpack"
+    ],
+    "serial": 40,
+    "version": "1.1.35",
+    "android_apk_bundles": [
+      "armv6.itpack",
+      "armv7.itpack"
+    ]
+  },
+  "packages": [
+    {
+      "file": "LightTouch-v0.0.13-android-arm64.apk",
+      "bytes": 43563748,
+      "sha256": "47261ad6df029d78de2a788d5f9dd5be8d37bcdad54149a460b57df1e6fbdb83"
+    },
+    {
+      "file": "LightTouch-v0.0.13-Linux-x86_64.AppImage",
+      "bytes": 43055608,
+      "sha256": "e08b2e1dd8b44aadb838a85d78098744cf5185279f902e2d80be9f4a01cf83e2"
+    },
+    {
+      "file": "LightTouch-v0.0.13-Windows-x86_64.zip",
+      "bytes": 53772547,
+      "sha256": "9b4ad22311a86826e222a5a851a3f50b91e2856beedcd11bdc24026ff5c0a394"
+    },
+    {
+      "file": "LightTouch-v0.0.13-macOS-arm64.zip",
+      "bytes": 32943765,
+      "sha256": "c35b63e7b430520a273e40d7af20bb0b5401646dddf39c2b5a28d41d859b2514"
+    },
+    {
+      "file": "armv6.itpack",
+      "bytes": 1001698,
+      "sha256": "c07013c511596976c7f76b3942f62eb5f25cb626b39c61bef9c9dafa549802ac"
+    },
+    {
+      "file": "armv7.itpack",
+      "bytes": 1711256,
+      "sha256": "a29bd903e8f6732c0270d304dd36c8110f30f71f8b98d46d9f557f16b1b2dd51"
+    },
+    {
+      "file": "LightTouch-v0.0.13-source.tar.gz",
+      "bytes": 3325818,
+      "sha256": "668db421f229e7575c2e056a08f672f39f1cf9bf8ffe4efde6331448dfffdb1f"
+    },
+    {
+      "file": "qemu-ios-v0.0.13-source.tar.gz",
+      "bytes": 55410110,
+      "sha256": "2a88f42b3d103dc2dfb0f362349079b043b2b3d547068a90b06625079ffae369"
+    }
+  ]
+}

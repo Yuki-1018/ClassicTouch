@@ -1,0 +1,175 @@
+{
+  "schema": 1,
+  "source_reference": "https://chromium.googlesource.com/angle/angle",
+  "source_revision": "8cd050f07ebd65cce269fc92e36699fc03b20ac3",
+  "files": [
+    {
+      "path": "notices/ANGLE-LICENSE",
+      "sha256": "bf4da21bd20bcfb5b60b7ecc67fa864a79be049e21d6178076887f178dd6c71a"
+    },
+    {
+      "path": "notices/libcxx-LICENSE.TXT",
+      "sha256": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b"
+    },
+    {
+      "path": "notices/libcxxabi-LICENSE.TXT",
+      "sha256": "e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c"
+    },
+    {
+      "path": "notices/libunwind-LICENSE.TXT",
+      "sha256": "b5efebcaca80879234098e52d1725e6d9eb8fb96a19fce625d39184b705f7b6d"
+    },
+    {
+      "path": "notices/Volk-LICENSE.md",
+      "sha256": "336f505f8d5aa73ea40b4d798dde86953e9c1f6525757f1d7f18120fea09bb1d"
+    },
+    {
+      "path": "notices/xxHash-LICENSE",
+      "sha256": "6ffedbc0f7878612d2b23589f1ff2ab15633e1df7963a5d9fc750ec5500c7e7a"
+    },
+    {
+      "path": "notices/zlib-LICENSE",
+      "sha256": "e32ff4e00d9d94930537635291da39e7e612703334bf6fde8c7f1686fe8a45a2"
+    },
+    {
+      "path": "notices/Vulkan-Headers-MIT.txt",
+      "sha256": "1ca3502222d967f3be5751c55f6b7ee735b5383909c3b501495f54b216dbf227"
+    },
+    {
+      "path": "notices/compiler-rt-LICENSE.TXT",
+      "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d"
+    },
+    {
+      "path": "notices/Bison-parser-grant.txt",
+      "sha256": "e4b163e4052ac5d612d633187449c78d14484df49c258d3507f169c7224614b1"
+    },
+    {
+      "path": "selected-link-inputs.json",
+      "sha256": "c33762aed3bf431f7135d30045f0da37df657eded62c9a42cab0fcf49c214452"
+    },
+    {
+      "path": "selected-khronos-headers.json",
+      "sha256": "078f7d9f86628dad6bba1de48bc135572b46bda9098ce8b1eafc6b0899b53b22"
+    },
+    {
+      "path": "elf-closure.json",
+      "sha256": "3abde58ea5d9863453b12e3d7f67eff7c96ee989fbcfa4c00a16859cfd694945"
+    },
+    {
+      "path": "compiler-rt-origin.json",
+      "sha256": "6613f6912e1b76c0718a70a14200ced3aa59b02d70843a83738887ba0a06ac6e"
+    }
+  ],
+  "notices": [
+    {
+      "path": "notices/ANGLE-LICENSE",
+      "sha256": "bf4da21bd20bcfb5b60b7ecc67fa864a79be049e21d6178076887f178dd6c71a",
+      "component": "ANGLE",
+      "license": "BSD-3-Clause",
+      "source_reference": "https://chromium.googlesource.com/angle/angle",
+      "source_revision": "8cd050f07ebd65cce269fc92e36699fc03b20ac3",
+      "source_path": "LICENSE"
+    },
+    {
+      "path": "notices/libcxx-LICENSE.TXT",
+      "sha256": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b",
+      "component": "libc++",
+      "license": "Apache-2.0 WITH LLVM-exception",
+      "source_reference": "https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxx.git",
+      "source_revision": "97b436da4c33663581d394f4ee0a5977fc38c2f4",
+      "source_path": "LICENSE.TXT"
+    },
+    {
+      "path": "notices/libcxxabi-LICENSE.TXT",
+      "sha256": "e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c",
+      "component": "libc++abi",
+      "license": "Apache-2.0 WITH LLVM-exception",
+      "source_reference": "https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxxabi.git",
+      "source_revision": "09351f6ec00c2b65f2d03585ae6da07098b024dc",
+      "source_path": "LICENSE.TXT"
+    },
+    {
+      "path": "notices/libunwind-LICENSE.TXT",
+      "sha256": "b5efebcaca80879234098e52d1725e6d9eb8fb96a19fce625d39184b705f7b6d",
+      "component": "libunwind",
+      "license": "Apache-2.0 WITH LLVM-exception",
+      "source_reference": "https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libunwind.git",
+      "source_revision": "eb1ca4993b534b7d565daee144bbc7f9072b967b",
+      "source_path": "LICENSE.TXT"
+    },
+    {
+      "path": "notices/Volk-LICENSE.md",
+      "sha256": "336f505f8d5aa73ea40b4d798dde86953e9c1f6525757f1d7f18120fea09bb1d",
+      "component": "Volk",
+      "license": "MIT",
+      "source_reference": "https://chromium.googlesource.com/angle/angle",
+      "source_revision": "8cd050f07ebd65cce269fc92e36699fc03b20ac3",
+      "source_path": "src/third_party/volk/LICENSE.md"
+    },
+    {
+      "path": "notices/xxHash-LICENSE",
+      "sha256": "6ffedbc0f7878612d2b23589f1ff2ab15633e1df7963a5d9fc750ec5500c7e7a",
+      "component": "xxHash",
+      "license": "BSD-2-Clause",
+      "source_reference": "https://chromium.googlesource.com/angle/angle",
+      "source_revision": "8cd050f07ebd65cce269fc92e36699fc03b20ac3",
+      "source_path": "src/common/third_party/xxhash/LICENSE"
+    },
+    {
+      "path": "notices/zlib-LICENSE",
+      "sha256": "e32ff4e00d9d94930537635291da39e7e612703334bf6fde8c7f1686fe8a45a2",
+      "component": "zlib",
+      "license": "Zlib",
+      "source_reference": "https://chromium.googlesource.com/chromium/src/third_party/zlib",
+      "source_revision": "456ae730017b9b4bd3371927abc82627fd51feef",
+      "source_path": "LICENSE"
+    },
+    {
+      "path": "notices/Vulkan-Headers-MIT.txt",
+      "sha256": "1ca3502222d967f3be5751c55f6b7ee735b5383909c3b501495f54b216dbf227",
+      "component": "Vulkan-Headers",
+      "license": "MIT (selected from Apache-2.0 OR MIT)",
+      "source_reference": "https://chromium.googlesource.com/external/github.com/KhronosGroup/Vulkan-Headers",
+      "source_revision": "3c65a01745e4a1134d32b9c2c456472212dba16d",
+      "source_path": "LICENSES/MIT.txt"
+    },
+    {
+      "path": "notices/compiler-rt-LICENSE.TXT",
+      "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d",
+      "component": "compiler-rt",
+      "license": "Apache-2.0 WITH LLVM-exception",
+      "source_reference": "https://chromium.googlesource.com/external/github.com/llvm/llvm-project",
+      "source_revision": "62397f8b3c3986f54187ce08f00b3448ea1f8880",
+      "source_path": "compiler-rt/LICENSE.TXT",
+      "provenance_qualification": "License text at pinned compiler package upstream base revision; downstream compiler build recipe/patch provenance requires separate review"
+    },
+    {
+      "path": "notices/Bison-parser-grant.txt",
+      "sha256": "e4b163e4052ac5d612d633187449c78d14484df49c258d3507f169c7224614b1",
+      "component": "Bison-generated GLSL parser",
+      "license": "GPL-3.0-or-later WITH Bison-exception-2.2",
+      "source_reference": "https://chromium.googlesource.com/angle/angle",
+      "source_revision": "8cd050f07ebd65cce269fc92e36699fc03b20ac3",
+      "source_path": "src/compiler/translator/glslang_tab_autogen.cpp",
+      "notice_extraction": "Leading copyright and grant comment blocks"
+    }
+  ],
+  "libraries": {
+    "libEGL_lighttouch_angle.so": "0eb68cc4310cf9af4910b823bbc94fff4d18418e25e54d93f3f0abbcba23714f",
+    "libGLESv1_CM_lighttouch_angle.so": "fde4bb30ba73c56b29183d5087f237de7f3f869ba4a061a1955f9925152b1a60",
+    "libGLESv2_lighttouch_angle.so": "4e472b6a53297515c40f9fa3c7c8cb2e4b8b0a04baf0546790ba0ff6bf4d5ae1"
+  },
+  "selected_input_inventory": {
+    "path": "selected-link-inputs.json",
+    "sha256": "c33762aed3bf431f7135d30045f0da37df657eded62c9a42cab0fcf49c214452"
+  },
+  "license_compatibility": "unresolved; selected grants and complete application combination require review",
+  "compiler_rt_provenance": {
+    "source_reference": "https://chromium.googlesource.com/external/github.com/llvm/llvm-project",
+    "source_revision": "62397f8b3c3986f54187ce08f00b3448ea1f8880",
+    "path": "compiler-rt/LICENSE.TXT",
+    "compiler_package_revision": "llvmorg-24-init-7747-g62397f8b-53",
+    "reported_compiler_revision": "86922d51225db089fffb99475eefc4904f79e3c8",
+    "qualification": "License text at pinned compiler package upstream base revision; downstream compiler build recipe/patch provenance requires separate review"
+  }
+}
