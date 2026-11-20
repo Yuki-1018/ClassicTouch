@@ -63,7 +63,7 @@ The build produces three ready-to-deploy distribution artifacts in `dist/`:
 
 ---
 
-## 5. Acknowledgments & Related Projects (参考・関連リポジトリ)
+## 5. Acknowledgments & Related Projects
 
 ClassicTouch builds upon and takes inspiration from extensive prior work across the iOS emulation and virtualization community:
 
