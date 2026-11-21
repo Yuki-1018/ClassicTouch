@@ -9,7 +9,7 @@ This program is distributed in the hope that it will be useful, but WITHOUT ANY 
 
 ---
 
-## 1. Upstream & Referenced Projects (引用・関連プロジェクト)
+## 1. Upstream & Referenced Projects 
 
 ClassicTouch is built upon, incorporates code from, and references the following open-source projects:
 
