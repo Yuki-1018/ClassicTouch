@@ -23,6 +23,7 @@ for src in \
     "$ROOT/src/main.m" \
     "$ROOT/src/AppDelegate.m" \
     "$ROOT/src/MainViewController.m" \
+    "$ROOT/src/SettingsViewController.m" \
     "$ROOT/src/EmulatorViewController.m" \
     "$ROOT/src/IPSWDownloader.m" \
     "$ROOT/src/ios_audio_bridge.m" \

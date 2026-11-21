@@ -51,9 +51,17 @@ comp = zlib.compress(b"".join(chunks), 9)
 open(out_path, "wb").write(b"ITPACK01" + struct.pack("<I", len(idx)) + idx + comp)
 print(f"Packed {len(entries)} guest-tools into {os.path.basename(out_path)} ({os.path.getsize(out_path)} bytes)")
 PYEOF
-cp -rf "$ROOT/Resources/en.lproj" "$BUNDLE/en.lproj"
-cp -rf "$ROOT/Resources/ja.lproj" "$BUNDLE/ja.lproj"
+cp -rf "$ROOT/Resources"/*.lproj "$BUNDLE/"
+if [ -d "$ROOT/Resources/Settings.bundle" ]; then
+    cp -rf "$ROOT/Resources/Settings.bundle" "$BUNDLE/"
+fi
 cp -f "$ROOT/Resources/AppIcons"/*.png "$BUNDLE/"
+if [ -f "$ROOT/Resources/LICENSE.txt" ]; then
+    cp -f "$ROOT/Resources/LICENSE.txt" "$BUNDLE/LICENSE.txt"
+fi
+if [ -f "$ROOT/LICENSE" ]; then
+    cp -f "$ROOT/LICENSE" "$BUNDLE/LICENSE"
+fi
 
 # Ensure native iOS libqemu-arm.dylib is built
 if [ ! -f "$ROOT/build/Frameworks/libqemu-arm.dylib" ]; then

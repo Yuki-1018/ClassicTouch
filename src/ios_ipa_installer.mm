@@ -1,3 +1,14 @@
+//
+// ClassicTouch - Native Classic iOS Emulator for Modern iOS & iPadOS
+//
+// Copyright (c) 2026 ClassicTouch Authors.
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; version 2 of the License.
+//
+
 #import "ios_ipa_installer.h"
 #import "ios_usb_mux.h"
 
@@ -134,18 +145,18 @@ static bool readFileAt(FILE *f, uint64_t offset, void *dst, size_t len) {
 static bool openZip(const char *path, FILE **outFile, std::vector<ZipEntry> &entries, NSError **error) {
     FILE *f = fopen(path, "rb");
     if (!f) {
-        if (error) *error = makeIpaError(1, @"IPAファイルを開けませんでした。");
+        if (error) *error = makeIpaError(1, NSLocalizedString(@"ipa_err_open_failed", nil));
         return false;
     }
     if (fseeko(f, 0, SEEK_END) != 0) {
         fclose(f);
-        if (error) *error = makeIpaError(1, @"IPAファイルのサイズ取得に失敗しました。");
+        if (error) *error = makeIpaError(1, NSLocalizedString(@"ipa_err_size_failed", nil));
         return false;
     }
     off_t fsz = ftello(f);
     if (fsz <= 22 || uint64_t(fsz) > kMaxIpaBytes) {
         fclose(f);
-        if (error) *error = makeIpaError(2, @"2 GB 未満の有効な IPA ファイルを選択してください。");
+        if (error) *error = makeIpaError(2, NSLocalizedString(@"ipa_err_under_2gb", nil));
         return false;
     }
     uint64_t length = uint64_t(fsz);
@@ -153,7 +164,7 @@ static bool openZip(const char *path, FILE **outFile, std::vector<ZipEntry> &ent
     std::vector<uint8_t> tail(tailLen);
     if (!readFileAt(f, length - tailLen, tail.data(), tailLen)) {
         fclose(f);
-        if (error) *error = makeIpaError(3, @"IPA ファイルが破損しているか不完全です。");
+        if (error) *error = makeIpaError(3, NSLocalizedString(@"ipa_err_corrupt_incomplete", nil));
         return false;
     }
 
@@ -166,7 +177,7 @@ static bool openZip(const char *path, FILE **outFile, std::vector<ZipEntry> &ent
     }
     if (eocd < 0) {
         fclose(f);
-        if (error) *error = makeIpaError(4, @"このファイルは ZIP/IPA アーカイブではありません。");
+        if (error) *error = makeIpaError(4, NSLocalizedString(@"ipa_err_not_zip", nil));
         return false;
     }
 
@@ -176,13 +187,13 @@ static bool openZip(const char *path, FILE **outFile, std::vector<ZipEntry> &ent
     if (count == 0xffff || cdOffset == 0xffffffffu || cdSize == 0xffffffffu) {
         if (eocd < 20 || le32(&tail[eocd - 20]) != 0x07064b50u) {
             fclose(f);
-            if (error) *error = makeIpaError(5, @"ZIP64 ディレクトリ情報が破損しています。");
+            if (error) *error = makeIpaError(5, NSLocalizedString(@"ipa_err_zip64_dir_corrupt", nil));
             return false;
         }
         uint8_t record[56];
         if (!readFileAt(f, le64(&tail[eocd - 12]), record, sizeof(record)) || le32(record) != 0x06064b50u) {
             fclose(f);
-            if (error) *error = makeIpaError(5, @"ZIP64 レコードが破損しています。");
+            if (error) *error = makeIpaError(5, NSLocalizedString(@"ipa_err_zip64_rec_corrupt", nil));
             return false;
         }
         count = le64(&record[32]);
@@ -191,14 +202,14 @@ static bool openZip(const char *path, FILE **outFile, std::vector<ZipEntry> &ent
     }
     if (count > 100000 || cdSize > (64ULL << 20) || cdOffset + cdSize > length) {
         fclose(f);
-        if (error) *error = makeIpaError(6, @"IPA のディレクトリ情報が大きすぎるか破損しています。");
+        if (error) *error = makeIpaError(6, NSLocalizedString(@"ipa_err_dir_too_large", nil));
         return false;
     }
 
     std::vector<uint8_t> cd(cdSize);
     if (!readFileAt(f, cdOffset, cd.data(), size_t(cdSize))) {
         fclose(f);
-        if (error) *error = makeIpaError(6, @"IPA ディレクトリの読み込みに失敗しました。");
+        if (error) *error = makeIpaError(6, NSLocalizedString(@"ipa_err_dir_read_failed", nil));
         return false;
     }
 
@@ -207,7 +218,7 @@ static bool openZip(const char *path, FILE **outFile, std::vector<ZipEntry> &ent
     for (uint64_t idx = 0; idx < count; idx++) {
         if (at + 46 > cd.size() || le32(&cd[at]) != 0x02014b50u) {
             fclose(f);
-            if (error) *error = makeIpaError(7, @"IPA のセントラルディレクトリが破損しています。");
+            if (error) *error = makeIpaError(7, NSLocalizedString(@"ipa_err_central_dir_corrupt", nil));
             return false;
         }
         size_t nameLen = le16(&cd[at + 28]);
@@ -215,7 +226,7 @@ static bool openZip(const char *path, FILE **outFile, std::vector<ZipEntry> &ent
         size_t commentLen = le16(&cd[at + 32]);
         if (at + 46 + nameLen + extraLen + commentLen > cd.size()) {
             fclose(f);
-            if (error) *error = makeIpaError(7, @"IPA のセントラルディレクトリが破損しています。");
+            if (error) *error = makeIpaError(7, NSLocalizedString(@"ipa_err_central_dir_corrupt", nil));
             return false;
         }
         uint64_t comp = le32(&cd[at + 20]);
@@ -255,18 +266,18 @@ static bool openZip(const char *path, FILE **outFile, std::vector<ZipEntry> &ent
 static bool readZipEntry(FILE *f, const ZipEntry &entry, uint64_t limit,
                          std::vector<uint8_t> &out, NSError **error) {
     if (entry.size > limit || (entry.flags & 1) != 0 || entry.compressed > limit * 2 + 4096) {
-        if (error) *error = makeIpaError(8, [NSString stringWithFormat:@"非対応または大きすぎるエントリです: %s", entry.name.c_str()]);
+        if (error) *error = makeIpaError(8, [NSString stringWithFormat:NSLocalizedString(@"ipa_err_unsupported_entry", nil), entry.name.c_str()]);
         return false;
     }
     uint8_t hdr[30];
     if (!readFileAt(f, entry.localOffset, hdr, sizeof(hdr)) || le32(hdr) != 0x04034b50u) {
-        if (error) *error = makeIpaError(9, @"IPA 内のエントリヘッダが破損しています。");
+        if (error) *error = makeIpaError(9, NSLocalizedString(@"ipa_err_entry_header_corrupt", nil));
         return false;
     }
     uint64_t skip = 30 + le16(&hdr[26]) + le16(&hdr[28]);
     std::vector<uint8_t> raw(size_t(entry.compressed));
     if (entry.compressed > 0 && !readFileAt(f, entry.localOffset + skip, raw.data(), raw.size())) {
-        if (error) *error = makeIpaError(9, @"IPA エントリの読み込みに失敗しました。");
+        if (error) *error = makeIpaError(9, NSLocalizedString(@"ipa_err_entry_read_failed", nil));
         return false;
     }
     if (entry.method == 0) {
@@ -277,7 +288,7 @@ static bool readZipEntry(FILE *f, const ZipEntry &entry, uint64_t limit,
         out.resize(size_t(entry.size));
         z_stream zs{};
         if (inflateInit2(&zs, -MAX_WBITS) != Z_OK) {
-            if (error) *error = makeIpaError(10, @"zlib の初期化に失敗しました。");
+            if (error) *error = makeIpaError(10, NSLocalizedString(@"ipa_err_zlib_init_failed", nil));
             return false;
         }
         zs.next_in = raw.data();
@@ -288,12 +299,12 @@ static bool readZipEntry(FILE *f, const ZipEntry &entry, uint64_t limit,
         uLong got = zs.total_out;
         inflateEnd(&zs);
         if ((zrc != Z_STREAM_END && zrc != Z_OK) || got != entry.size) {
-            if (error) *error = makeIpaError(10, @"IPA 内のデータ展開に失敗しました（ファイルが破損している可能性があります）。");
+            if (error) *error = makeIpaError(10, NSLocalizedString(@"ipa_err_inflate_failed", nil));
             return false;
         }
         return true;
     }
-    if (error) *error = makeIpaError(11, @"IPA が未対応の圧縮方式を使用しています。");
+    if (error) *error = makeIpaError(11, NSLocalizedString(@"ipa_err_unsupported_compression", nil));
     return false;
 }
 
@@ -305,7 +316,7 @@ struct ArmSliceInfo {
 
 static bool parseArmSlice(const uint8_t *data, size_t len, ArmSliceInfo &out, NSError **error) {
     if (len < 28 || le32(data) != 0xFEEDFACEu) {
-        if (error) *error = makeIpaError(20, @"未対応の実行ファイル形式です（32bit ARM Mach-O が必要です）。");
+        if (error) *error = makeIpaError(20, NSLocalizedString(@"ipa_err_unsupported_binary_format", nil));
         return false;
     }
     uint32_t cpu = le32(data + 4);
@@ -314,7 +325,7 @@ static bool parseArmSlice(const uint8_t *data, size_t len, ArmSliceInfo &out, NS
     uint32_t ncmds = le32(data + 16);
     uint32_t sizeofcmds = le32(data + 20);
     if (cpu != 12 || filetype != 2 || ncmds > 65536 || 28 + sizeofcmds > len) {
-        if (error) *error = makeIpaError(21, @"対応する 32bit ARM 実行バイナリが含まれていません。");
+        if (error) *error = makeIpaError(21, NSLocalizedString(@"ipa_err_no_32bit_arm_binary", nil));
         return false;
     }
 
@@ -323,17 +334,17 @@ static bool parseArmSlice(const uint8_t *data, size_t len, ArmSliceInfo &out, NS
     out.hasMinimum = false;
     for (uint32_t i = 0; i < ncmds; i++) {
         if (cursor + 8 > 28 + sizeofcmds) {
-            if (error) *error = makeIpaError(22, @"Mach-O ロードコマンドが破損しています。");
+            if (error) *error = makeIpaError(22, NSLocalizedString(@"ipa_err_load_command_corrupt", nil));
             return false;
         }
         uint32_t cmd = le32(data + cursor);
         uint32_t cmdsize = le32(data + cursor + 4);
         if (cmdsize < 8 || cursor + cmdsize > 28 + sizeofcmds) {
-            if (error) *error = makeIpaError(22, @"Mach-O ロードコマンドが破損しています。");
+            if (error) *error = makeIpaError(22, NSLocalizedString(@"ipa_err_load_command_corrupt", nil));
             return false;
         }
         if (cmd == 0x21 && (cmdsize < 20 || le32(data + cursor + 16) != 0)) {
-            if (error) *error = makeIpaError(23, @"このアプリは FairPlay 暗号化されています。復号済みの IPA（cryptid = 0）を使用してください。");
+            if (error) *error = makeIpaError(23, NSLocalizedString(@"ipa_err_fairplay_encrypted", nil));
             return false;
         }
         bool havePacked = false;
@@ -343,7 +354,7 @@ static bool parseArmSlice(const uint8_t *data, size_t len, ArmSliceInfo &out, NS
             packed = le32(data + cursor + 8);
         } else if (cmd == 0x32 && cmdsize >= 16) {
             if (le32(data + cursor + 8) != 2) {
-                if (error) *error = makeIpaError(24, @"実行ファイルが iOS 以外のプラットフォーム向けです。");
+                if (error) *error = makeIpaError(24, NSLocalizedString(@"ipa_err_wrong_platform", nil));
                 return false;
             }
             havePacked = true;
@@ -365,13 +376,13 @@ static bool inspectArmSlices(const std::vector<uint8_t> &exeData,
                              std::vector<ArmSliceInfo> &slices,
                              NSError **error) {
     if (exeData.size() < 28) {
-        if (error) *error = makeIpaError(20, @"アプリの実行ファイルが途中で切れています。");
+        if (error) *error = makeIpaError(20, NSLocalizedString(@"ipa_err_binary_truncated", nil));
         return false;
     }
     if (be32(exeData.data()) == 0xCAFEBABEu) {
         uint32_t count = be32(exeData.data() + 4);
         if (count == 0 || count > 32 || exeData.size() < 8 + size_t(count) * 20) {
-            if (error) *error = makeIpaError(20, @"Universal Mach-O ヘッダが不正です。");
+            if (error) *error = makeIpaError(20, NSLocalizedString(@"ipa_err_universal_header_invalid", nil));
             return false;
         }
         for (uint32_t i = 0; i < count; i++) {
@@ -379,7 +390,7 @@ static bool inspectArmSlices(const std::vector<uint8_t> &exeData,
             uint32_t off = be32(exeData.data() + 16 + i * 20);
             uint32_t sz = be32(exeData.data() + 20 + i * 20);
             if (off < 8 + count * 20 || sz < 28 || uint64_t(off) + sz > exeData.size()) {
-                if (error) *error = makeIpaError(20, @"Universal Mach-O スライスが不正です。");
+                if (error) *error = makeIpaError(20, NSLocalizedString(@"ipa_err_universal_slice_invalid", nil));
                 return false;
             }
             if (cpu == 12) {
@@ -389,7 +400,7 @@ static bool inspectArmSlices(const std::vector<uint8_t> &exeData,
             }
         }
         if (slices.empty()) {
-            if (error) *error = makeIpaError(21, @"この IPA には対応する 32bit ARM スライスが含まれていません。");
+            if (error) *error = makeIpaError(21, NSLocalizedString(@"ipa_err_no_32bit_slice", nil));
             return false;
         }
         return true;
@@ -414,7 +425,7 @@ static IOSIpaInfo *prepareIpaFile(NSString *sourcePath,
     uint64_t unpackedTotal = 0;
     for (const auto &e : entries) unpackedTotal += e.size;
     if (unpackedTotal > kMaxUnpackedBytes) {
-        if (error) *error = makeIpaError(30, @"展開後サイズが上限（8 GB）を超えています。");
+        if (error) *error = makeIpaError(30, NSLocalizedString(@"ipa_err_uncompressed_over_8gb", nil));
         return nil;
     }
 
@@ -427,7 +438,7 @@ static IOSIpaInfo *prepareIpaFile(NSString *sourcePath,
             e.name.empty() || e.name[0] == '/' ||
             e.name.find('\\') != std::string::npos ||
             (e.flags & 1) != 0) {
-            if (error) *error = makeIpaError(31, @"IPA に重複・不正パス・暗号化エントリが含まれています。");
+            if (error) *error = makeIpaError(31, NSLocalizedString(@"ipa_err_duplicate_or_encrypted_paths", nil));
             return nil;
         }
         // Check path components for '..' and match Payload/<App>.app/Info.plist
@@ -437,7 +448,7 @@ static IOSIpaInfo *prepareIpaFile(NSString *sourcePath,
             size_t slash = e.name.find('/', pos);
             std::string comp = (slash == std::string::npos) ? e.name.substr(pos) : e.name.substr(pos, slash - pos);
             if (comp == "..") {
-                if (error) *error = makeIpaError(31, @"IPA に不正な相対パス（..）が含まれています。");
+                if (error) *error = makeIpaError(31, NSLocalizedString(@"ipa_err_invalid_relative_path", nil));
                 return nil;
             }
             parts.push_back(comp);
@@ -458,7 +469,7 @@ static IOSIpaInfo *prepareIpaFile(NSString *sourcePath,
                 link.find('\0') != std::string::npos || parts.size() < 3 ||
                 parts[0] != "Payload" || parts[1].size() <= 4 ||
                 parts[1].compare(parts[1].size() - 4, 4, ".app") != 0) {
-                if (error) *error = makeIpaError(31, @"IPA に安全でないシンボリックリンクが含まれています。");
+                if (error) *error = makeIpaError(31, NSLocalizedString(@"ipa_err_unsafe_symlink", nil));
                 return nil;
             }
             std::vector<std::string> resolved(parts.begin(), parts.end() - 1);
@@ -468,7 +479,7 @@ static IOSIpaInfo *prepareIpaFile(NSString *sourcePath,
                 std::string comp = (sl == std::string::npos) ? link.substr(lp) : link.substr(lp, sl - lp);
                 if (comp == "..") {
                     if (resolved.size() <= 2) {
-                        if (error) *error = makeIpaError(31, @"IPA 内のシンボリックリンクが .app 外を指しています。");
+                        if (error) *error = makeIpaError(31, NSLocalizedString(@"ipa_err_symlink_outside_app", nil));
                         return nil;
                     }
                     resolved.pop_back();
@@ -482,7 +493,7 @@ static IOSIpaInfo *prepareIpaFile(NSString *sourcePath,
     }
 
     if (infoCandidates != 1 || infoIndex < 0) {
-        if (error) *error = makeIpaError(32, @"Payload/*.app/Info.plist が 1 つだけ含まれる IPA を選択してください。");
+        if (error) *error = makeIpaError(32, NSLocalizedString(@"ipa_err_single_app_required", nil));
         return nil;
     }
 
@@ -491,7 +502,7 @@ static IOSIpaInfo *prepareIpaFile(NSString *sourcePath,
     NSData *infoNSData = [NSData dataWithBytesNoCopy:infoBytes.data() length:infoBytes.size() freeWhenDone:NO];
     id plistObj = [NSPropertyListSerialization propertyListWithData:infoNSData options:NSPropertyListImmutable format:NULL error:nil];
     if (![plistObj isKindOfClass:[NSDictionary class]]) {
-        if (error) *error = makeIpaError(33, @"Info.plist を解析できませんでした。");
+        if (error) *error = makeIpaError(33, NSLocalizedString(@"ipa_err_info_plist_parse_failed", nil));
         return nil;
     }
     NSDictionary *infoDict = (NSDictionary *)plistObj;
@@ -499,7 +510,7 @@ static IOSIpaInfo *prepareIpaFile(NSString *sourcePath,
     NSString *exeName = [infoDict[@"CFBundleExecutable"] isKindOfClass:[NSString class]] ? infoDict[@"CFBundleExecutable"] : nil;
     if (!bundleId.length || !exeName.length || [exeName containsString:@"/"] ||
         [exeName isEqualToString:@"."] || [exeName isEqualToString:@".."]) {
-        if (error) *error = makeIpaError(34, @"Info.plist のバンドル ID または実行ファイル名が不正です。");
+        if (error) *error = makeIpaError(34, NSLocalizedString(@"ipa_err_invalid_bundle_or_executable", nil));
         return nil;
     }
 
@@ -514,7 +525,7 @@ static IOSIpaInfo *prepareIpaFile(NSString *sourcePath,
         }
     }
     if (exeIndex < 0 || entries[size_t(exeIndex)].isSymlink()) {
-        if (error) *error = makeIpaError(35, @"アプリ内の実行ファイルが見つかりません。");
+        if (error) *error = makeIpaError(35, NSLocalizedString(@"ipa_err_executable_not_found", nil));
         return nil;
     }
 
@@ -540,7 +551,7 @@ static IOSIpaInfo *prepareIpaFile(NSString *sourcePath,
         }
     }
     if (!foundCompatSlice) {
-        if (error) *error = makeIpaError(36, [NSString stringWithFormat:@"このアプリは現在の仮想デバイス（%s）より新しい CPU を必要としています。", target.arch.c_str()]);
+        if (error) *error = makeIpaError(36, [NSString stringWithFormat:NSLocalizedString(@"ipa_err_newer_cpu_required", nil), target.arch.c_str()]);
         return nil;
     }
     for (const auto &sl : slices) {
@@ -576,7 +587,7 @@ static IOSIpaInfo *prepareIpaFile(NSString *sourcePath,
             }
         }
         if (!familyOk) {
-            if (error) *error = makeIpaError(39, @"このアプリは現在のデバイス種別（iPhone/iPad）向けではありません。");
+            if (error) *error = makeIpaError(39, NSLocalizedString(@"ipa_err_device_type_mismatch", nil));
             return nil;
         }
     }
@@ -591,14 +602,14 @@ static IOSIpaInfo *prepareIpaFile(NSString *sourcePath,
     [fm removeItemAtPath:destPath error:nil];
     NSError *copyErr = nil;
     if (![fm copyItemAtPath:sourcePath toPath:destPath error:&copyErr]) {
-        if (error) *error = makeIpaError(40, copyErr.localizedDescription ?: @"IPA の一時コピーに失敗しました。");
+        if (error) *error = makeIpaError(40, copyErr.localizedDescription ?: NSLocalizedString(@"ipa_err_temp_copy_failed", nil));
         return nil;
     }
 
     if ((exeMode & 0111) == 0) {
         FILE *outF = fopen(destPath.fileSystemRepresentation, "r+b");
         if (!outF) {
-            if (error) *error = makeIpaError(41, @"IPA の実行権限修復を開けませんでした。");
+            if (error) *error = makeIpaError(41, NSLocalizedString(@"ipa_err_permissions_repair_open_failed", nil));
             return nil;
         }
         uint8_t hostByte = 3; // Unix
@@ -614,7 +625,7 @@ static IOSIpaInfo *prepareIpaFile(NSString *sourcePath,
                    fflush(outF) == 0);
         fclose(outF);
         if (!ok) {
-            if (error) *error = makeIpaError(41, @"IPA の実行権限修復に失敗しました。");
+            if (error) *error = makeIpaError(41, NSLocalizedString(@"ipa_err_permissions_repair_failed", nil));
             return nil;
         }
     }
@@ -697,7 +708,7 @@ public:
         memcpy(frame.data(), &lenBe, 4);
         memcpy(frame.data() + 4, xml.bytes, xml.length);
         if (!writeAll(frame.data(), frame.size())) {
-            if (error) *error = makeIpaError(50, @"仮想デバイスへのコマンド送信に失敗しました。");
+            if (error) *error = makeIpaError(50, NSLocalizedString(@"ipa_err_send_command_failed", nil));
             return false;
         }
         return true;
@@ -706,23 +717,23 @@ public:
     NSDictionary *receivePlist(NSError **error) {
         uint32_t lenBe = 0;
         if (!readExact(&lenBe, 4)) {
-            if (error) *error = makeIpaError(51, @"仮想デバイスからの応答受信に失敗しました。");
+            if (error) *error = makeIpaError(51, NSLocalizedString(@"ipa_err_recv_response_failed", nil));
             return nil;
         }
         uint32_t len = ntohl(lenBe);
         if (len == 0 || len > (32u << 20)) {
-            if (error) *error = makeIpaError(51, @"仮想デバイスから不正な応答サイズを受信しました。");
+            if (error) *error = makeIpaError(51, NSLocalizedString(@"ipa_err_invalid_response_size", nil));
             return nil;
         }
         std::vector<uint8_t> body(len);
         if (!readExact(body.data(), len)) {
-            if (error) *error = makeIpaError(51, @"仮想デバイスからの応答データが途中で切れました。");
+            if (error) *error = makeIpaError(51, NSLocalizedString(@"ipa_err_response_truncated", nil));
             return nil;
         }
         NSData *nsd = [NSData dataWithBytesNoCopy:body.data() length:body.size() freeWhenDone:NO];
         id obj = [NSPropertyListSerialization propertyListWithData:nsd options:NSPropertyListImmutable format:NULL error:error];
         if (![obj isKindOfClass:[NSDictionary class]]) {
-            if (error && !*error) *error = makeIpaError(51, @"仮想デバイスからの応答が辞書形式ではありません。");
+            if (error && !*error) *error = makeIpaError(51, NSLocalizedString(@"ipa_err_response_not_dict", nil));
             return nil;
         }
         return (NSDictionary *)obj;
@@ -731,7 +742,7 @@ public:
     bool upgradeToTLS(NSData *hostCertPem, NSData *hostKeyPem, uint32_t iosMajor, NSError **error) {
         SSL_CTX *ctx = SSL_CTX_new(TLS_client_method());
         if (!ctx) {
-            if (error) *error = makeIpaError(52, @"TLS コンテキスト初期化に失敗しました。");
+            if (error) *error = makeIpaError(52, NSLocalizedString(@"ipa_err_tls_init_failed", nil));
             return false;
         }
         std::unique_ptr<SSL_CTX, decltype(&SSL_CTX_free)> ctxGuard(ctx, SSL_CTX_free);
@@ -757,14 +768,14 @@ public:
         if (cert) X509_free(cert);
         if (pkey) EVP_PKEY_free(pkey);
         if (!loaded) {
-            if (error) *error = makeIpaError(52, @"ペアリング証明書の読み込みに失敗しました。");
+            if (error) *error = makeIpaError(52, NSLocalizedString(@"ipa_err_pair_cert_read_failed", nil));
             return false;
         }
 
         SSL *s = SSL_new(ctx);
         if (!s || SSL_set_fd(s, fd) != 1 || SSL_connect(s) != 1) {
             if (s) SSL_free(s);
-            if (error) *error = makeIpaError(52, @"仮想デバイスとの TLS セッション確立に失敗しました。");
+            if (error) *error = makeIpaError(52, NSLocalizedString(@"ipa_err_tls_handshake_failed", nil));
             return false;
         }
         ssl = s;
@@ -856,7 +867,7 @@ static NSDictionary *generatePairRecord(NSData *devicePubKeyPem, NSString *hostI
     EvpKeyPtr rootKey = generateRsa2048();
     EvpKeyPtr hostKey = generateRsa2048();
     if (!rootKey || !hostKey) {
-        if (error) *error = makeIpaError(53, @"ペアリング用 RSA 鍵の生成に失敗しました。");
+        if (error) *error = makeIpaError(53, NSLocalizedString(@"ipa_err_pairing_rsa_gen_failed", nil));
         return nil;
     }
     BIO *dbio = BIO_new_mem_buf(devicePubKeyPem.bytes, int(devicePubKeyPem.length));
@@ -876,7 +887,7 @@ static NSDictionary *generatePairRecord(NSData *devicePubKeyPem, NSString *hostI
     if (dbio) BIO_free(dbio);
     EvpKeyPtr devKey(rawDev, EVP_PKEY_free);
     if (!devKey) {
-        if (error) *error = makeIpaError(53, @"デバイスの公開鍵を読み込めませんでした。");
+        if (error) *error = makeIpaError(53, NSLocalizedString(@"ipa_err_device_pubkey_read_failed", nil));
         return nil;
     }
 
@@ -889,7 +900,7 @@ static NSDictionary *generatePairRecord(NSData *devicePubKeyPem, NSString *hostI
     NSData *rootKeyPem = pkeyToPem(rootKey.get());
     NSData *hostKeyPem = pkeyToPem(hostKey.get());
     if (!rootPem || !hostPem || !devPem || !rootKeyPem || !hostKeyPem) {
-        if (error) *error = makeIpaError(53, @"ペアリング証明書の生成に失敗しました。");
+        if (error) *error = makeIpaError(53, NSLocalizedString(@"ipa_err_pair_cert_gen_failed", nil));
         return nil;
     }
 
@@ -918,8 +929,8 @@ static NSDictionary *lockdownRequest(GuestConn &conn, NSString *req, NSDictionar
         if (outErrName) *outErrName = errStr;
         if (error) {
             NSString *friendly = [errStr containsString:@"PairingDialogResponsePending"]
-                ? @"仮想 iPhone 画面に表示された「このコンピュータを信頼しますか？」で「信頼」をタップしてからもう一度お試しください。"
-                : [NSString stringWithFormat:@"%@ 失敗: %@", req, errStr];
+                ? NSLocalizedString(@"ipa_trust_prompt", nil)
+                : [NSString stringWithFormat:NSLocalizedString(@"ipa_status_failed_fmt", nil), req, errStr];
             *error = makeIpaError(54, friendly);
         }
         return nil;
@@ -941,7 +952,7 @@ static bool openLockdownSession(IOSUsbMuxBridge *bridge,
 
         NSDictionary *q = lockdownRequest(conn, @"QueryType", nil, nil, error);
         if (!q || ![q[@"Type"] isEqual:@"com.apple.mobile.lockdown"]) {
-            if (error && !*error) *error = makeIpaError(55, @"lockdownd の応答が不正です。");
+            if (error && !*error) *error = makeIpaError(55, NSLocalizedString(@"ipa_err_lockdown_resp_invalid", nil));
             return false;
         }
 
@@ -966,7 +977,7 @@ static bool openLockdownSession(IOSUsbMuxBridge *bridge,
             NSDictionary *pkR = lockdownRequest(conn, @"GetValue", @{@"Key": @"DevicePublicKey"}, nil, error);
             NSData *devPub = [pkR[@"Value"] isKindOfClass:[NSData class]] ? pkR[@"Value"] : nil;
             if (!devPub.length) {
-                if (error && !*error) *error = makeIpaError(56, @"デバイスの公開鍵を取得できませんでした。");
+                if (error && !*error) *error = makeIpaError(56, NSLocalizedString(@"ipa_err_device_pubkey_get_failed", nil));
                 return false;
             }
             NSDictionary *wifiR = lockdownRequest(conn, @"GetValue", @{@"Key": @"WiFiAddress"}, nil, nil);
@@ -997,7 +1008,7 @@ static bool openLockdownSession(IOSUsbMuxBridge *bridge,
                 if (pairReply) break;
                 if ([errName containsString:@"PairingDialogResponsePending"]) {
                     if (waitTrustBlock && !waitTrustBlock()) {
-                        if (error) *error = makeIpaError(102, @"キャンセルされました。");
+                        if (error) *error = makeIpaError(102, NSLocalizedString(@"ipa_cancelled", nil));
                         return false;
                     }
                     sleep(1);
@@ -1062,7 +1073,7 @@ static bool openLockdownSession(IOSUsbMuxBridge *bridge,
         NSString *product = [prodR[@"Value"] isKindOfClass:[NSString class]] ? prodR[@"Value"] : nil;
         NSString *iosVer = preVerStr.length > 0 ? preVerStr : ([verR[@"Value"] isKindOfClass:[NSString class]] ? verR[@"Value"] : nil);
         if (!product.length || !iosVer.length || !targetFromGuest(product.UTF8String, iosVer.UTF8String, outTarget)) {
-            if (error && !*error) *error = makeIpaError(55, @"ゲストデバイスの情報を取得できませんでした。iOS 起動後にお試しください。");
+            if (error && !*error) *error = makeIpaError(55, NSLocalizedString(@"ipa_err_guest_info_failed", nil));
             return false;
         }
 
@@ -1097,7 +1108,7 @@ static bool startLockdownService(IOSUsbMuxBridge *bridge,
         NSNumber *portNum = [reply[@"Port"] isKindOfClass:[NSNumber class]] ? reply[@"Port"] : nil;
         uint16_t port = portNum ? uint16_t([portNum unsignedIntValue]) : 0;
         if (!port) {
-            lastErr = makeIpaError(57, [NSString stringWithFormat:@"サービス %@ がポートを返しませんでした。", serviceName]);
+            lastErr = makeIpaError(57, [NSString stringWithFormat:NSLocalizedString(@"ipa_err_service_no_port", nil), serviceName]);
             continue;
         }
         int sfd = [bridge connectToGuestPort:port timeout:timeout error:&lastErr];
@@ -1111,7 +1122,7 @@ static bool startLockdownService(IOSUsbMuxBridge *bridge,
         outServiceConn = std::move(svc);
         return true;
     }
-    if (error) *error = lastErr ?: makeIpaError(57, [NSString stringWithFormat:@"%@ を起動できませんでした。", serviceName]);
+    if (error) *error = lastErr ?: makeIpaError(57, [NSString stringWithFormat:NSLocalizedString(@"ipa_status_launch_failed", nil), serviceName]);
     return false;
 }
 
@@ -1135,36 +1146,36 @@ public:
         appendLe64(hdr, op);
         if (args && argsLen) hdr.insert(hdr.end(), static_cast<const uint8_t *>(args), static_cast<const uint8_t *>(args) + argsLen);
         if (!conn.writeAll(hdr.data(), hdr.size()) || (payloadLen > 0 && !conn.writeAll(payload, payloadLen))) {
-            if (error) *error = makeIpaError(60, @"AFC データ送信に失敗しました。");
+            if (error) *error = makeIpaError(60, NSLocalizedString(@"ipa_err_afc_send_failed", nil));
             return false;
         }
 
         uint8_t rhead[40];
         if (!conn.readExact(rhead, 40) || memcmp(rhead, kMagic, 8) != 0) {
-            if (error) *error = makeIpaError(61, @"AFC からの応答ヘッダが不正です。");
+            if (error) *error = makeIpaError(61, NSLocalizedString(@"ipa_err_afc_resp_header_invalid", nil));
             return false;
         }
         uint64_t rEntire = le64FromPtr(rhead + 8);
         uint64_t rThis = le64FromPtr(rhead + 16);
         uint64_t rOp = le64FromPtr(rhead + 32);
         if (rEntire < 40 || rThis < 40 || rThis > rEntire || rEntire > (64ULL << 20)) {
-            if (error) *error = makeIpaError(61, @"AFC 応答サイズが不正です。");
+            if (error) *error = makeIpaError(61, NSLocalizedString(@"ipa_err_afc_resp_size_invalid", nil));
             return false;
         }
         std::vector<uint8_t> rArgs(size_t(rThis - 40));
         std::vector<uint8_t> rPayload(size_t(rEntire - rThis));
         if (!rArgs.empty() && !conn.readExact(rArgs.data(), rArgs.size())) {
-            if (error) *error = makeIpaError(61, @"AFC 引数データ受信に失敗しました。");
+            if (error) *error = makeIpaError(61, NSLocalizedString(@"ipa_err_afc_args_recv_failed", nil));
             return false;
         }
         if (!rPayload.empty() && !conn.readExact(rPayload.data(), rPayload.size())) {
-            if (error) *error = makeIpaError(61, @"AFC ペイロード受信に失敗しました。");
+            if (error) *error = makeIpaError(61, NSLocalizedString(@"ipa_err_afc_payload_recv_failed", nil));
             return false;
         }
         if (rOp == 0x01 /* OP_STATUS */) {
             uint64_t status = rArgs.size() >= 8 ? le64FromPtr(rArgs.data()) : 0;
             if (status != 0) {
-                if (error) *error = makeIpaError(62, [NSString stringWithFormat:@"AFC エラー (コード %llu)", status]);
+                if (error) *error = makeIpaError(62, [NSString stringWithFormat:NSLocalizedString(@"ipa_err_afc_code", nil), status]);
                 return false;
             }
         }
@@ -1192,7 +1203,7 @@ public:
                 return true;
             }
         }
-        if (error) *error = makeIpaError(63, @"ゲストの空き容量を取得できませんでした。");
+        if (error) *error = makeIpaError(63, NSLocalizedString(@"ipa_err_get_disk_space_failed", nil));
         return false;
     }
 
@@ -1221,7 +1232,7 @@ public:
         std::vector<uint8_t> rArgs;
         if (!call(0x0D /* OP_FILE_OPEN */, arg.data(), arg.size(), nullptr, 0, &op, &rArgs, nullptr, error)) return false;
         if (op != 0x0E || rArgs.size() < 8) {
-            if (error) *error = makeIpaError(64, @"ゲスト側でステージングファイルを開けませんでした。");
+            if (error) *error = makeIpaError(64, NSLocalizedString(@"ipa_err_open_staging_failed", nil));
             return false;
         }
         outHandle = le64FromPtr(rArgs.data());
@@ -1270,11 +1281,11 @@ public:
         };
 
         if (!ipaURL || !bridge || !stateDirPath.length) {
-            finish(nil, makeIpaError(100, @"IPA インストールの引数が不正です。"));
+            finish(nil, makeIpaError(100, NSLocalizedString(@"ipa_err_invalid_install_args", nil)));
             return;
         }
 
-        report(IOSIpaInstallStageConnecting, @"仮想デバイスへ接続中...", -1.0f);
+        report(IOSIpaInstallStageConnecting, NSLocalizedString(@"ipa_status_connecting", nil), -1.0f);
 
         BOOL secScoped = [ipaURL startAccessingSecurityScopedResource];
         NSString *localCopyDir = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"ipa-%@", [[NSUUID UUID] UUIDString]]];
@@ -1290,7 +1301,7 @@ public:
         NSError *err = nil;
         if (![fm copyItemAtURL:ipaURL toURL:[NSURL fileURLWithPath:sourceTempPath] error:&err]) {
             cleanupTemp();
-            finish(nil, makeIpaError(101, err.localizedDescription ?: @"選択した IPA ファイルを読み込めませんでした。"));
+            finish(nil, makeIpaError(101, err.localizedDescription ?: NSLocalizedString(@"ipa_err_read_selected_failed", nil)));
             return;
         }
 
@@ -1299,16 +1310,16 @@ public:
         NSDictionary *pairRecord = nil;
         GuestTarget target;
         if (!openLockdownSession(bridge, pairingPath, lockdown, &pairRecord, target, ^BOOL{
-            return report(IOSIpaInstallStageConnecting, @"仮想画面の「信頼」をタップしてください...", -1.0f);
+            return report(IOSIpaInstallStageConnecting, NSLocalizedString(@"ipa_status_waiting_trust", nil), -1.0f);
         }, &err)) {
             cleanupTemp();
             finish(nil, err);
             return;
         }
 
-        if (!report(IOSIpaInstallStagePreflight, @"IPA の互換性を確認中...", -1.0f)) {
+        if (!report(IOSIpaInstallStagePreflight, NSLocalizedString(@"ipa_status_checking_compat", nil), -1.0f)) {
             cleanupTemp();
-            finish(nil, makeIpaError(102, @"キャンセルされました。"));
+            finish(nil, makeIpaError(102, NSLocalizedString(@"ipa_cancelled", nil)));
             return;
         }
 
@@ -1338,7 +1349,7 @@ public:
         uint64_t needed = info.ipaBytes * 2 + (16ULL << 20);
         if (guestFree < needed) {
             cleanupTemp();
-            finish(nil, makeIpaError(103, [NSString stringWithFormat:@"仮想デバイスの空き容量が不足しています（必要: %llu MB / 空き: %llu MB）。",
+            finish(nil, makeIpaError(103, [NSString stringWithFormat:NSLocalizedString(@"ipa_err_disk_space_insufficient", nil),
                                            needed >> 20, guestFree >> 20]));
             return;
         }
@@ -1364,7 +1375,7 @@ public:
             afc.closeHandle(afcHandle);
             afc.removePath(remotePath);
             cleanupTemp();
-            finish(nil, makeIpaError(104, @"準備済み IPA を開けませんでした。"));
+            finish(nil, makeIpaError(104, NSLocalizedString(@"ipa_err_open_staged_failed", nil)));
             return;
         }
 
@@ -1386,7 +1397,7 @@ public:
             sent += n;
             float frac = info.ipaBytes > 0 ? float(double(sent) / double(info.ipaBytes)) : 0.0f;
             if (!report(IOSIpaInstallStageUploading,
-                        [NSString stringWithFormat:@"デバイスへ転送中 (%@)...", info.name], frac)) {
+                        [NSString stringWithFormat:NSLocalizedString(@"ipa_status_transferring", nil), info.name], frac)) {
                 cancelled = YES;
                 break;
             }
@@ -1396,7 +1407,7 @@ public:
         if (cancelled) {
             afc.removePath(remotePath);
             cleanupTemp();
-            finish(nil, makeIpaError(102, @"キャンセルされました。"));
+            finish(nil, makeIpaError(102, NSLocalizedString(@"ipa_cancelled", nil)));
             return;
         }
 
@@ -1409,7 +1420,7 @@ public:
             return;
         }
 
-        report(IOSIpaInstallStageSubmitted, [NSString stringWithFormat:@"%@ をインストール中...", info.name], -1.0f);
+        report(IOSIpaInstallStageSubmitted, [NSString stringWithFormat:NSLocalizedString(@"ipa_status_installing", nil), info.name], -1.0f);
         if (!instConn.sendPlist(@{
             @"Command": @"Install",
             @"PackagePath": [NSString stringWithUTF8String:remotePath.c_str()],
@@ -1439,17 +1450,17 @@ public:
             NSNumber *pctNum = [reply[@"PercentComplete"] isKindOfClass:[NSNumber class]] ? reply[@"PercentComplete"] : nil;
             float pct = pctNum ? float([pctNum doubleValue] / 100.0) : -1.0f;
             report(IOSIpaInstallStageInstalling,
-                   [NSString stringWithFormat:@"%@ をインストール中 (%@)...", info.name, status], pct);
+                   [NSString stringWithFormat:NSLocalizedString(@"ipa_status_installing_sub", nil), info.name, status], pct);
         }
 
         afc.removePath(remotePath);
         cleanupTemp();
         if (!installComplete) {
-            finish(nil, err ?: makeIpaError(105, @"インストール中に予期しない切断が発生しました。"));
+            finish(nil, err ?: makeIpaError(105, NSLocalizedString(@"ipa_err_unexpected_disconnect", nil)));
             return;
         }
 
-        report(IOSIpaInstallStageVerifying, @"インストール完了を確認中...", 1.0f);
+        report(IOSIpaInstallStageVerifying, NSLocalizedString(@"ipa_status_verifying_install", nil), 1.0f);
         GuestConn verifyConn;
         if (startLockdownService(bridge, lockdown, pairRecord, target, pairingPath,
                                  @"com.apple.mobile.installation_proxy", 60.0, verifyConn, nil)) {
@@ -1470,7 +1481,7 @@ public:
                     if (!st || [st isEqualToString:@"Complete"]) break;
                 }
                 if (!found) {
-                    finish(nil, makeIpaError(106, @"インストール完了応答がありましたがアプリ一覧に反映されませんでした。"));
+                    finish(nil, makeIpaError(106, NSLocalizedString(@"ipa_err_install_not_in_list", nil)));
                     return;
                 }
             }

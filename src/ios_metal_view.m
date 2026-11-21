@@ -1,3 +1,15 @@
+//
+// ClassicTouch - Native Classic iOS Emulator for Modern iOS & iPadOS
+//
+// Copyright (c) 2026 ClassicTouch Authors.
+// Based on LightTouch / LightTouchMac by Blake Lucas and Sam Henri Gold.
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; version 2 of the License.
+//
+
 #import "ios_metal_view.h"
 #import <simd/simd.h>
 #import <os/lock.h>
@@ -5,8 +17,8 @@
 #import <QuartzCore/QuartzCore.h>
 #import <IOSurface/IOSurfaceRef.h>
 
-#define IOS_METAL_TEX_SLOTS 6
-#define IOS_METAL_DIRECT_SLOTS 4
+#define IOS_METAL_TEX_SLOTS 8
+#define IOS_METAL_DIRECT_SLOTS 16
 
 typedef struct {
     IOSurfaceRef surf;
@@ -42,6 +54,9 @@ typedef struct {
     NSTimeInterval _lastFpsTime;
     NSUInteger _framesThisSecond;
     CGRect _cachedActiveRect;
+
+    UIPinchGestureRecognizer *_pinchGesture;
+    UIPanGestureRecognizer *_panGesture;
 }
 @property (nonatomic, assign, readwrite) double fps;
 @property (nonatomic, assign, readwrite) NSUInteger totalFramesRendered;
@@ -79,6 +94,10 @@ static const char *kShaderSource =
         _writeIdx = -1;
         atomic_init(&_frameSeq, 0);
         _presentedSeq = 0;
+        _zoomScale = 1.0f;
+        _panOffset = CGPointZero;
+        _zoomModeEnabled = NO;
+
         self.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
         self.framebufferOnly = YES;
         self.paused = NO;
@@ -98,8 +117,29 @@ static const char *kShaderSource =
             desc.colorAttachments[0].pixelFormat = self.colorPixelFormat;
             _pipelineState = [self.device newRenderPipelineStateWithDescriptor:desc error:&error];
         }
+
+        // UTM スタイルのピンチ＆パンジェスチャ登録
+        _pinchGesture = [[UIPinchGestureRecognizer alloc] initWithTarget:self action:@selector(handlePinchGesture:)];
+        _pinchGesture.delegate = self;
+        _pinchGesture.enabled = NO;
+        [self addGestureRecognizer:_pinchGesture];
+
+        _panGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePanGesture:)];
+        _panGesture.delegate = self;
+        _panGesture.enabled = NO;
+        _panGesture.minimumNumberOfTouches = 1;
+        _panGesture.maximumNumberOfTouches = 2;
+        [self addGestureRecognizer:_panGesture];
     }
     return self;
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
+    if ((gestureRecognizer == _pinchGesture && otherGestureRecognizer == _panGesture) ||
+        (gestureRecognizer == _panGesture && otherGestureRecognizer == _pinchGesture)) {
+        return YES;
+    }
+    return NO;
 }
 
 - (void)setDisplayRotationDegrees:(NSInteger)displayRotationDegrees {
@@ -110,6 +150,150 @@ static const char *kShaderSource =
     if (_displayRotationDegrees != norm) {
         _displayRotationDegrees = norm;
         _presentedSeq = 0;
+        [self clampPanOffset];
+        [self setNeedsDisplay];
+    }
+}
+
+- (void)setZoomModeEnabled:(BOOL)zoomModeEnabled {
+    _zoomModeEnabled = zoomModeEnabled;
+    _pinchGesture.enabled = zoomModeEnabled;
+    _panGesture.enabled = zoomModeEnabled;
+    if (!zoomModeEnabled) {
+        // 拡大モードをオフにすると強制的に等倍に戻る
+        [self resetZoom];
+    }
+}
+
+- (void)setZoomScale:(CGFloat)zoomScale {
+    if (zoomScale < 1.0f) zoomScale = 1.0f;
+    if (zoomScale > 6.0f) zoomScale = 6.0f;
+    if (fabs(_zoomScale - zoomScale) > 0.001f) {
+        _zoomScale = zoomScale;
+        [self clampPanOffset];
+        _presentedSeq = 0;
+        if (self.onZoomChanged) {
+            self.onZoomChanged(_zoomScale, _panOffset);
+        }
+        [self setNeedsDisplay];
+    }
+}
+
+- (void)setPanOffset:(CGPoint)panOffset {
+    _panOffset = panOffset;
+    [self clampPanOffset];
+    _presentedSeq = 0;
+    if (self.onZoomChanged) {
+        self.onZoomChanged(_zoomScale, _panOffset);
+    }
+    [self setNeedsDisplay];
+}
+
+- (void)resetZoom {
+    _zoomScale = 1.0f;
+    _panOffset = CGPointZero;
+    _presentedSeq = 0;
+    if (self.onZoomChanged) {
+        self.onZoomChanged(1.0f, CGPointZero);
+    }
+    [self setNeedsDisplay];
+}
+
+- (void)purgeTextureCaches {
+    os_unfair_lock_lock(&_texLock);
+    for (int i = 0; i < IOS_METAL_DIRECT_SLOTS; i++) {
+        if (_directCache[i].surf) {
+            CFRelease(_directCache[i].surf);
+            _directCache[i].surf = NULL;
+        }
+        _directCache[i].tex = nil;
+        _directCache[i].w = 0;
+        _directCache[i].h = 0;
+        _directCache[i].stamp = 0;
+    }
+    for (int i = 0; i < IOS_METAL_TEX_SLOTS; i++) {
+        _textures[i] = nil;
+        _texW[i] = 0;
+        _texH[i] = 0;
+        _inFlight[i] = false;
+    }
+    _directTex = nil;
+    _readyIdx = -1;
+    _drawIdx = -1;
+    _writeIdx = -1;
+    os_unfair_lock_unlock(&_texLock);
+}
+
+- (void)clampPanOffset {
+    if (_zoomScale <= 1.001f) {
+        _panOffset = CGPointZero;
+        return;
+    }
+    CGRect bounds = self.bounds;
+    if (bounds.size.width <= 0 || bounds.size.height <= 0) return;
+
+    os_unfair_lock_lock(&_texLock);
+    int tw = _latestW > 0 ? _latestW : 320;
+    int th = _latestH > 0 ? _latestH : 480;
+    os_unfair_lock_unlock(&_texLock);
+
+    NSInteger rot = _displayRotationDegrees;
+    BOOL swapped = (rot == 90 || rot == 270);
+    CGFloat dispW = swapped ? (CGFloat)th : (CGFloat)tw;
+    CGFloat dispH = swapped ? (CGFloat)tw : (CGFloat)th;
+    CGFloat guestAspect = dispW / dispH;
+    CGFloat viewAspect = bounds.size.width / bounds.size.height;
+
+    CGFloat baseW, baseH;
+    if (viewAspect > guestAspect) {
+        baseH = bounds.size.height;
+        baseW = baseH * guestAspect;
+    } else {
+        baseW = bounds.size.width;
+        baseH = baseW / guestAspect;
+    }
+
+    CGFloat scaledW = baseW * _zoomScale;
+    CGFloat scaledH = baseH * _zoomScale;
+
+    // 画面外への過度なスクロールを防ぎつつ端まで表示可能にする
+    CGFloat maxOffsetX = fmax(0.0, (scaledW - bounds.size.width) * 0.5 + 40.0);
+    CGFloat maxOffsetY = fmax(0.0, (scaledH - bounds.size.height) * 0.5 + 40.0);
+
+    _panOffset.x = fmin(fmax(_panOffset.x, -maxOffsetX), maxOffsetX);
+    _panOffset.y = fmin(fmax(_panOffset.y, -maxOffsetY), maxOffsetY);
+}
+
+- (void)handlePinchGesture:(UIPinchGestureRecognizer *)pinch {
+    if (!_zoomModeEnabled) return;
+    if (pinch.state == UIGestureRecognizerStateBegan || pinch.state == UIGestureRecognizerStateChanged) {
+        CGFloat targetScale = _zoomScale * pinch.scale;
+        if (targetScale < 1.0f) targetScale = 1.0f;
+        if (targetScale > 6.0f) targetScale = 6.0f;
+        _zoomScale = targetScale;
+        pinch.scale = 1.0f;
+        [self clampPanOffset];
+        _presentedSeq = 0;
+        if (self.onZoomChanged) {
+            self.onZoomChanged(_zoomScale, _panOffset);
+        }
+        [self setNeedsDisplay];
+    }
+}
+
+- (void)handlePanGesture:(UIPanGestureRecognizer *)pan {
+    if (!_zoomModeEnabled) return;
+    if (pan.state == UIGestureRecognizerStateBegan || pan.state == UIGestureRecognizerStateChanged) {
+        CGPoint translation = [pan translationInView:self];
+        _panOffset.x += translation.x;
+        _panOffset.y += translation.y;
+        [pan setTranslation:CGPointZero inView:self];
+        [self clampPanOffset];
+        _presentedSeq = 0;
+        if (self.onZoomChanged) {
+            self.onZoomChanged(_zoomScale, _panOffset);
+        }
+        [self setNeedsDisplay];
     }
 }
 
@@ -118,6 +302,7 @@ static const char *kShaderSource =
     CGSize sz = self.bounds.size;
     if (!CGSizeEqualToSize(sz, _lastLayoutSize)) {
         _lastLayoutSize = sz;
+        [self clampPanOffset];
         _presentedSeq = 0;
     }
 }
@@ -137,15 +322,24 @@ static const char *kShaderSource =
     CGFloat dispH = swapped ? (CGFloat)tw : (CGFloat)th;
     CGFloat guestAspect = dispW / dispH;
     CGFloat viewAspect = bounds.size.width / bounds.size.height;
+    
+    CGFloat baseW, baseH;
     if (viewAspect > guestAspect) {
-        CGFloat h = bounds.size.height;
-        CGFloat w = h * guestAspect;
-        return CGRectMake((bounds.size.width - w) * 0.5, 0.0, w, h);
+        baseH = bounds.size.height;
+        baseW = baseH * guestAspect;
     } else {
-        CGFloat w = bounds.size.width;
-        CGFloat h = w / guestAspect;
-        return CGRectMake(0.0, (bounds.size.height - h) * 0.5, w, h);
+        baseW = bounds.size.width;
+        baseH = baseW / guestAspect;
     }
+
+    CGFloat scale = (_zoomScale > 0.05f) ? _zoomScale : 1.0f;
+    CGFloat scaledW = baseW * scale;
+    CGFloat scaledH = baseH * scale;
+
+    CGFloat originX = (bounds.size.width - scaledW) * 0.5f + _panOffset.x;
+    CGFloat originY = (bounds.size.height - scaledH) * 0.5f + _panOffset.y;
+
+    return CGRectMake(originX, originY, scaledW, scaledH);
 }
 
 - (void)updateFramePixels:(const void *)bgraPixels width:(int)w height:(int)h stride:(int)stride {
@@ -288,27 +482,12 @@ static const char *kShaderSource =
             id<MTLDrawable> drawable = self.currentDrawable;
             if (pass && drawable) {
                 _presentedSeq = seq;
-                CGRect activeRect = bounds;
-                int tw = (int)tex.width;
-                int th = (int)tex.height;
-                NSInteger rot = _displayRotationDegrees;
-                BOOL swapped = (rot == 90 || rot == 270);
-                if (tw > 0 && th > 0) {
-                    CGFloat dispW = swapped ? (CGFloat)th : (CGFloat)tw;
-                    CGFloat dispH = swapped ? (CGFloat)tw : (CGFloat)th;
-                    CGFloat guestAspect = dispW / dispH;
-                    CGFloat viewAspect = bounds.size.width / bounds.size.height;
-                    if (viewAspect > guestAspect) {
-                        CGFloat h = bounds.size.height;
-                        CGFloat w = h * guestAspect;
-                        activeRect = CGRectMake((bounds.size.width - w) * 0.5, 0.0, w, h);
-                    } else {
-                        CGFloat w = bounds.size.width;
-                        CGFloat h = w / guestAspect;
-                        activeRect = CGRectMake(0.0, (bounds.size.height - h) * 0.5, w, h);
-                    }
+                CGRect activeRect = [self activeScreenRect];
+                if (activeRect.size.width <= 0 || activeRect.size.height <= 0) {
+                    activeRect = bounds;
                 }
                 _cachedActiveRect = activeRect;
+                NSInteger rot = _displayRotationDegrees;
 
                 float x0 = (float)(2.0 * activeRect.origin.x / bounds.size.width - 1.0);
                 float x1 = (float)(2.0 * (activeRect.origin.x + activeRect.size.width) / bounds.size.width - 1.0);
@@ -428,21 +607,37 @@ static const char *kShaderSource =
 }
 
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    if (_zoomModeEnabled) {
+        [super touchesBegan:touches withEvent:event];
+        return;
+    }
     [self.touchDelegate metalViewTouchesChanged:touches withEvent:event phase:0];
     [self dispatchTouchEvents:touches phase:0];
 }
 
 - (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    if (_zoomModeEnabled) {
+        [super touchesMoved:touches withEvent:event];
+        return;
+    }
     [self.touchDelegate metalViewTouchesChanged:touches withEvent:event phase:1];
     [self dispatchTouchEvents:touches phase:1];
 }
 
 - (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    if (_zoomModeEnabled) {
+        [super touchesEnded:touches withEvent:event];
+        return;
+    }
     [self.touchDelegate metalViewTouchesChanged:touches withEvent:event phase:2];
     [self dispatchTouchEvents:touches phase:2];
 }
 
 - (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    if (_zoomModeEnabled) {
+        [super touchesCancelled:touches withEvent:event];
+        return;
+    }
     [self.touchDelegate metalViewTouchesChanged:touches withEvent:event phase:2];
     [self dispatchTouchEvents:touches phase:2];
 }

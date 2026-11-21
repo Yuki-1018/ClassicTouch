@@ -13,21 +13,28 @@ ClassicTouch_FILES = \
 	src/main.m \
 	src/AppDelegate.m \
 	src/MainViewController.m \
+	src/SettingsViewController.m \
 	src/EmulatorViewController.m \
 	src/IPSWDownloader.m \
 	src/ios_audio_bridge.m \
 	src/ios_metal_view.m \
 	src/ios_motion_manager.m \
+	src/ios_network_proxy.mm \
+	src/ios_usb_mux.mm \
+	src/ios_ipa_installer.mm \
+	src/ios_guest_tools.m \
 	src/ios_jit_helper.c \
 	src/henge-brk.S
 
 ClassicTouch_CFLAGS = \
 	-O3 -mcpu=apple-a9 \
+	-std=c++17 \
 	-fobjc-arc \
 	-Wno-deprecated-declarations \
 	-Isrc \
 	-I$(SYSROOT)/include \
-	-Irefs/LightTouch/Portable/include
+	-Irefs/LightTouch/Portable/include \
+	-Irefs/LightTouch/Portable/network
 
 ClassicTouch_LDFLAGS = \
 	-L$(SYSROOT)/lib \
@@ -70,6 +77,9 @@ ClassicTouch_BUNDLE_RESOURCES = \
 	Info.plist \
 	Resources/firmware-catalog.json \
 	Resources/guest-tools \
+	Resources/Settings.bundle \
+	Resources/LICENSE.txt \
+	$(wildcard Resources/*.lproj) \
 	$(wildcard Resources/AppIcons/*.png)
 
 include $(THEOS_MAKE_PATH)/application.mk

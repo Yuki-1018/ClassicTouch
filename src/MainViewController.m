@@ -1,4 +1,16 @@
+//
+// ClassicTouch - Native Classic iOS Emulator for Modern iOS & iPadOS
+//
+// Copyright (c) 2026 ClassicTouch Authors.
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; version 2 of the License.
+//
+
 #import "MainViewController.h"
+#import "SettingsViewController.h"
 #import "EmulatorViewController.h"
 #import "IPSWDownloader.h"
 #import "ios_jit_helper.h"
@@ -33,6 +45,14 @@ extern int lighttouch_firmware_create_with_options(
 );
 extern const char *lighttouch_firmware_last_error(void);
 extern void lighttouch_firmware_free_string(char *s);
+
+static UIViewController *TopPresentedViewController(UIViewController *root) {
+    UIViewController *curr = root;
+    while (curr.presentedViewController) {
+        curr = curr.presentedViewController;
+    }
+    return curr;
+}
 
 #pragma mark - Models
 
@@ -223,6 +243,7 @@ extern void lighttouch_firmware_free_string(char *s);
 - (void)downloadCatalogIPSWForManagement:(CatalogEntry *)entry;
 - (void)promptFirmwareManagement:(id)sender;
 - (void)promptContainerNameForEntry:(CatalogEntry *)entry deviceTitle:(NSString *)deviceTitle;
+- (void)handleImportedIPSWFromURL:(NSURL *)url presentingViewController:(nullable UIViewController *)presenter completion:(nullable void(^)(void))completion;
 @property (nonatomic, strong) NSArray<CatalogEntry *> *catalogEntries;
 @end
 
@@ -241,7 +262,7 @@ extern void lighttouch_firmware_free_string(char *s);
         _container = container;
         _mainVC = mainVC;
         _containerIndex = index;
-        _cachedDiskUsageText = @"計算中...";
+        _cachedDiskUsageText = L(@"calculating");
     }
     return self;
 }
@@ -296,7 +317,7 @@ extern void lighttouch_firmware_free_string(char *s);
         UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:nil];
         cell.selectionStyle = UITableViewCellSelectionStyleNone;
         if (indexPath.row == 0) {
-            cell.textLabel.text = @"コンテナ ID";
+            cell.textLabel.text = L(@"container_id");
             cell.detailTextLabel.text = self.container.containerId ?: @"-";
             cell.detailTextLabel.font = [UIFont monospacedSystemFontOfSize:13.0 weight:UIFontWeightRegular];
             cell.selectionStyle = UITableViewCellSelectionStyleDefault;
@@ -310,14 +331,14 @@ extern void lighttouch_firmware_free_string(char *s);
                 ? [NSString stringWithFormat:@"%@ (%@)", [self.mainVC formattedOSVersion:self.container.version], self.container.build ?: @""]
                 : @"-";
         } else if (indexPath.row == 3) {
-            cell.textLabel.text = @"構成";
-            cell.detailTextLabel.text = [self.container.baseId hasSuffix:@"-jb"] ? @"Cydia入り" : @"標準";
+            cell.textLabel.text = L(@"configuration");
+            cell.detailTextLabel.text = [self.container.baseId hasSuffix:@"-jb"] ? L(@"with_cydia") : L(@"standard");
         } else if (indexPath.row == 4) {
             cell.textLabel.text = L(@"storage_used");
             cell.detailTextLabel.text = self.cachedDiskUsageText ?: @"-";
         } else {
             NSString *romType = [self.mainVC requiredBootromTypeForIdentifier:self.container.baseId];
-            cell.textLabel.text = [romType isEqualToString:@"s5l8720"] ? @"BootROM (S5L8720)" : @"BootROM (S5L8900)";
+            cell.textLabel.text = [romType isEqualToString:@"s5l8720"] ? L(@"bootrom_type_s5l8720") : L(@"bootrom_type_s5l8900");
             BOOL ok = [self.mainVC hasInstalledBootromForIdentifier:self.container.baseId];
             cell.detailTextLabel.text = ok ? L(@"installed") : L(@"not_installed");
             cell.detailTextLabel.textColor = ok ? [UIColor systemGreenColor] : [UIColor systemOrangeColor];
@@ -355,8 +376,8 @@ extern void lighttouch_firmware_free_string(char *s);
     if (indexPath.section == 0 && indexPath.row == 0) {
         if (self.container.containerId.length > 0) {
             [UIPasteboard generalPasteboard].string = self.container.containerId;
-            UIAlertController *copiedAlert = [UIAlertController alertControllerWithTitle:@"コピー完了"
-                                                                                 message:[NSString stringWithFormat:@"コンテナ ID をコピーしました:\n%@", self.container.containerId]
+            UIAlertController *copiedAlert = [UIAlertController alertControllerWithTitle:L(@"copied")
+                                                                                 message:[NSString stringWithFormat:L(@"copied_container_id_fmt"), self.container.containerId]
                                                                           preferredStyle:UIAlertControllerStyleAlert];
             [copiedAlert addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleCancel handler:nil]];
             [self presentViewController:copiedAlert animated:YES completion:nil];
@@ -473,7 +494,7 @@ extern void lighttouch_firmware_free_string(char *s);
         cell.selectionStyle = UITableViewCellSelectionStyleNone;
         NSString *romType = (indexPath.row == 0) ? @"s5l8900" : @"s5l8720";
         NSString *path = [self.mainVC pathForInstalledBootromType:romType];
-        cell.textLabel.text = (indexPath.row == 0) ? @"S5L8900 (iPhone 2G / iPod touch 1G)" : @"S5L8720 (iPod touch 2G)";
+        cell.textLabel.text = (indexPath.row == 0) ? L(@"bootrom_s5l8900_desc") : L(@"bootrom_s5l8720_desc");
         if (path) {
             unsigned long long sz = [[[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil] fileSize];
             cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ (%llu KB)", path.lastPathComponent, sz / 1024];
@@ -541,7 +562,7 @@ extern void lighttouch_firmware_free_string(char *s);
 
 @end
 
-@interface FirmwareManagementViewController : UITableViewController
+@interface FirmwareManagementViewController : UITableViewController <UIDocumentPickerDelegate>
 @property (nonatomic, weak) MainViewController *mainVC;
 @property (nonatomic, strong) NSArray<FirmwareFile *> *firmwares;
 @end
@@ -645,15 +666,15 @@ extern void lighttouch_firmware_free_string(char *s);
                                                                           message:L(@"download_catalog_device_msg")
                                                                    preferredStyle:UIAlertControllerStyleActionSheet];
     NSArray<NSDictionary<NSString *, NSString *> *> *devices = @[
-        @{@"title": @"iPhone 2G (iPhone OS 1.0〜3.1.3 / OS 1.xは要BootROM)", @"type": @"iPhone1,1"},
-        @{@"title": @"iPhone 3GS (iPhone OS 3.0〜iOS 6.1.6)", @"type": @"iPhone2,1"},
-        @{@"title": @"iPhone 4 (iOS 4.0〜7.1.2)", @"type": @"iPhone3,1"},
-        @{@"title": @"iPhone 5 (iOS 6.0〜10.3.4)", @"type": @"iPhone5,2"},
-        @{@"title": @"iPod touch 1G (iPhone OS 1.1〜3.1.3 / OS 1.xは要BootROM)", @"type": @"iPod1,1"},
-        @{@"title": @"iPod touch 2G (iPhone OS 2.1.1〜iOS 4.2.1 / 要BootROM)", @"type": @"iPod2,1"},
-        @{@"title": @"iPod touch 3G (iPhone OS 3.1.1〜iOS 5.1.1)", @"type": @"iPod3,1"},
-        @{@"title": @"iPod touch 4G (iOS 4.1〜6.1.6)", @"type": @"iPod4,1"},
-        @{@"title": @"iPad 第1世代 (iPhone OS 3.2〜iOS 5.1.1)", @"type": @"iPad1,1"}
+        @{@"title": L(@"device_iphone_2g_desc"), @"type": @"iPhone1,1"},
+        @{@"title": L(@"device_iphone_3gs_desc"), @"type": @"iPhone2,1"},
+        @{@"title": L(@"device_iphone_4_desc"), @"type": @"iPhone3,1"},
+        @{@"title": L(@"device_iphone_5_desc"), @"type": @"iPhone5,2"},
+        @{@"title": L(@"device_ipod_1g_desc"), @"type": @"iPod1,1"},
+        @{@"title": L(@"device_ipod_2g_desc"), @"type": @"iPod2,1"},
+        @{@"title": L(@"device_ipod_3g_desc"), @"type": @"iPod3,1"},
+        @{@"title": L(@"device_ipod_4g_desc"), @"type": @"iPod4,1"},
+        @{@"title": L(@"device_ipad_1g_desc"), @"type": @"iPad1,1"}
     ];
 
     for (NSDictionary<NSString *, NSString *> *d in devices) {
@@ -761,9 +782,14 @@ extern void lighttouch_firmware_free_string(char *s);
         if (indexPath.row == 0) {
             [self presentCatalogDownloadDevicePickerFromCell:[tableView cellForRowAtIndexPath:indexPath]];
         } else {
-            [self dismissViewControllerAnimated:YES completion:^{
-                [self.mainVC showDocumentPickerForIPSWForManagement:YES];
-            }];
+            NSArray *types = @[
+                [UTType typeWithFilenameExtension:@"ipsw"] ?: UTTypeData,
+                [UTType typeWithFilenameExtension:@"zip"] ?: UTTypeData
+            ];
+            UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:types asCopy:YES];
+            picker.delegate = self;
+            picker.allowsMultipleSelection = NO;
+            [self presentViewController:picker animated:YES completion:nil];
         }
         return;
     }
@@ -805,6 +831,17 @@ extern void lighttouch_firmware_free_string(char *s);
     [self presentViewController:sheet animated:YES completion:nil];
 }
 
+#pragma mark - UIDocumentPickerDelegate
+
+- (void)documentPicker:(UIDocumentPickerViewController *)controller didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
+    NSURL *url = urls.firstObject;
+    if (!url) return;
+    __weak typeof(self) weakSelf = self;
+    [self.mainVC handleImportedIPSWFromURL:url presentingViewController:self completion:^{
+        [weakSelf reloadFirmwares];
+    }];
+}
+
 @end
 
 static __weak MainViewController *sCurrentMainVC = nil;
@@ -833,42 +870,50 @@ static __weak MainViewController *sCurrentMainVC = nil;
     [super viewDidLoad];
     sCurrentMainVC = self;
     self.title = @"ClassicTouch";
-    self.navigationController.navigationBar.prefersLargeTitles = YES;
+    self.navigationController.navigationBar.prefersLargeTitles = NO;
+    self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeNever;
     self.view.backgroundColor = [UIColor systemGroupedBackgroundColor];
+
+    UINavigationBarAppearance *navAppearance = [[UINavigationBarAppearance alloc] init];
+    [navAppearance configureWithDefaultBackground];
+    navAppearance.backgroundEffect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemChromeMaterial];
+    navAppearance.titleTextAttributes = @{
+        NSFontAttributeName: [UIFont systemFontOfSize:17.0 weight:UIFontWeightBold],
+        NSForegroundColorAttributeName: [UIColor labelColor]
+    };
+    self.navigationController.navigationBar.standardAppearance = navAppearance;
+    self.navigationController.navigationBar.scrollEdgeAppearance = navAppearance;
+    self.navigationController.navigationBar.compactAppearance = navAppearance;
 
     _haptic = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleMedium];
     _notifyHaptic = [[UINotificationFeedbackGenerator alloc] init];
 
-    // Left Bar Button: Firmware (IPSW) Management with clear label + Reorder (Edit)
-    UIButton *fwNavBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-    UIButtonConfiguration *fwCfg = [UIButtonConfiguration plainButtonConfiguration];
-    fwCfg.image = [UIImage systemImageNamed:@"externaldrive" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:13.0 weight:UIImageSymbolWeightMedium]];
-    fwCfg.title = @"IPSW";
-    fwCfg.imagePadding = 4.0;
-    fwCfg.contentInsets = NSDirectionalEdgeInsetsMake(4.0, 4.0, 4.0, 4.0);
-    fwNavBtn.configuration = fwCfg;
-    fwNavBtn.accessibilityLabel = @"IPSW管理";
-    [fwNavBtn addTarget:self action:@selector(promptFirmwareManagement:) forControlEvents:UIControlEventTouchUpInside];
-    self.firmwareBtn = [[UIBarButtonItem alloc] initWithCustomView:fwNavBtn];
-    self.navigationItem.leftBarButtonItems = @[self.firmwareBtn, self.editButtonItem];
+    // Left Bar Button: Reorder (Edit)
+    self.navigationItem.leftBarButtonItem = self.editButtonItem;
 
-    // Right Bar Buttons: Add Device (+) and BootROM (ROM)
+    // Right Bar Buttons: Add Device (+) and Settings (Gear)
     UIButton *addNavBtn = [UIButton buttonWithType:UIButtonTypeSystem];
     UIButtonConfiguration *addCfg = [UIButtonConfiguration tintedButtonConfiguration];
     addCfg.image = [UIImage systemImageNamed:@"plus" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:13.0 weight:UIImageSymbolWeightBold]];
-    addCfg.title = @"作成";
+    addCfg.title = L(@"create");
     addCfg.imagePadding = 3.5;
     addCfg.cornerStyle = UIButtonConfigurationCornerStyleCapsule;
     addCfg.contentInsets = NSDirectionalEdgeInsetsMake(5.0, 10.0, 5.0, 10.0);
     addNavBtn.configuration = addCfg;
-    addNavBtn.accessibilityLabel = @"新規仮想マシンを作成";
+    addNavBtn.accessibilityLabel = L(@"create_new_vm");
     [addNavBtn addTarget:self action:@selector(presentDeviceCreationWizard:) forControlEvents:UIControlEventTouchUpInside];
     UIBarButtonItem *addBtn = [[UIBarButtonItem alloc] initWithCustomView:addNavBtn];
 
-    self.romNavButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    [self.romNavButton addTarget:self action:@selector(promptBootromManagement:) forControlEvents:UIControlEventTouchUpInside];
-    self.romBtn = [[UIBarButtonItem alloc] initWithCustomView:self.romNavButton];
-    self.navigationItem.rightBarButtonItems = @[addBtn, self.romBtn];
+    UIButton *settingsNavBtn = [UIButton buttonWithType:UIButtonTypeSystem];
+    UIButtonConfiguration *settingsCfg = [UIButtonConfiguration plainButtonConfiguration];
+    settingsCfg.image = [UIImage systemImageNamed:@"gearshape.fill" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:17.0 weight:UIImageSymbolWeightMedium]];
+    settingsCfg.contentInsets = NSDirectionalEdgeInsetsMake(6.0, 6.0, 6.0, 6.0);
+    settingsNavBtn.configuration = settingsCfg;
+    settingsNavBtn.accessibilityLabel = L(@"settings_title");
+    [settingsNavBtn addTarget:self action:@selector(openSettings:) forControlEvents:UIControlEventTouchUpInside];
+    UIBarButtonItem *settingsBtn = [[UIBarButtonItem alloc] initWithCustomView:settingsNavBtn];
+
+    self.navigationItem.rightBarButtonItems = @[addBtn, settingsBtn];
 
     self.containers = [NSMutableArray array];
     self.catalogEntries = @[];
@@ -955,10 +1000,10 @@ static __weak MainViewController *sCurrentMainVC = nil;
 
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     if (![defaults boolForKey:@"ClassicTouchShownInitialNotice_v1"]) {
-        UIAlertController *notice = [UIAlertController alertControllerWithTitle:@"ご利用前のご注意"
-                                                                        message:@"• コンテナの初回起動時は初期セットアップ処理のため失敗することがあります。その場合は再起動またはコンテナの再作成をお試しください。\n\n• StikDebug で JIT を有効化する際は、スクリプトに「universal.js」を使用してください。"
+        UIAlertController *notice = [UIAlertController alertControllerWithTitle:L(@"first_run_note_title")
+                                                                        message:L(@"first_run_note_msg")
                                                                  preferredStyle:UIAlertControllerStyleAlert];
-        [notice addAction:[UIAlertAction actionWithTitle:@"OK（今後は表示しない）" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        [notice addAction:[UIAlertAction actionWithTitle:L(@"ok_dont_show_again") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
             [defaults setBool:YES forKey:@"ClassicTouchShownInitialNotice_v1"];
             [defaults synchronize];
         }]];
@@ -1509,7 +1554,7 @@ static __weak MainViewController *sCurrentMainVC = nil;
     cfg.contentInsets = NSDirectionalEdgeInsetsMake(4.0, 4.0, 4.0, 4.0);
     cfg.baseForegroundColor = installed ? [UIColor systemGreenColor] : [UIColor systemOrangeColor];
     self.romNavButton.configuration = cfg;
-    self.romNavButton.accessibilityLabel = installed ? @"BootROM: 選択済み" : @"BootROM: 未選択";
+    self.romNavButton.accessibilityLabel = installed ? L(@"bootrom_selected") : L(@"bootrom_unselected");
 }
 
 #pragma mark - Device & OS Names
@@ -1525,15 +1570,15 @@ static __weak MainViewController *sCurrentMainVC = nil;
 }
 
 - (NSString *)humanReadableNameForId:(NSString *)sub {
-    if ([sub containsString:@"iPad1,1"] || [sub containsString:@"k48ap"]) return @"iPad (第1世代)";
-    if ([sub containsString:@"iPhone1,1"] || [sub containsString:@"m68ap"]) return @"iPhone (初代 2G)";
-    if ([sub containsString:@"iPhone2,1"] || [sub containsString:@"n88ap"]) return @"iPhone 3GS";
-    if ([sub containsString:@"iPhone3,1"] || [sub containsString:@"n90ap"]) return @"iPhone 4";
-    if ([sub containsString:@"iPhone5,2"] || [sub containsString:@"iPhone5,1"] || [sub containsString:@"n42ap"]) return @"iPhone 5";
-    if ([sub containsString:@"iPod1,1"] || [sub containsString:@"n45ap"]) return @"iPod touch (第1世代)";
-    if ([sub containsString:@"iPod2,1"] || [sub containsString:@"n72ap"]) return @"iPod touch (第2世代)";
-    if ([sub containsString:@"iPod3,1"] || [sub containsString:@"n18ap"]) return @"iPod touch (第3世代)";
-    if ([sub containsString:@"iPod4,1"] || [sub containsString:@"n81ap"]) return @"iPod touch (第4世代)";
+    if ([sub containsString:@"iPad1,1"] || [sub containsString:@"k48ap"]) return L(@"device_ipad_1g");
+    if ([sub containsString:@"iPhone1,1"] || [sub containsString:@"m68ap"]) return L(@"device_iphone_2g");
+    if ([sub containsString:@"iPhone2,1"] || [sub containsString:@"n88ap"]) return L(@"device_iphone_3gs");
+    if ([sub containsString:@"iPhone3,1"] || [sub containsString:@"n90ap"]) return L(@"device_iphone_4");
+    if ([sub containsString:@"iPhone5,2"] || [sub containsString:@"iPhone5,1"] || [sub containsString:@"n42ap"]) return L(@"device_iphone_5");
+    if ([sub containsString:@"iPod1,1"] || [sub containsString:@"n45ap"]) return L(@"device_ipod_1g");
+    if ([sub containsString:@"iPod2,1"] || [sub containsString:@"n72ap"]) return L(@"device_ipod_2g");
+    if ([sub containsString:@"iPod3,1"] || [sub containsString:@"n18ap"]) return L(@"device_ipod_3g");
+    if ([sub containsString:@"iPod4,1"] || [sub containsString:@"n81ap"]) return L(@"device_ipod_4g");
     return sub;
 }
 
@@ -1585,32 +1630,32 @@ static __weak MainViewController *sCurrentMainVC = nil;
 
 - (void)presentDeviceCreationWizardReady {
     // Step 1: Select Device Model
-    UIAlertController *deviceSelect = [UIAlertController alertControllerWithTitle:@"新規コンテナ作成: 端末の選択"
-                                                                          message:@"エミュレートするAppleデバイスを選択してください:"
+    UIAlertController *deviceSelect = [UIAlertController alertControllerWithTitle:L(@"wizard_select_device_title")
+                                                                          message:L(@"wizard_select_device_prompt")
                                                                    preferredStyle:UIAlertControllerStyleActionSheet];
 
     NSDictionary *devices = @{
-        @"iPhone 2G (iPhone OS 1.0〜3.1.3 / OS 1.xは要BootROM)": @"iPhone1,1",
-        @"iPhone 3GS (iPhone OS 3.0〜iOS 6.1.6)": @"iPhone2,1",
-        @"iPhone 4 (iOS 4.0〜7.1.2)": @"iPhone3,1",
-        @"iPhone 5 (iOS 6.0〜10.3.4)": @"iPhone5,2",
-        @"iPod touch 1G (iPhone OS 1.1〜3.1.3 / OS 1.xは要BootROM)": @"iPod1,1",
-        @"iPod touch 2G (iPhone OS 2.1.1〜iOS 4.2.1 / 要BootROM)": @"iPod2,1",
-        @"iPod touch 3G (iPhone OS 3.1.1〜iOS 5.1.1)": @"iPod3,1",
-        @"iPod touch 4G (iOS 4.1〜6.1.6)": @"iPod4,1",
-        @"iPad 第1世代 (iPhone OS 3.2〜iOS 5.1.1)": @"iPad1,1"
+        L(@"device_iphone_2g_desc"): @"iPhone1,1",
+        L(@"device_iphone_3gs_desc"): @"iPhone2,1",
+        L(@"device_iphone_4_desc"): @"iPhone3,1",
+        L(@"device_iphone_5_desc"): @"iPhone5,2",
+        L(@"device_ipod_1g_desc"): @"iPod1,1",
+        L(@"device_ipod_2g_desc"): @"iPod2,1",
+        L(@"device_ipod_3g_desc"): @"iPod3,1",
+        L(@"device_ipod_4g_desc"): @"iPod4,1",
+        L(@"device_ipad_1g_desc"): @"iPad1,1"
     };
 
     NSArray *deviceOrder = @[
-        @"iPhone 2G (iPhone OS 1.0〜3.1.3 / OS 1.xは要BootROM)",
-        @"iPhone 3GS (iPhone OS 3.0〜iOS 6.1.6)",
-        @"iPhone 4 (iOS 4.0〜7.1.2)",
-        @"iPhone 5 (iOS 6.0〜10.3.4)",
-        @"iPod touch 1G (iPhone OS 1.1〜3.1.3 / OS 1.xは要BootROM)",
-        @"iPod touch 2G (iPhone OS 2.1.1〜iOS 4.2.1 / 要BootROM)",
-        @"iPod touch 3G (iPhone OS 3.1.1〜iOS 5.1.1)",
-        @"iPod touch 4G (iOS 4.1〜6.1.6)",
-        @"iPad 第1世代 (iPhone OS 3.2〜iOS 5.1.1)"
+        L(@"device_iphone_2g_desc"),
+        L(@"device_iphone_3gs_desc"),
+        L(@"device_iphone_4_desc"),
+        L(@"device_iphone_5_desc"),
+        L(@"device_ipod_1g_desc"),
+        L(@"device_ipod_2g_desc"),
+        L(@"device_ipod_3g_desc"),
+        L(@"device_ipod_4g_desc"),
+        L(@"device_ipad_1g_desc")
     ];
 
     for (NSString *title in deviceOrder) {
@@ -1620,11 +1665,11 @@ static __weak MainViewController *sCurrentMainVC = nil;
         }]];
     }
 
-    [deviceSelect addAction:[UIAlertAction actionWithTitle:@"ローカルIPSWファイルを選択..." style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+    [deviceSelect addAction:[UIAlertAction actionWithTitle:L(@"select_local_ipsw") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         [self showDocumentPickerForIPSW];
     }]];
 
-    [deviceSelect addAction:[UIAlertAction actionWithTitle:@"キャンセル" style:UIAlertActionStyleCancel handler:nil]];
+    [deviceSelect addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
 
     if (deviceSelect.popoverPresentationController) {
         deviceSelect.popoverPresentationController.barButtonItem = self.navigationItem.rightBarButtonItems.firstObject;
@@ -1641,8 +1686,8 @@ static __weak MainViewController *sCurrentMainVC = nil;
         }
     }
 
-    UIAlertController *versionSelect = [UIAlertController alertControllerWithTitle:@"OSバージョンの選択"
-                                                                           message:[NSString stringWithFormat:@"%@\nインストールするiOSバージョンを選択してください:", deviceTitle]
+    UIAlertController *versionSelect = [UIAlertController alertControllerWithTitle:L(@"wizard_select_os_title")
+                                                                           message:[NSString stringWithFormat:L(@"wizard_select_os_prompt_fmt"), deviceTitle]
                                                                     preferredStyle:UIAlertControllerStyleActionSheet];
 
     for (CatalogEntry *ce in filtered) {
@@ -1653,13 +1698,13 @@ static __weak MainViewController *sCurrentMainVC = nil;
 
         NSString *tag = @"";
         if (baseExists && jbExists) {
-            tag = @" [準備済み / Cydia]";
+            tag = L(@"tag_ready_cydia");
         } else if (jbExists) {
-            tag = @" [Cydia準備済み]";
+            tag = L(@"tag_cydia_ready");
         } else if (baseExists) {
-            tag = @" [準備済み]";
+            tag = L(@"tag_ready");
         } else if (localIPSW) {
-            tag = @" [取得済み]";
+            tag = L(@"tag_downloaded");
         } else {
             tag = [NSString stringWithFormat:@" (%.0f MB)", (double)ce.bytes / (1024.0 * 1024.0)];
         }
@@ -1670,10 +1715,10 @@ static __weak MainViewController *sCurrentMainVC = nil;
         }]];
     }
 
-    [versionSelect addAction:[UIAlertAction actionWithTitle:@"機種選択に戻る" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+    [versionSelect addAction:[UIAlertAction actionWithTitle:L(@"back_to_device_select") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         [self presentDeviceCreationWizard:nil];
     }]];
-    [versionSelect addAction:[UIAlertAction actionWithTitle:@"キャンセル" style:UIAlertActionStyleCancel handler:nil]];
+    [versionSelect addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
     if (versionSelect.popoverPresentationController) {
         versionSelect.popoverPresentationController.barButtonItem = self.navigationItem.rightBarButtonItems.firstObject;
     }
@@ -1688,12 +1733,12 @@ static __weak MainViewController *sCurrentMainVC = nil;
 
     BOOL isIPhone5 = ([entry.productType isEqualToString:@"iPhone5,2"] || [entry.entryId containsString:@"n42ap"]);
     NSString *msg = canCydia
-        ? @"名前を入力し、構成を選択してください（名前はあとで変更できます）。\n※「Cydia入り」は脱獄環境・ツール追加向けで、初回のみ約10MBの追加データを使用します。"
+        ? L(@"wizard_name_config_prompt_cydia")
         : (isIPhone5
-            ? @"仮想マシンの名前を入力してください（あとから変更できます）。\n※ IPAインストールは全バージョン（iOS 6.0〜10.3.4）で起動後メニューから利用可能です（Cydia脱獄構築は iOS 6.0〜6.1.4 で対応）。"
-            : @"仮想マシンの名前を入力してください（あとから変更できます）:");
+            ? L(@"wizard_name_config_prompt_n42")
+            : L(@"wizard_name_config_prompt_default"));
 
-    UIAlertController *namePrompt = [UIAlertController alertControllerWithTitle:@"仮想マシンの名前と構成"
+    UIAlertController *namePrompt = [UIAlertController alertControllerWithTitle:L(@"wizard_name_config_title")
                                                                         message:msg
                                                                  preferredStyle:UIAlertControllerStyleAlert];
 
@@ -1703,9 +1748,9 @@ static __weak MainViewController *sCurrentMainVC = nil;
     }];
 
     if (canCydia) {
-        NSString *stockTitle = [self hasPreparedBaseForEntryId:entry.entryId] ? @"標準で作成 [準備済み]" : @"標準で作成（おすすめ）";
+        NSString *stockTitle = [self hasPreparedBaseForEntryId:entry.entryId] ? L(@"btn_create_standard_ready") : L(@"btn_create_standard_rec");
         NSString *jbId = [NSString stringWithFormat:@"%@-jb", entry.entryId];
-        NSString *jbTitle = [self hasPreparedBaseForEntryId:jbId] ? @"Cydia入りで作成 [準備済み]" : @"Cydia入りで作成（脱獄）";
+        NSString *jbTitle = [self hasPreparedBaseForEntryId:jbId] ? L(@"btn_create_cydia_ready") : L(@"btn_create_cydia_jb");
 
         [namePrompt addAction:[UIAlertAction actionWithTitle:jbTitle style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
             UITextField *tf = namePrompt.textFields.firstObject;
@@ -1718,14 +1763,14 @@ static __weak MainViewController *sCurrentMainVC = nil;
             [self executeContainerCreationForEntry:entry containerName:chosenName installCydia:NO];
         }]];
     } else {
-        [namePrompt addAction:[UIAlertAction actionWithTitle:@"作成" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        [namePrompt addAction:[UIAlertAction actionWithTitle:L(@"create") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
             UITextField *tf = namePrompt.textFields.firstObject;
             NSString *chosenName = tf.text.length > 0 ? tf.text : defaultName;
             [self executeContainerCreationForEntry:entry containerName:chosenName installCydia:NO];
         }]];
     }
 
-    [namePrompt addAction:[UIAlertAction actionWithTitle:@"キャンセル" style:UIAlertActionStyleCancel handler:nil]];
+    [namePrompt addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
     [self presentViewController:namePrompt animated:YES completion:nil];
 }
 
@@ -1902,7 +1947,7 @@ static __weak MainViewController *sCurrentMainVC = nil;
                       (double)downloader.lastTotalBytesExpected / 1048576.0,
                       downloader.lastSpeedMBs];
         }
-        [self showProgress:[NSString stringWithFormat:@"ダウンロード中: %@", title] detail:detail];
+        [self showProgress:[NSString stringWithFormat:L(@"downloading_fmt"), title] detail:detail];
         self.cancelButton.hidden = NO;
         self.progressBar.progress = (float)downloader.lastFractionCompleted;
         [self attachToActiveBackgroundDownload];
@@ -1912,7 +1957,7 @@ static __weak MainViewController *sCurrentMainVC = nil;
 - (void)startIPSWDownloadForEntry:(CatalogEntry *)entry metadata:(NSDictionary *)metadata {
     [_haptic impactOccurred];
     NSString *title = [NSString stringWithFormat:@"%@ (%@)", [self humanReadableNameForId:entry.productType], [self formattedOSVersion:entry.version]];
-    [self showProgress:[NSString stringWithFormat:@"ダウンロード中: %@", [self formattedOSVersion:entry.version]]
+    [self showProgress:[NSString stringWithFormat:L(@"downloading_fmt"), [self formattedOSVersion:entry.version]]
                 detail:L(@"ipsw_bg_connecting_detail")];
     self.cancelButton.hidden = NO;
 
@@ -2016,19 +2061,19 @@ static void firmware_progress_callback(int pct, const char *step_name) {
 
     NSString *localized = step;
     if ([step hasPrefix:@"Verifying IPSW"] || [step hasPrefix:@"Checking"]) {
-        localized = @"IPSW ファイルを検証中...";
+        localized = L(@"ipsw_verifying");
     } else if ([step hasPrefix:@"Decrypting"]) {
-        localized = @"ファームウェアを展開・復号中...";
+        localized = L(@"ipsw_extracting");
     } else if ([step hasPrefix:@"Writing the identity"]) {
-        localized = @"個体情報・ブートイメージを作成中...";
+        localized = L(@"ipsw_creating_boot_img");
     } else if ([step hasPrefix:@"Building the system"] || [step hasPrefix:@"Building the filesystem"]) {
-        localized = @"システム・データ領域を構築中...";
+        localized = L(@"ipsw_building_sys_data");
     } else if ([step hasPrefix:@"Writing the NAND"] || [step hasPrefix:@"Storing"] || [step hasPrefix:@"Packing"]) {
-        localized = @"NAND ストレージイメージを書き込み中...";
+        localized = L(@"ipsw_writing_nand");
     } else if ([step hasPrefix:@"Creating the data-protection"]) {
-        localized = @"データ保護 Keybag を準備中...";
+        localized = L(@"ipsw_preparing_keybag");
     } else if ([step hasPrefix:@"Sealing"]) {
-        localized = @"ファイルシステムを最終検証中...";
+        localized = L(@"ipsw_validating_fs");
     }
     self.progressDetailLabel.text = [NSString stringWithFormat:@"%@ (%d%%)", localized, pct];
 }
@@ -2040,19 +2085,19 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     }
     if (ipswURL.path.length == 0 || ![[NSFileManager defaultManager] fileExistsAtPath:ipswURL.path]) {
         [_notifyHaptic notificationOccurred:UINotificationFeedbackTypeError];
-        NSString *msg = [NSString stringWithFormat:@"ファームウェア構築エラー (コード: -3)\n\n【エラー詳細】\nIPSWファイルが見つかりません:\n%@", ipswURL.path ?: @"(null)"];
-        UIAlertController *fail = [UIAlertController alertControllerWithTitle:@"ストレージ構築失敗"
+        NSString *msg = [NSString stringWithFormat:L(@"firmware_err_ipsw_not_found_fmt"), ipswURL.path ?: @"(null)"];
+        UIAlertController *fail = [UIAlertController alertControllerWithTitle:L(@"storage_build_failed")
                                                                       message:msg
                                                                preferredStyle:UIAlertControllerStyleAlert];
-        [fail addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+        [fail addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
         [self presentViewController:fail animated:YES completion:nil];
         return;
     }
 
     self.isPreparingBase = YES;
     NSString *baseId = installCydia ? [NSString stringWithFormat:@"%@-jb", entry.entryId] : entry.entryId;
-    NSString *progressTitle = installCydia ? @"デバイスストレージを構築中 (Cydia入り)..." : @"デバイスストレージを構築中...";
-    [self showProgress:progressTitle detail:@"ルートファイルシステムの復号・NANDフォーマット..."];
+    NSString *progressTitle = installCydia ? L(@"building_device_storage_cydia") : L(@"building_device_storage");
+    [self showProgress:progressTitle detail:L(@"decrypting_rootfs_nand")];
     self.cancelButton.hidden = YES;
     self.progressBar.progress = 0.0f;
 
@@ -2091,13 +2136,13 @@ static void firmware_progress_callback(int pct, const char *step_name) {
             } else {
                 [self->_notifyHaptic notificationOccurred:UINotificationFeedbackTypeError];
                 const char *lastErr = lighttouch_firmware_last_error();
-                NSString *detailMsg = (lastErr && strlen(lastErr) > 0) ? [NSString stringWithUTF8String:lastErr] : @"詳細不明のエラー";
+                NSString *detailMsg = (lastErr && strlen(lastErr) > 0) ? [NSString stringWithUTF8String:lastErr] : L(@"unknown_error_details");
 
-                NSString *fullMsg = [NSString stringWithFormat:@"ファームウェア構築エラー (コード: %d)\n\n【エラー詳細】\n%@", ret, detailMsg];
-                UIAlertController *fail = [UIAlertController alertControllerWithTitle:@"ストレージ構築失敗"
+                NSString *fullMsg = [NSString stringWithFormat:L(@"firmware_build_err_fmt"), ret, detailMsg];
+                UIAlertController *fail = [UIAlertController alertControllerWithTitle:L(@"storage_build_failed")
                                                                               message:fullMsg
                                                                        preferredStyle:UIAlertControllerStyleAlert];
-                [fail addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+                [fail addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
                 [self presentViewController:fail animated:YES completion:nil];
             }
         });
@@ -2124,13 +2169,13 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     [self->_notifyHaptic notificationOccurred:UINotificationFeedbackTypeSuccess];
     [self scanContainers];
 
-    UIAlertController *done = [UIAlertController alertControllerWithTitle:@"コンテナ作成完了！"
-                                                                  message:[NSString stringWithFormat:@"仮想マシン「%@」が準備完了しました。", name]
+    UIAlertController *done = [UIAlertController alertControllerWithTitle:L(@"container_created_title")
+                                                                  message:[NSString stringWithFormat:L(@"container_ready_msg_fmt"), name]
                                                            preferredStyle:UIAlertControllerStyleAlert];
-    [done addAction:[UIAlertAction actionWithTitle:@"今すぐ起動" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+    [done addAction:[UIAlertAction actionWithTitle:L(@"boot_now") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         [self bootContainer:c];
     }]];
-    [done addAction:[UIAlertAction actionWithTitle:@"完了" style:UIAlertActionStyleCancel handler:nil]];
+    [done addAction:[UIAlertAction actionWithTitle:L(@"done") style:UIAlertActionStyleCancel handler:nil]];
     [self presentViewController:done animated:YES completion:nil];
 }
 
@@ -2147,17 +2192,38 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     return matches;
 }
 
-- (void)promptFirmwareManagement:(id)sender {
+- (void)openSettings:(id)sender {
     [_haptic impactOccurred];
+    SettingsViewController *settingsVC = [[SettingsViewController alloc] initWithMainViewController:self];
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:settingsVC];
+    nav.modalPresentationStyle = UIModalPresentationFormSheet;
+    [self presentViewController:nav animated:YES completion:nil];
+}
+
+- (void)promptFirmwareManagement:(id)sender {
+    [self promptFirmwareManagementFromViewController:nil];
+}
+
+- (void)promptFirmwareManagementFromViewController:(nullable UIViewController *)vc {
+    [_haptic impactOccurred];
+    UIViewController *presenter = vc ?: self;
     __weak typeof(self) weakSelf = self;
     [self ensureCatalogLoadedThen:^{
         __strong typeof(weakSelf) s = weakSelf;
         if (!s) return;
-        FirmwareManagementViewController *vc = [[FirmwareManagementViewController alloc] initWithMainVC:s];
-        UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
+        FirmwareManagementViewController *fwVC = [[FirmwareManagementViewController alloc] initWithMainVC:s];
+        UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:fwVC];
         nav.modalPresentationStyle = UIModalPresentationPageSheet;
-        [s presentViewController:nav animated:YES completion:nil];
+        [presenter presentViewController:nav animated:YES completion:nil];
     }];
+}
+
+- (NSUInteger)installedFirmwareCount {
+    return [self scanDownloadedFirmwares].count;
+}
+
+- (NSUInteger)installedBootromCount {
+    return [self scanInstalledBootromsFromDisk].count;
 }
 
 - (void)promptFirmwareActionsForFile:(FirmwareFile *)file {
@@ -2169,16 +2235,16 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     }
 
     NSString *useDetail = usedBy.count > 0
-        ? [NSString stringWithFormat:@"使用中のコンテナ (%lu件): %@", (unsigned long)usedBy.count, [usedNames componentsJoinedByString:@"、"]]
-        : @"使用中のコンテナ: なし（削除可能）";
+        ? [NSString stringWithFormat:L(@"ipsw_in_use_fmt"), (unsigned long)usedBy.count, [usedNames componentsJoinedByString:L(@"comma_separator")]]
+        : L(@"ipsw_in_use_none");
 
-    NSString *msg = [NSString stringWithFormat:@"ファイル: %@\n容量: %.1f MB\n%@", file.fileName, (double)file.fileSizeBytes / (1024.0 * 1024.0), useDetail];
+    NSString *msg = [NSString stringWithFormat:L(@"ipsw_detail_fmt"), file.fileName, (double)file.fileSizeBytes / (1024.0 * 1024.0), useDetail];
 
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:cleanName
                                                                    message:msg
                                                             preferredStyle:UIAlertControllerStyleActionSheet];
 
-    [alert addAction:[UIAlertAction actionWithTitle:@"このIPSWから新規コンテナを作成..." style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+    [alert addAction:[UIAlertAction actionWithTitle:L(@"create_container_from_ipsw") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         CatalogEntry *ce = nil;
         for (CatalogEntry *c in self.catalogEntries) {
             if ([c.entryId isEqualToString:file.entryId]) {
@@ -2197,15 +2263,15 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     }]];
 
     if (usedBy.count > 0) {
-        [alert addAction:[UIAlertAction actionWithTitle:@"使用中のため削除不可" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-            UIAlertController *blocked = [UIAlertController alertControllerWithTitle:@"削除できません"
-                                                                             message:[NSString stringWithFormat:@"このファームウェアは以下のコンテナで使用されています:\n%@\n\n先に対象のコンテナを削除してから再度お試しください。", [usedNames componentsJoinedByString:@"\n"]]
+        [alert addAction:[UIAlertAction actionWithTitle:L(@"cannot_delete_in_use") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            UIAlertController *blocked = [UIAlertController alertControllerWithTitle:L(@"cannot_delete")
+                                                                             message:[NSString stringWithFormat:L(@"ipsw_in_use_details_fmt"), [usedNames componentsJoinedByString:@"\n"]]
                                                                       preferredStyle:UIAlertControllerStyleAlert];
-            [blocked addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+            [blocked addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
             [self presentViewController:blocked animated:YES completion:nil];
         }]];
     } else {
-        [alert addAction:[UIAlertAction actionWithTitle:@"このIPSWファイルを削除 (空き容量を解放)" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+        [alert addAction:[UIAlertAction actionWithTitle:L(@"delete_ipsw_free_space") style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
             NSFileManager *fm = [NSFileManager defaultManager];
             [fm removeItemAtPath:file.filePath error:nil];
             if (file.fileName.length > 0) {
@@ -2216,7 +2282,7 @@ static void firmware_progress_callback(int pct, const char *step_name) {
         }]];
     }
 
-    [alert addAction:[UIAlertAction actionWithTitle:@"キャンセル" style:UIAlertActionStyleCancel handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
     if (alert.popoverPresentationController) {
         alert.popoverPresentationController.barButtonItem = self.navigationItem.leftBarButtonItem;
     }
@@ -2239,17 +2305,22 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:types asCopy:YES];
     picker.delegate = self;
     picker.allowsMultipleSelection = NO;
-    [self presentViewController:picker animated:YES completion:nil];
+    [TopPresentedViewController(self) presentViewController:picker animated:YES completion:nil];
 }
 
 #pragma mark - BootROM Management
 
 - (void)promptBootromManagement:(id)sender {
+    [self promptBootromManagementFromViewController:nil];
+}
+
+- (void)promptBootromManagementFromViewController:(nullable UIViewController *)vc {
     [_haptic impactOccurred];
-    BootromViewController *vc = [[BootromViewController alloc] initWithMainVC:self];
-    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
+    UIViewController *presenter = vc ?: self;
+    BootromViewController *bVC = [[BootromViewController alloc] initWithMainVC:self];
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:bVC];
     nav.modalPresentationStyle = UIModalPresentationPageSheet;
-    [self presentViewController:nav animated:YES completion:nil];
+    [presenter presentViewController:nav animated:YES completion:nil];
 }
 
 - (void)showBootromPicker {
@@ -2259,7 +2330,7 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:types asCopy:YES];
     picker.delegate = self;
     picker.allowsMultipleSelection = NO;
-    [self presentViewController:picker animated:YES completion:nil];
+    [TopPresentedViewController(self) presentViewController:picker animated:YES completion:nil];
 }
 
 - (void)installImportedBootromFromURL:(NSURL *)url
@@ -2319,22 +2390,22 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     ClassicBootromSoC kind = ClassicClassifyBootromFile(url.path, nil);
 
     if (kind == ClassicBootromSoCS5L8900) {
-        [self installImportedBootromFromURL:url targetName:@"bootrom_s5l8900" romLabel:@"S5L8900 (iPhone 2G / iPod touch 1G)" size:sz];
+        [self installImportedBootromFromURL:url targetName:@"bootrom_s5l8900" romLabel:L(@"bootrom_s5l8900_desc") size:sz];
         return;
     }
     if (kind == ClassicBootromSoCS5L8720) {
-        [self installImportedBootromFromURL:url targetName:@"bootrom_240_4" romLabel:@"S5L8720 iBoot-240.4 (iPod touch 2G)" size:sz];
+        [self installImportedBootromFromURL:url targetName:@"bootrom_240_4" romLabel:L(@"bootrom_s5l8720_desc") size:sz];
         return;
     }
     if (kind == ClassicBootromSoCAmbiguous) {
-        UIAlertController *pick = [UIAlertController alertControllerWithTitle:@"BootROM の種類を選択"
-                                                                      message:@"64 KB の ARM BootROM として検証されました。どちらの SoC 用として登録しますか？"
+        UIAlertController *pick = [UIAlertController alertControllerWithTitle:L(@"bootrom_select_type_title")
+                                                                      message:L(@"bootrom_select_type_msg")
                                                                preferredStyle:UIAlertControllerStyleAlert];
-        [pick addAction:[UIAlertAction actionWithTitle:@"S5L8900 (iPhone 2G / iPod touch 1G)" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
-            [self installImportedBootromFromURL:url targetName:@"bootrom_s5l8900" romLabel:@"S5L8900 (iPhone 2G / iPod touch 1G)" size:sz];
+        [pick addAction:[UIAlertAction actionWithTitle:L(@"bootrom_s5l8900_desc") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
+            [self installImportedBootromFromURL:url targetName:@"bootrom_s5l8900" romLabel:L(@"bootrom_s5l8900_desc") size:sz];
         }]];
-        [pick addAction:[UIAlertAction actionWithTitle:@"S5L8720 (iPod touch 2G)" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
-            [self installImportedBootromFromURL:url targetName:@"bootrom_240_4" romLabel:@"S5L8720 iBoot-240.4 (iPod touch 2G)" size:sz];
+        [pick addAction:[UIAlertAction actionWithTitle:L(@"bootrom_s5l8720_desc") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
+            [self installImportedBootromFromURL:url targetName:@"bootrom_240_4" romLabel:L(@"bootrom_s5l8720_desc") size:sz];
         }]];
         [pick addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
         UIViewController *presenter = self.presentedViewController ?: self;
@@ -2351,23 +2422,11 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     [presenter presentViewController:fail animated:YES completion:nil];
 }
 
-#pragma mark - UIDocumentPickerDelegate
+- (void)handleImportedIPSWFromURL:(NSURL *)url presentingViewController:(nullable UIViewController *)presenter completion:(nullable void(^)(void))completion {
+    UIViewController *hostVC = presenter ?: TopPresentedViewController(self);
+    NSLog(@"[MainViewController] Processing imported IPSW: %@", url);
 
-- (void)documentPicker:(UIDocumentPickerViewController *)controller didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
-    NSURL *url = urls.firstObject;
-    if (!url) return;
-
-    if (self.isPickingBootrom) {
-        self.isPickingBootrom = NO;
-        [self handleImportedBootrom:url];
-        return;
-    }
-
-    BOOL managementOnly = self.isImportingIPSWForManagement;
-    self.isImportingIPSWForManagement = NO;
-    NSLog(@"[MainViewController] Selected local IPSW: %@", url);
-
-    [self showProgress:@"IPSWファイルを解析中..." detail:@"チェックサムを照合中..."];
+    [self showProgress:L(@"parsing_ipsw") detail:L(@"verifying_checksum")];
     self.cancelButton.hidden = YES;
     NSString *firmwaresDir = [self firmwaresDirectory];
     __weak typeof(self) weakSelf = self;
@@ -2405,28 +2464,49 @@ static void firmware_progress_callback(int pct, const char *step_name) {
                 if (!ms) return;
                 [ms hideProgress];
                 if (matched && copied) {
-                    if (managementOnly) {
-                        [ms->_notifyHaptic notificationOccurred:UINotificationFeedbackTypeSuccess];
-                        [ms promptFirmwareManagement:nil];
+                    [ms->_notifyHaptic notificationOccurred:UINotificationFeedbackTypeSuccess];
+                    if (completion) {
+                        completion();
                     } else {
                         [ms promptContainerNameForEntry:matched deviceTitle:[ms humanReadableNameForId:matched.entryId]];
                     }
                 } else if (matched) {
-                    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"IPSWの読み込みに失敗しました"
-                                                                                   message:copyErr.localizedDescription ?: @"IPSWファイルを保存できませんでした。"
+                    UIAlertController *alert = [UIAlertController alertControllerWithTitle:L(@"ipsw_read_failed")
+                                                                                   message:copyErr.localizedDescription ?: L(@"ipsw_save_failed")
                                                                             preferredStyle:UIAlertControllerStyleAlert];
-                    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-                    [ms presentViewController:alert animated:YES completion:nil];
+                    [alert addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
+                    [TopPresentedViewController(hostVC) presentViewController:alert animated:YES completion:nil];
                 } else {
-                    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"未対応のIPSW"
-                                                                                   message:@"選択されたIPSWのSHA1がカタログに一致しませんでした。"
+                    UIAlertController *alert = [UIAlertController alertControllerWithTitle:L(@"unsupported_ipsw")
+                                                                                   message:L(@"ipsw_sha1_mismatch")
                                                                             preferredStyle:UIAlertControllerStyleAlert];
-                    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-                    [ms presentViewController:alert animated:YES completion:nil];
+                    [alert addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
+                    [TopPresentedViewController(hostVC) presentViewController:alert animated:YES completion:nil];
                 }
             });
         });
     }];
+}
+
+#pragma mark - UIDocumentPickerDelegate
+
+- (void)documentPicker:(UIDocumentPickerViewController *)controller didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
+    NSURL *url = urls.firstObject;
+    if (!url) return;
+
+    if (self.isPickingBootrom) {
+        self.isPickingBootrom = NO;
+        [self handleImportedBootrom:url];
+        return;
+    }
+
+    BOOL managementOnly = self.isImportingIPSWForManagement;
+    self.isImportingIPSWForManagement = NO;
+    __weak typeof(self) weakSelf = self;
+    [self handleImportedIPSWFromURL:url presentingViewController:nil completion:managementOnly ? ^{
+        __strong typeof(weakSelf) s = weakSelf;
+        if (s) [s promptFirmwareManagement:nil];
+    } : nil];
 }
 
 #pragma mark - Progress Overlay UI
@@ -2513,7 +2593,7 @@ static void firmware_progress_callback(int pct, const char *step_name) {
 
     self.cancelButton = [UIButton buttonWithType:UIButtonTypeSystem];
     self.cancelButton.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.cancelButton setTitle:@"キャンセル" forState:UIControlStateNormal];
+    [self.cancelButton setTitle:L(@"cancel") forState:UIControlStateNormal];
     [self.cancelButton addTarget:self action:@selector(cancelCurrentOperation:) forControlEvents:UIControlEventTouchUpInside];
     [card.contentView addSubview:self.cancelButton];
 
@@ -2589,11 +2669,11 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     // Enforce single active container at a time
     if (self.activeEmulatorVC != nil || [self.presentedViewController isKindOfClass:[EmulatorViewController class]]) {
         [_notifyHaptic notificationOccurred:UINotificationFeedbackTypeWarning];
-        NSString *runningName = self.activeEmulatorVC.machineName ?: @"別の仮想マシン";
-        UIAlertController *busy = [UIAlertController alertControllerWithTitle:@"すでに起動中です"
-                                                                      message:[NSString stringWithFormat:@"仮想マシン「%@」が起動中です。\n一度に起動できるのは1台までです。", runningName]
+        NSString *runningName = self.activeEmulatorVC.machineName ?: L(@"another_vm");
+        UIAlertController *busy = [UIAlertController alertControllerWithTitle:L(@"already_running")
+                                                                      message:[NSString stringWithFormat:L(@"vm_already_running_fmt"), runningName]
                                                                preferredStyle:UIAlertControllerStyleAlert];
-        [busy addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+        [busy addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
         [self presentViewController:busy animated:YES completion:nil];
         return;
     }
@@ -2648,8 +2728,8 @@ static void firmware_progress_callback(int pct, const char *step_name) {
                         [s bootContainer:container];
                     }];
                 } else {
-                    UIAlertController *reb = [UIAlertController alertControllerWithTitle:@"ベースイメージの再構築が必要"
-                                                                                 message:@"ブート不具合修正（OpenGLES・サンドボックス・iPhone 5 初期化更新）を適用するため、このコンテナを一度削除して再作成してください。"
+                    UIAlertController *reb = [UIAlertController alertControllerWithTitle:L(@"base_rebuild_required")
+                                                                                 message:L(@"base_rebuild_msg")
                                                                           preferredStyle:UIAlertControllerStyleAlert];
                     [reb addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
                     [s presentViewController:reb animated:YES completion:nil];
@@ -2784,13 +2864,13 @@ static void firmware_progress_callback(int pct, const char *step_name) {
         guideLbl.font = [UIFont systemFontOfSize:13.0];
         guideLbl.textColor = [UIColor secondaryLabelColor];
         guideLbl.numberOfLines = 0;
-        guideLbl.text = @"はじめての使い方\n1. 下のボタンから機種と OS を選択\n2. 起動前に StikDebug（universal.js）で JIT を有効化\n3. 作成した端末の ▶ を押して起動\n※ iPhone 2G / iPod 1G・2G のみ右上の ROM から BootROM が必要です";
+        guideLbl.text = L(@"how_to_use_footer");
         [guideCard addSubview:guideLbl];
 
         UIButton *createBtn = [UIButton buttonWithType:UIButtonTypeSystem];
         createBtn.translatesAutoresizingMaskIntoConstraints = NO;
         UIButtonConfiguration *btnCfg = [UIButtonConfiguration filledButtonConfiguration];
-        btnCfg.title = @"最初の仮想マシンを作成";
+        btnCfg.title = L(@"create_first_vm");
         btnCfg.image = [UIImage systemImageNamed:@"plus.circle.fill"];
         btnCfg.imagePadding = 6.0;
         btnCfg.cornerStyle = UIButtonConfigurationCornerStyleLarge;
@@ -2827,12 +2907,15 @@ static void firmware_progress_callback(int pct, const char *step_name) {
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     if (!self.hasCompletedInitialLoad && self.containers.count == 0) {
         tableView.backgroundView = nil;
+        tableView.alwaysBounceVertical = NO;
         return 0;
     }
     if (self.containers.count == 0) {
         tableView.backgroundView = [self emptyStateViewForTableView:tableView];
+        tableView.alwaysBounceVertical = NO;
     } else {
         tableView.backgroundView = nil;
+        tableView.alwaysBounceVertical = YES;
     }
     return self.containers.count;
 }
@@ -2852,20 +2935,64 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     }
 }
 
+static UIImage *ClassicDeviceIconWithBadge(UIImage *symbol, UIColor *accentColor) {
+    CGFloat sz = 44.0;
+    CGFloat corner = 11.0;
+    UIGraphicsImageRendererFormat *fmt = [UIGraphicsImageRendererFormat preferredFormat];
+    fmt.opaque = NO;
+    UIGraphicsImageRenderer *r = [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(sz, sz) format:fmt];
+    return [r imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
+        CGRect rect = CGRectMake(0, 0, sz, sz);
+        UIBezierPath *path = [UIBezierPath bezierPathWithRoundedRect:rect cornerRadius:corner];
+        [path addClip];
+
+        CGContextRef c = ctx.CGContext;
+        CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+        CGFloat r1 = 0, g1 = 0, b1 = 0, a1 = 0;
+        [accentColor getRed:&r1 green:&g1 blue:&b1 alpha:&a1];
+        
+        UIColor *topColor = [UIColor colorWithRed:MIN(r1 * 1.15, 1.0) green:MIN(g1 * 1.15, 1.0) blue:MIN(b1 * 1.15, 1.0) alpha:0.18];
+        UIColor *bottomColor = [UIColor colorWithRed:r1 * 0.9 green:g1 * 0.9 blue:b1 * 0.9 alpha:0.28];
+        
+        NSArray *colors = @[(id)topColor.CGColor, (id)bottomColor.CGColor];
+        CGGradientRef gradient = CGGradientCreateWithColors(cs, (CFArrayRef)colors, NULL);
+        CGContextDrawLinearGradient(c, gradient, CGPointMake(0, 0), CGPointMake(0, sz), 0);
+        CGGradientRelease(gradient);
+        CGColorSpaceRelease(cs);
+
+        // Subtle delicate border
+        [[accentColor colorWithAlphaComponent:0.25] setStroke];
+        path.lineWidth = 1.0;
+        [path stroke];
+
+        if (symbol) {
+            UIImage *tinted = [symbol imageWithTintColor:accentColor renderingMode:UIImageRenderingModeAlwaysOriginal];
+            CGSize symSz = tinted.size;
+            CGFloat x = (sz - symSz.width) * 0.5;
+            CGFloat y = (sz - symSz.height) * 0.5;
+            [tinted drawInRect:CGRectMake(x, y, symSz.width, symSz.height)];
+        }
+    }];
+}
+
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     static NSString *cellId = @"ContainerCell";
     static UIImage *sPlayImg = nil;
-    static UIImage *sIphoneImg = nil;
-    static UIImage *sIpadImg = nil;
-    static UIImage *sIpodImg = nil;
+    static UIImage *sIphoneBadgeImg = nil;
+    static UIImage *sIpadBadgeImg = nil;
+    static UIImage *sIpodBadgeImg = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        UIImageSymbolConfiguration *playCfg = [UIImageSymbolConfiguration configurationWithPointSize:15.0 weight:UIImageSymbolWeightBold];
+        UIImageSymbolConfiguration *playCfg = [UIImageSymbolConfiguration configurationWithPointSize:14.0 weight:UIImageSymbolWeightBold];
         sPlayImg = [UIImage systemImageNamed:@"play.fill" withConfiguration:playCfg];
-        UIImageSymbolConfiguration *symCfg = [UIImageSymbolConfiguration configurationWithPointSize:24.0 weight:UIImageSymbolWeightRegular];
-        sIphoneImg = [UIImage systemImageNamed:@"iphone" withConfiguration:symCfg];
-        sIpadImg = [UIImage systemImageNamed:@"ipad" withConfiguration:symCfg];
-        sIpodImg = [UIImage systemImageNamed:@"ipodtouch" withConfiguration:symCfg];
+        UIImageSymbolConfiguration *symCfg = [UIImageSymbolConfiguration configurationWithPointSize:21.0 weight:UIImageSymbolWeightMedium];
+        UIImage *rawIphone = [UIImage systemImageNamed:@"iphone" withConfiguration:symCfg];
+        UIImage *rawIpad = [UIImage systemImageNamed:@"ipad" withConfiguration:symCfg];
+        UIImage *rawIpod = [UIImage systemImageNamed:@"ipodtouch" withConfiguration:symCfg];
+
+        sIphoneBadgeImg = ClassicDeviceIconWithBadge(rawIphone, [UIColor systemBlueColor]);
+        sIpadBadgeImg = ClassicDeviceIconWithBadge(rawIpad, [UIColor systemIndigoColor]);
+        sIpodBadgeImg = ClassicDeviceIconWithBadge(rawIpod, [UIColor systemPurpleColor]);
     });
 
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:cellId];
@@ -2873,15 +3000,18 @@ static void firmware_progress_callback(int pct, const char *step_name) {
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:cellId];
         cell.textLabel.font = [UIFont systemFontOfSize:17.0 weight:UIFontWeightSemibold];
         cell.detailTextLabel.numberOfLines = 0;
-        cell.imageView.tintColor = [UIColor systemBlueColor];
+        cell.detailTextLabel.font = [UIFont systemFontOfSize:13.5 weight:UIFontWeightRegular];
 
         UIButton *playBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-        [playBtn setImage:sPlayImg forState:UIControlStateNormal];
-        playBtn.tintColor = [UIColor systemBlueColor];
-        playBtn.backgroundColor = [[UIColor systemBlueColor] colorWithAlphaComponent:0.14];
-        playBtn.layer.cornerRadius = 17.0;
-        playBtn.frame = CGRectMake(0, 0, 34, 34);
-        playBtn.accessibilityLabel = @"起動";
+        UIButtonConfiguration *playCfg = [UIButtonConfiguration filledButtonConfiguration];
+        playCfg.image = sPlayImg;
+        playCfg.cornerStyle = UIButtonConfigurationCornerStyleCapsule;
+        playCfg.baseBackgroundColor = [UIColor systemBlueColor];
+        playCfg.baseForegroundColor = [UIColor whiteColor];
+        playCfg.contentInsets = NSDirectionalEdgeInsetsMake(8.0, 9.0, 8.0, 7.0);
+        playBtn.configuration = playCfg;
+        playBtn.frame = CGRectMake(0, 0, 38, 38);
+        playBtn.accessibilityLabel = L(@"boot_action");
         [playBtn addTarget:self action:@selector(playButtonTapped:) forControlEvents:UIControlEventTouchUpInside];
         cell.accessoryView = playBtn;
     }
@@ -2902,13 +3032,13 @@ static void firmware_progress_callback(int pct, const char *step_name) {
         BOOL hasRom = [self hasInstalledBootromForIdentifier:c.baseId];
         romMissing = !hasRom;
         romTag = hasRom
-            ? [NSString stringWithFormat:@" / %@", L(@"bootrom_ok")]
-            : [NSString stringWithFormat:@" / %@", L(@"bootrom_missing")];
+            ? [NSString stringWithFormat:@" • %@", L(@"bootrom_ok")]
+            : [NSString stringWithFormat:@" • %@", L(@"bootrom_missing")];
     }
 
-    NSString *cydiaTag = [c.baseId hasSuffix:@"-jb"] ? @" / Cydia" : @"";
+    NSString *cydiaTag = [c.baseId hasSuffix:@"-jb"] ? @" • Cydia" : @"";
     NSString *idTag = c.containerId.length > 0 ? [NSString stringWithFormat:@"\nID: %@", c.containerId] : @"";
-    NSString *detailText = [NSString stringWithFormat:@"%@ / %@%@%@%@", devClean, verStr, cydiaTag, romTag, idTag];
+    NSString *detailText = [NSString stringWithFormat:@"%@ • %@%@%@%@", devClean, verStr, cydiaTag, romTag, idTag];
     if (romMissing) {
         NSMutableAttributedString *attrDetail = [[NSMutableAttributedString alloc] initWithString:detailText
                                                                                      attributes:@{
@@ -2917,6 +3047,7 @@ static void firmware_progress_callback(int pct, const char *step_name) {
         NSRange warnRange = [detailText rangeOfString:L(@"bootrom_missing")];
         if (warnRange.location != NSNotFound) {
             [attrDetail addAttribute:NSForegroundColorAttributeName value:[UIColor systemOrangeColor] range:warnRange];
+            [attrDetail addAttribute:NSFontAttributeName value:[UIFont systemFontOfSize:13.5 weight:UIFontWeightMedium] range:warnRange];
         }
         cell.detailTextLabel.attributedText = attrDetail;
     } else {
@@ -2925,13 +3056,13 @@ static void firmware_progress_callback(int pct, const char *step_name) {
         cell.detailTextLabel.textColor = [UIColor secondaryLabelColor];
     }
 
-    // Cached SF Symbol icons based on device
+    // Modern cached badge icons based on device type
     if ([c.name containsString:@"iPad"] || [c.baseId containsString:@"iPad"]) {
-        cell.imageView.image = sIpadImg;
+        cell.imageView.image = sIpadBadgeImg;
     } else if ([c.name containsString:@"iPod"] || [c.baseId containsString:@"iPod"]) {
-        cell.imageView.image = sIpodImg;
+        cell.imageView.image = sIpodBadgeImg;
     } else {
-        cell.imageView.image = sIphoneImg;
+        cell.imageView.image = sIphoneBadgeImg;
     }
 
     return cell;
@@ -2968,7 +3099,7 @@ static void firmware_progress_callback(int pct, const char *step_name) {
 - (nullable UISwipeActionsConfiguration *)tableView:(UITableView *)tableView leadingSwipeActionsConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath {
     VMContainer *c = self.containers[indexPath.row];
 
-    UIContextualAction *renameAction = [UIContextualAction contextualActionWithStyle:UIContextualActionStyleNormal title:@"名前変更" handler:^(UIContextualAction *action, UIView *sourceView, void (^completionHandler)(BOOL)) {
+    UIContextualAction *renameAction = [UIContextualAction contextualActionWithStyle:UIContextualActionStyleNormal title:L(@"rename") handler:^(UIContextualAction *action, UIView *sourceView, void (^completionHandler)(BOOL)) {
         [self promptRenameContainer:c];
         completionHandler(YES);
     }];
@@ -2982,7 +3113,7 @@ static void firmware_progress_callback(int pct, const char *step_name) {
 - (nullable UISwipeActionsConfiguration *)tableView:(UITableView *)tableView trailingSwipeActionsConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath {
     VMContainer *c = self.containers[indexPath.row];
 
-    UIContextualAction *deleteAction = [UIContextualAction contextualActionWithStyle:UIContextualActionStyleDestructive title:@"削除" handler:^(UIContextualAction *action, UIView *sourceView, void (^completionHandler)(BOOL)) {
+    UIContextualAction *deleteAction = [UIContextualAction contextualActionWithStyle:UIContextualActionStyleDestructive title:L(@"delete") handler:^(UIContextualAction *action, UIView *sourceView, void (^completionHandler)(BOOL)) {
         [self confirmDeleteContainer:c indexPath:indexPath];
         completionHandler(YES);
     }];
@@ -2995,19 +3126,19 @@ static void firmware_progress_callback(int pct, const char *step_name) {
 - (nullable UIContextMenuConfiguration *)tableView:(UITableView *)tableView contextMenuConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath point:(CGPoint)point {
     VMContainer *c = self.containers[indexPath.row];
     return [UIContextMenuConfiguration configurationWithIdentifier:nil previewProvider:nil actionProvider:^UIMenu * _Nullable(NSArray<UIMenuElement *> *suggestedActions) {
-        UIAction *bootAct = [UIAction actionWithTitle:@"起動" image:[UIImage systemImageNamed:@"play.fill"] identifier:nil handler:^(__kindof UIAction *action) {
+        UIAction *bootAct = [UIAction actionWithTitle:L(@"boot_action") image:[UIImage systemImageNamed:@"play.fill"] identifier:nil handler:^(__kindof UIAction *action) {
             [self bootContainer:c];
         }];
-        UIAction *copyIdAct = [UIAction actionWithTitle:@"コンテナ ID をコピー" image:[UIImage systemImageNamed:@"doc.on.doc"] identifier:nil handler:^(__kindof UIAction *action) {
+        UIAction *copyIdAct = [UIAction actionWithTitle:L(@"copy_container_id") image:[UIImage systemImageNamed:@"doc.on.doc"] identifier:nil handler:^(__kindof UIAction *action) {
             if (c.containerId.length > 0) {
                 [UIPasteboard generalPasteboard].string = c.containerId;
                 [self->_notifyHaptic notificationOccurred:UINotificationFeedbackTypeSuccess];
             }
         }];
-        UIAction *renameAct = [UIAction actionWithTitle:@"名前を変更" image:[UIImage systemImageNamed:@"pencil"] identifier:nil handler:^(__kindof UIAction *action) {
+        UIAction *renameAct = [UIAction actionWithTitle:L(@"rename_container_menu") image:[UIImage systemImageNamed:@"pencil"] identifier:nil handler:^(__kindof UIAction *action) {
             [self promptRenameContainer:c];
         }];
-        UIAction *deleteAct = [UIAction actionWithTitle:@"削除" image:[UIImage systemImageNamed:@"trash"] identifier:nil handler:^(__kindof UIAction *action) {
+        UIAction *deleteAct = [UIAction actionWithTitle:L(@"delete") image:[UIImage systemImageNamed:@"trash"] identifier:nil handler:^(__kindof UIAction *action) {
             [self confirmDeleteContainer:c indexPath:indexPath];
         }];
         deleteAct.attributes = UIMenuElementAttributesDestructive;
@@ -3018,8 +3149,8 @@ static void firmware_progress_callback(int pct, const char *step_name) {
 #pragma mark - Rename & Delete Actions
 
 - (void)promptRenameContainer:(VMContainer *)container {
-    UIAlertController *prompt = [UIAlertController alertControllerWithTitle:@"コンテナ名の変更"
-                                                                    message:@"新しい名前を入力してください:"
+    UIAlertController *prompt = [UIAlertController alertControllerWithTitle:L(@"rename_container_title")
+                                                                    message:L(@"enter_new_name_prompt")
                                                              preferredStyle:UIAlertControllerStyleAlert];
 
     [prompt addTextFieldWithConfigurationHandler:^(UITextField *textField) {
@@ -3027,7 +3158,7 @@ static void firmware_progress_callback(int pct, const char *step_name) {
         textField.clearButtonMode = UITextFieldViewModeWhileEditing;
     }];
 
-    [prompt addAction:[UIAlertAction actionWithTitle:@"保存" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+    [prompt addAction:[UIAlertAction actionWithTitle:L(@"save") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         UITextField *tf = prompt.textFields.firstObject;
         if (tf.text.length > 0) {
             container.name = tf.text;
@@ -3036,17 +3167,17 @@ static void firmware_progress_callback(int pct, const char *step_name) {
         }
     }]];
 
-    [prompt addAction:[UIAlertAction actionWithTitle:@"キャンセル" style:UIAlertActionStyleCancel handler:nil]];
+    [prompt addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
     [self presentViewController:prompt animated:YES completion:nil];
 }
 
 - (void)confirmDeleteContainer:(VMContainer *)container indexPath:(NSIndexPath *)indexPath {
-    NSString *msg = [NSString stringWithFormat:@"仮想マシン「%@」を削除しますか？\nコンテナ内の保存データ・設定が削除されます（ベースイメージは保持されます）。", container.name];
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"コンテナの削除"
+    NSString *msg = [NSString stringWithFormat:L(@"delete_container_confirm_msg_fmt"), container.name];
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:L(@"delete_container_confirm_title")
                                                                    message:msg
                                                             preferredStyle:UIAlertControllerStyleAlert];
 
-    [alert addAction:[UIAlertAction actionWithTitle:@"削除" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+    [alert addAction:[UIAlertAction actionWithTitle:L(@"delete") style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
         NSString *cPath = [container containerPathWithRoot:[self containersDirectory]];
         [[NSFileManager defaultManager] removeItemAtPath:cPath error:nil];
         NSUInteger row = [self.containers indexOfObject:container];
@@ -3062,7 +3193,7 @@ static void firmware_progress_callback(int pct, const char *step_name) {
         }
     }]];
 
-    [alert addAction:[UIAlertAction actionWithTitle:@"キャンセル" style:UIAlertActionStyleCancel handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
     [self presentViewController:alert animated:YES completion:nil];
 }
 

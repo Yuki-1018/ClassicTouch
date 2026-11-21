@@ -56,10 +56,13 @@ The build produces three ready-to-deploy distribution artifacts in `dist/`:
 
 ## 4. Build Scripts Reference
 
-- `scripts/build_engine.sh`: Cross-compiles the native QEMU engine into `build/Frameworks/libqemu-arm.dylib`.
 - `scripts/build_app.sh`: Compiles the Objective-C / C++ / Metal sources, links with libraries, and packages into `.ipa`, `.tipa`, and `.deb`.
-- `scripts/build_deps.sh`: Builds cross-compiled static dependencies (`pixman`, `slirp`, `openssl`, `glib`, etc.).
+- `scripts/package_app.sh`: Assembles the application bundle, packs guest tools, signs with entitlements, and outputs `.ipa`, `.tipa`, and `.deb`.
+- `scripts/build_engine.sh`: Cross-compiles the native arm64 iOS QEMU engine into `build/Frameworks/libqemu-arm.dylib`.
+- `scripts/build_deps.sh`: Builds cross-compiled static dependencies (`pixman`, `slirp`, `openssl`, `glib`, `pcre2`, etc.).
 - `scripts/build_firmwarekit.sh`: Compiles the Rust-based firmware preparation engine into `libfirmwarekit.a`.
+- `scripts/build_portable.sh`: Compiles the LightTouch Portable static library into `liblighttouch.a`.
+- `scripts/env.sh`: Configures common cross-compilation environment variables, Theos SDK paths, and flags.
 
 ---
 
@@ -79,3 +82,11 @@ ClassicTouch builds upon and takes inspiration from extensive prior work across 
 - **[iphone-1-emulator](https://github.com/kelindi/iphone-1-emulator)**: Emulation research for early S5L8900 iPhone OS devices.
 - **[WindowsiOS](https://github.com/ammaarreshi/WindowsiOS)**: JIT acceleration and virtual machine execution techniques on modern iOS.
 - **[LinuxRunner](https://github.com/mxhm11cr/LinuxRunner)**: JIT compilation and virtual machine execution engine on iOS.
+
+---
+
+## 6. License (ライセンス)
+
+ClassicTouch is distributed under the terms of the **GNU General Public License Version 2 (GPL-2.0)**.
+- Full license terms: [LICENSE](LICENSE)
+- Upstream attribution & third-party licenses: [NOTICE.md](NOTICE.md)

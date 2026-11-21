@@ -1,3 +1,14 @@
+//
+// ClassicTouch - Native Classic iOS Emulator for Modern iOS & iPadOS
+//
+// Copyright (c) 2026 ClassicTouch Authors.
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; version 2 of the License.
+//
+
 #import "EmulatorViewController.h"
 #import "ios_metal_view.h"
 #import "ios_audio_bridge.h"
@@ -120,9 +131,13 @@ typedef NS_ENUM(NSInteger, ClassicMenuPositionMode) {
     BOOL _homeLongPressSent;
     uint64_t _homePressGen;
     NSInteger _hostInterfaceOrientation;
+    uint64_t _guestPasteboardSerial;
+    NSInteger _lastHostPasteboardChangeCount;
+    NSString *_lastSyncedPasteboardString;
 }
 
 @property (nonatomic, strong) IOSMetalView *metalView;
+@property (nonatomic, strong) UIView *zoomIndicatorBar;
 @property (nonatomic, strong) IOSAudioBridge *audioBridge;
 @property (nonatomic, strong) IOSMotionManager *motionManager;
 @property (nonatomic, strong) UIVisualEffectView *telemetryCard;
@@ -158,6 +173,7 @@ typedef NS_ENUM(NSInteger, ClassicMenuPositionMode) {
 @property (nonatomic, assign) BOOL hasLastLayoutGeometry;
 @property (nonatomic, assign) BOOL cachedJitAvailable;
 @property (nonatomic, strong) CADisplayLink *telemetryTimer;
+@property (nonatomic, strong, nullable) NSTimer *clipboardSyncTimer;
 @property (atomic, strong, nullable) IOSUsbMuxBridge *usbBridge;
 @property (nonatomic, strong, nullable) UIVisualEffectView *ipaProgressCard;
 @property (nonatomic, strong, nullable) UILabel *ipaProgressLabel;
@@ -202,6 +218,15 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
         _screenHeight = 480;
         _screenScale = 1;
         _isEmulating = NO;
+        _iPadLandscapeRotationEnabled = [[NSUserDefaults standardUserDefaults] boolForKey:@"ClassicTouch_iPadLandscapeRotate"];
+        if ([[NSUserDefaults standardUserDefaults] objectForKey:@"ClassicTouch_ClipboardSyncEnabled"] == nil) {
+            _clipboardSyncEnabled = YES;
+            [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"ClassicTouch_ClipboardSyncEnabled"];
+        } else {
+            _clipboardSyncEnabled = [[NSUserDefaults standardUserDefaults] boolForKey:@"ClassicTouch_ClipboardSyncEnabled"];
+        }
+        _guestPasteboardSerial = 0;
+        _lastHostPasteboardChangeCount = [UIPasteboard generalPasteboard].changeCount;
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(handleAppWillResignActive:)
                                                      name:UIApplicationWillResignActiveNotification
@@ -213,6 +238,10 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(handleAppDidBecomeActive:)
                                                      name:UIApplicationDidBecomeActiveNotification
+                                                   object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(handleHostPasteboardChanged:)
+                                                     name:UIPasteboardChangedNotification
                                                    object:nil];
         _threadExited = YES;
         _lastFrameSeq = 0;
@@ -316,6 +345,175 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
     return UIInterfaceOrientationPortrait;
 }
 
+- (UIRectEdge)preferredScreenEdgesDeferringSystemGestures {
+    // Avoid host iPadOS notification center, Stage Manager dots, or home bar
+    // immediately hijacking top/bottom swipes intended for the virtual iOS guest.
+    return UIRectEdgeAll;
+}
+
+- (void)setIPadLandscapeRotationEnabled:(BOOL)iPadLandscapeRotationEnabled {
+    _iPadLandscapeRotationEnabled = iPadLandscapeRotationEnabled;
+    [[NSUserDefaults standardUserDefaults] setBool:iPadLandscapeRotationEnabled forKey:@"ClassicTouch_iPadLandscapeRotate"];
+    [self updateMetalDisplayRotation];
+    _lastMotionNs = 0;
+    [self forwardMotionSample];
+    [self refreshMoreMenu];
+}
+
+- (void)setClipboardSyncEnabled:(BOOL)clipboardSyncEnabled {
+    _clipboardSyncEnabled = clipboardSyncEnabled;
+    [[NSUserDefaults standardUserDefaults] setBool:clipboardSyncEnabled forKey:@"ClassicTouch_ClipboardSyncEnabled"];
+    [self refreshMoreMenu];
+    if (clipboardSyncEnabled) {
+        [self checkHostPasteboardForSync];
+    }
+}
+
+- (void)startClipboardSyncTimer {
+    [self stopClipboardSyncTimer];
+    __weak typeof(self) weakSelf = self;
+    self.clipboardSyncTimer = [NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer * _Nonnull timer) {
+        __strong typeof(weakSelf) s = weakSelf;
+        if (!s || !__atomic_load_n(&s->_isEmulating, __ATOMIC_ACQUIRE)) return;
+        [s tickClipboardSync];
+    }];
+}
+
+- (void)stopClipboardSyncTimer {
+    [self.clipboardSyncTimer invalidate];
+    self.clipboardSyncTimer = nil;
+}
+
+- (void)showToastBannerWithText:(NSString *)text icon:(NSString *)iconName {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIView *toast = [[UIView alloc] init];
+        toast.translatesAutoresizingMaskIntoConstraints = NO;
+        toast.layer.cornerRadius = 16.0;
+        toast.layer.masksToBounds = YES;
+        toast.alpha = 0.0;
+
+        UIVisualEffectView *blur = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterialDark]];
+        blur.translatesAutoresizingMaskIntoConstraints = NO;
+        [toast addSubview:blur];
+        [NSLayoutConstraint activateConstraints:@[
+            [blur.leadingAnchor constraintEqualToAnchor:toast.leadingAnchor],
+            [blur.trailingAnchor constraintEqualToAnchor:toast.trailingAnchor],
+            [blur.topAnchor constraintEqualToAnchor:toast.topAnchor],
+            [blur.bottomAnchor constraintEqualToAnchor:toast.bottomAnchor]
+        ]];
+
+        UIImageView *iv = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:iconName]];
+        iv.tintColor = [UIColor whiteColor];
+        iv.contentMode = UIViewContentModeScaleAspectFit;
+        iv.translatesAutoresizingMaskIntoConstraints = NO;
+
+        UILabel *lbl = [[UILabel alloc] init];
+        lbl.text = text;
+        lbl.font = [UIFont systemFontOfSize:13.0 weight:UIFontWeightMedium];
+        lbl.textColor = [UIColor whiteColor];
+        lbl.translatesAutoresizingMaskIntoConstraints = NO;
+
+        UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[iv, lbl]];
+        stack.axis = UILayoutConstraintAxisHorizontal;
+        stack.spacing = 8.0;
+        stack.alignment = UIStackViewAlignmentCenter;
+        stack.translatesAutoresizingMaskIntoConstraints = NO;
+        [blur.contentView addSubview:stack];
+
+        [NSLayoutConstraint activateConstraints:@[
+            [iv.widthAnchor constraintEqualToConstant:18.0],
+            [iv.heightAnchor constraintEqualToConstant:18.0],
+            [stack.leadingAnchor constraintEqualToAnchor:blur.contentView.leadingAnchor constant:14.0],
+            [stack.trailingAnchor constraintEqualToAnchor:blur.contentView.trailingAnchor constant:-14.0],
+            [stack.topAnchor constraintEqualToAnchor:blur.contentView.topAnchor constant:8.0],
+            [stack.bottomAnchor constraintEqualToAnchor:blur.contentView.bottomAnchor constant:-8.0]
+        ]];
+
+        [self.view addSubview:toast];
+        [NSLayoutConstraint activateConstraints:@[
+            [toast.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+            [toast.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:12.0]
+        ]];
+
+        [UIView animateWithDuration:0.22 animations:^{
+            toast.alpha = 1.0;
+        } completion:^(BOOL finished) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [UIView animateWithDuration:0.25 animations:^{
+                    toast.alpha = 0.0;
+                } completion:^(BOOL fin) {
+                    [toast removeFromSuperview];
+                }];
+            });
+        }];
+    });
+}
+
+- (void)sendHostPasteboardToGuest:(NSString *)text showToast:(BOOL)showToast {
+    if (!text.length) return;
+    typedef void (*qemu_ios_ui_paste_fn)(const char *utf8);
+    static qemu_ios_ui_paste_fn pasteFn = NULL;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        pasteFn = (qemu_ios_ui_paste_fn)dlsym(RTLD_DEFAULT, "qemu_ios_ui_paste");
+    });
+    if (!pasteFn) {
+        NSLog(@"[EmulatorVC] qemu_ios_ui_paste symbol not found");
+        return;
+    }
+
+    _lastSyncedPasteboardString = [text copy];
+    pasteFn([text UTF8String]);
+    NSLog(@"[EmulatorVC] Sent host pasteboard to guest (%lu chars)", (unsigned long)text.length);
+    if (showToast) {
+        [self showToastBannerWithText:L(@"toast_clipboard_sent") icon:@"arrow.right.doc.on.clipboard"];
+    }
+}
+
+- (void)checkHostPasteboardForSync {
+    if (!self.clipboardSyncEnabled) return;
+    UIPasteboard *pb = [UIPasteboard generalPasteboard];
+    if (pb.changeCount != _lastHostPasteboardChangeCount) {
+        _lastHostPasteboardChangeCount = pb.changeCount;
+        NSString *str = pb.string;
+        if (str.length > 0 && ![str isEqualToString:_lastSyncedPasteboardString]) {
+            [self sendHostPasteboardToGuest:str showToast:NO];
+        }
+    }
+}
+
+- (void)handleHostPasteboardChanged:(NSNotification *)note {
+    [self checkHostPasteboardForSync];
+}
+
+- (void)pollGuestPasteboard {
+    typedef char *(*qemu_ios_ui_guest_pasteboard_fn)(uint64_t *serial);
+    static qemu_ios_ui_guest_pasteboard_fn guestPbFn = NULL;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        guestPbFn = (qemu_ios_ui_guest_pasteboard_fn)dlsym(RTLD_DEFAULT, "qemu_ios_ui_guest_pasteboard");
+    });
+    if (!guestPbFn) return;
+
+    char *gtext = guestPbFn(&_guestPasteboardSerial);
+    if (gtext) {
+        NSString *str = [NSString stringWithUTF8String:gtext];
+        free(gtext);
+        if (self.clipboardSyncEnabled && str.length > 0 && ![str isEqualToString:_lastSyncedPasteboardString]) {
+            _lastSyncedPasteboardString = [str copy];
+            _lastHostPasteboardChangeCount = [UIPasteboard generalPasteboard].changeCount + 1;
+            [UIPasteboard generalPasteboard].string = str;
+            NSLog(@"[EmulatorVC] Received guest pasteboard to host (%lu chars)", (unsigned long)str.length);
+            [self showToastBannerWithText:L(@"toast_clipboard_received") icon:@"doc.on.clipboard"];
+        }
+    }
+}
+
+- (void)tickClipboardSync {
+    [self pollGuestPasteboard];
+    [self checkHostPasteboardForSync];
+}
+
 - (void)updateMetalDisplayRotation {
     UIInterfaceOrientation ori = UIInterfaceOrientationPortrait;
     if (self.view.window.windowScene) {
@@ -323,12 +521,171 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
     }
     __atomic_store_n(&_hostInterfaceOrientation, (NSInteger)ori, __ATOMIC_RELEASE);
 
-    // Keep iPhone/iPod portrait guests upright (0 deg) even on a Landscape iPad or resized window.
-    // Landscape-native guest framebuffers (e.g. iPad 1st gen 1024x768) only take the 90 deg turn
-    // when shown inside a tall/portrait host container.
+    BOOL isPad = (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad);
     BOOL guestLandscape = (self.screenWidth > self.screenHeight);
     BOOL hostLandscape = (self.view.bounds.size.width > self.view.bounds.size.height);
-    self.metalView.displayRotationDegrees = (guestLandscape && !hostLandscape) ? 90 : 0;
+
+    NSInteger rot = 0;
+    if (guestLandscape) {
+        // Landscape-native guest framebuffers (e.g. iPad 1st gen 1024x768)
+        rot = hostLandscape ? 0 : 90;
+    } else {
+        // iPhone / iPod guests:
+        // By default, kept upright (0 deg) even on a Landscape iPad to prevent accidental rotation.
+        // If the user explicitly enabled iPad landscape rotation, rotate to match iPad orientation.
+        if (isPad && self.iPadLandscapeRotationEnabled && hostLandscape) {
+            if (ori == UIInterfaceOrientationLandscapeLeft) {
+                rot = 270;
+            } else {
+                rot = 90;
+            }
+        } else {
+            rot = 0;
+        }
+    }
+    self.metalView.displayRotationDegrees = rot;
+}
+
+- (void)setupZoomIndicatorBar {
+    if (_zoomIndicatorBar) return;
+
+    UIVisualEffectView *blur = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterialDark]];
+    blur.layer.cornerRadius = 20.0;
+    blur.layer.masksToBounds = YES;
+    blur.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UIImageView *iconView = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"arrow.up.left.and.down.right.magnifyingglass"]];
+    iconView.tintColor = [UIColor whiteColor];
+    iconView.contentMode = UIViewContentModeScaleAspectFit;
+    iconView.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UILabel *label = [[UILabel alloc] init];
+    label.text = L(@"zoom_mode_active_hint");
+    label.font = [UIFont systemFontOfSize:13.0 weight:UIFontWeightMedium];
+    label.textColor = [UIColor whiteColor];
+    label.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UIButton *resetBtn = [UIButton buttonWithType:UIButtonTypeSystem];
+    [resetBtn setTitle:L(@"zoom_mode_reset_button") forState:UIControlStateNormal];
+    [resetBtn setTitleColor:[UIColor systemTealColor] forState:UIControlStateNormal];
+    resetBtn.titleLabel.font = [UIFont systemFontOfSize:13.0 weight:UIFontWeightBold];
+    resetBtn.translatesAutoresizingMaskIntoConstraints = NO;
+    [resetBtn addTarget:self action:@selector(handleResetZoomFromIndicator) forControlEvents:UIControlEventTouchUpInside];
+
+    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[iconView, label, resetBtn]];
+    stack.axis = UILayoutConstraintAxisHorizontal;
+    stack.spacing = 10.0;
+    stack.alignment = UIStackViewAlignmentCenter;
+    stack.translatesAutoresizingMaskIntoConstraints = NO;
+
+    [blur.contentView addSubview:stack];
+    [self.view addSubview:blur];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [iconView.widthAnchor constraintEqualToConstant:18],
+        [iconView.heightAnchor constraintEqualToConstant:18],
+        [stack.leadingAnchor constraintEqualToAnchor:blur.contentView.leadingAnchor constant:14],
+        [stack.trailingAnchor constraintEqualToAnchor:blur.contentView.trailingAnchor constant:-14],
+        [stack.topAnchor constraintEqualToAnchor:blur.contentView.topAnchor constant:6],
+        [stack.bottomAnchor constraintEqualToAnchor:blur.contentView.bottomAnchor constant:-6],
+        [blur.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+        [blur.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:12],
+        [blur.heightAnchor constraintEqualToConstant:40]
+    ]];
+
+    blur.alpha = 0.0;
+    blur.hidden = YES;
+    _zoomIndicatorBar = blur;
+}
+
+- (void)handleResetZoomFromIndicator {
+    [self setZoomModeEnabled:NO];
+}
+
+- (void)toggleZoomMode {
+    [self setZoomModeEnabled:!self.metalView.zoomModeEnabled];
+}
+
+- (void)setZoomModeEnabled:(BOOL)enabled {
+    [self.metalView setZoomModeEnabled:enabled];
+    [self updateZoomIndicatorVisibility:enabled];
+    [self refreshMoreMenu];
+}
+
+- (void)updateZoomIndicatorVisibility:(BOOL)visible {
+    if (!_zoomIndicatorBar) return;
+    if (visible) {
+        _zoomIndicatorBar.hidden = NO;
+        [UIView animateWithDuration:0.25 animations:^{
+            self->_zoomIndicatorBar.alpha = 1.0;
+        }];
+    } else {
+        [UIView animateWithDuration:0.2 animations:^{
+            self->_zoomIndicatorBar.alpha = 0.0;
+        } completion:^(BOOL finished) {
+            if (!self.metalView.zoomModeEnabled) {
+                self->_zoomIndicatorBar.hidden = YES;
+            }
+        }];
+    }
+}
+
+- (void)pullNotificationCenter {
+    if (!_runtime || !_isEmulating) return;
+
+    // Send a smooth edge-swipe gesture downwards from top edge (y=0.005 to y=0.55)
+    // using dedicated touch ID 999999 so it never collides with user touches.
+    int touchId = 999999;
+    float startX = 0.5f;
+    float startY = 0.005f;
+    float endY = 0.55f;
+    int steps = 10;
+
+    [self handleTouchId:touchId phase:0 x:startX y:startY];
+
+    for (int i = 1; i <= steps; i++) {
+        float progress = (float)i / (float)steps;
+        float t = sinf(progress * (float)M_PI_2);
+        float curY = startY + (endY - startY) * t;
+
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(16 * i * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+            if (!self->_isEmulating) return;
+            if (i < steps) {
+                [self handleTouchId:touchId phase:1 x:startX y:curY];
+            } else {
+                [self handleTouchId:touchId phase:2 x:startX y:curY];
+            }
+        });
+    }
+}
+
+- (void)pullControlCenter {
+    if (!_runtime || !_isEmulating) return;
+
+    // Send a smooth edge-swipe gesture upwards from bottom edge (y=0.995 to y=0.45)
+    // using dedicated touch ID 999998 so it never collides with user touches.
+    int touchId = 999998;
+    float startX = 0.5f;
+    float startY = 0.995f;
+    float endY = 0.45f;
+    int steps = 10;
+
+    [self handleTouchId:touchId phase:0 x:startX y:startY];
+
+    for (int i = 1; i <= steps; i++) {
+        float progress = (float)i / (float)steps;
+        float t = sinf(progress * (float)M_PI_2);
+        float curY = startY + (endY - startY) * t;
+
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(16 * i * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+            if (!self->_isEmulating) return;
+            if (i < steps) {
+                [self handleTouchId:touchId phase:1 x:startX y:curY];
+            } else {
+                [self handleTouchId:touchId phase:2 x:startX y:curY];
+            }
+        });
+    }
 }
 
 - (void)viewDidAppear:(BOOL)animated {
@@ -341,9 +698,13 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
     [coordinator animateAlongsideTransition:^(id<UIViewControllerTransitionCoordinatorContext> context) {
         [self updateMetalDisplayRotation];
         [self clampHardwareBarToSafeArea];
+        self->_lastMotionNs = 0;
+        [self forwardMotionSample];
     } completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
         [self updateMetalDisplayRotation];
         [self clampHardwareBarToSafeArea];
+        self->_lastMotionNs = 0;
+        [self forwardMotionSample];
     }];
 }
 
@@ -351,6 +712,7 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
     [super viewDidLoad];
     self.modalInPresentation = YES;
     self.view.backgroundColor = [UIColor blackColor];
+    [self setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
 
     // Metal rendering view
     self.metalView = [[IOSMetalView alloc] initWithFrame:self.view.bounds];
@@ -362,6 +724,12 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
     self.metalView.onTouchEvent = ^(int touchId, int phase, float x, float y) {
         [weakSelf handleTouchId:touchId phase:phase x:x y:y];
     };
+    self.metalView.onZoomChanged = ^(CGFloat scale, CGPoint offset) {
+        // ズーム変更時の通知
+    };
+
+    // Zoom indicator bar
+    [self setupZoomIndicatorBar];
 
     // Hardware buttons floating bar
     [self setupHardwareControls];
@@ -484,9 +852,9 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
         cfg.attributedTitle = attr;
     }
     btn.configuration = cfg;
-    btn.tintColor = [UIColor colorWithWhite:1.0 alpha:0.94];
-    btn.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.08];
-    btn.layer.cornerRadius = 12.0;
+    btn.tintColor = [UIColor colorWithWhite:1.0 alpha:0.96];
+    btn.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.12];
+    btn.layer.cornerRadius = 13.0;
     btn.layer.masksToBounds = YES;
     btn.titleLabel.numberOfLines = 1;
     btn.titleLabel.lineBreakMode = NSLineBreakByClipping;
@@ -514,6 +882,78 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
 - (UIMenu *)buildHardwareMoreMenu {
     __weak typeof(self) weakSelf = self;
 
+    // --- 画面操作・ジェスチャメニュー ---
+    NSMutableArray<UIMenuElement *> *displayActions = [NSMutableArray array];
+
+    // 1. 通知センターを開く（ホスト iPadOS と競合せず確実に開く）
+    UIAction *notifAct = [UIAction actionWithTitle:L(@"menu_pull_notif")
+                                             image:[UIImage systemImageNamed:@"bell.badge"]
+                                        identifier:nil
+                                           handler:^(__kindof UIAction *action) {
+        [weakSelf pullNotificationCenter];
+    }];
+    [displayActions addObject:notifAct];
+
+    // 2. コントロールセンターを開く（ホストのホームバー/Dockと競合せず確実に開く）
+    UIAction *ccAct = [UIAction actionWithTitle:L(@"menu_pull_control_center")
+                                          image:[UIImage systemImageNamed:@"slider.horizontal.3"]
+                                     identifier:nil
+                                        handler:^(__kindof UIAction *action) {
+        [weakSelf pullControlCenter];
+    }];
+    [displayActions addObject:ccAct];
+
+    // 3. 拡大モード (UTMスタイルのピンチ＆パンズーム)
+    BOOL zoomActive = self.metalView.zoomModeEnabled;
+    UIAction *zoomToggle = [UIAction actionWithTitle:L(@"menu_zoom_mode")
+                                               image:[UIImage systemImageNamed:zoomActive ? @"checkmark.circle.fill" : @"arrow.up.left.and.down.right.magnifyingglass"]
+                                          identifier:nil
+                                             handler:^(__kindof UIAction *action) {
+        __strong typeof(weakSelf) s = weakSelf;
+        if (!s) return;
+        [s toggleZoomMode];
+    }];
+    zoomToggle.state = zoomActive ? UIMenuElementStateOn : UIMenuElementStateOff;
+    [displayActions addObject:zoomToggle];
+
+    // 4. iPad 専用: 横画面時の向き切り替え (iPhoneの操作とは明確に区別)
+    if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+        BOOL rotEnabled = self.iPadLandscapeRotationEnabled;
+        UIAction *oriLock = [UIAction actionWithTitle:L(@"menu_ipad_orientation_lock_portrait")
+                                                image:[UIImage systemImageNamed:@"lock.rotation"]
+                                           identifier:nil
+                                              handler:^(__kindof UIAction *action) {
+            __strong typeof(weakSelf) s = weakSelf;
+            if (!s) return;
+            [s setIPadLandscapeRotationEnabled:NO];
+        }];
+        oriLock.state = (!rotEnabled) ? UIMenuElementStateOn : UIMenuElementStateOff;
+
+        UIAction *oriRotate = [UIAction actionWithTitle:L(@"menu_ipad_orientation_rotate_landscape")
+                                                  image:[UIImage systemImageNamed:@"rotate.right"]
+                                             identifier:nil
+                                                handler:^(__kindof UIAction *action) {
+            __strong typeof(weakSelf) s = weakSelf;
+            if (!s) return;
+            [s setIPadLandscapeRotationEnabled:YES];
+        }];
+        oriRotate.state = rotEnabled ? UIMenuElementStateOn : UIMenuElementStateOff;
+
+        UIMenu *orientationSubmenu = [UIMenu menuWithTitle:L(@"menu_ipad_orientation_title")
+                                                     image:[UIImage systemImageNamed:@"ipad.landscape"]
+                                                identifier:nil
+                                                   options:0
+                                                  children:@[oriLock, oriRotate]];
+        [displayActions addObject:orientationSubmenu];
+    }
+
+    UIMenu *displayMenu = [UIMenu menuWithTitle:@""
+                                          image:nil
+                                     identifier:nil
+                                        options:UIMenuOptionsDisplayInline
+                                       children:displayActions];
+
+    // --- メニューバー配置・一時非表示 ---
     UIAction *posBottom = [UIAction actionWithTitle:L(@"menu_pos_bottom")
                                               image:[UIImage systemImageNamed:@"arrow.down.to.line"]
                                          identifier:nil
@@ -575,6 +1015,30 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
                                        options:UIMenuOptionsDisplayInline
                                       children:@[posBottom, posTop, hideTemp]];
 
+    UIAction *clipSyncAct = [UIAction actionWithTitle:L(@"menu_clipboard_sync")
+                                                image:[UIImage systemImageNamed:@"doc.on.clipboard"]
+                                           identifier:nil
+                                              handler:^(__kindof UIAction *action) {
+        __strong typeof(weakSelf) s = weakSelf;
+        if (!s) return;
+        [s setClipboardSyncEnabled:!s.clipboardSyncEnabled];
+    }];
+    clipSyncAct.state = self.clipboardSyncEnabled ? UIMenuElementStateOn : UIMenuElementStateOff;
+
+    UIAction *pasteToGuestAct = [UIAction actionWithTitle:L(@"menu_paste_to_guest")
+                                                    image:[UIImage systemImageNamed:@"arrow.right.doc.on.clipboard"]
+                                               identifier:nil
+                                                  handler:^(__kindof UIAction *action) {
+        __strong typeof(weakSelf) s = weakSelf;
+        if (!s) return;
+        NSString *clipStr = [UIPasteboard generalPasteboard].string;
+        if (clipStr.length > 0) {
+            [s sendHostPasteboardToGuest:clipStr showToast:YES];
+        } else {
+            [s showToastBannerWithText:L(@"toast_clipboard_empty") icon:@"exclamationmark.circle"];
+        }
+    }];
+
     BOOL hudVisible = (self.telemetryCard && !self.telemetryCard.hidden);
     UIAction *hudAct = [UIAction actionWithTitle:L(@"menu_toggle_hud")
                                            image:[UIImage systemImageNamed:@"waveform.path.ecg"]
@@ -598,7 +1062,7 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
                                         image:nil
                                    identifier:nil
                                       options:UIMenuOptionsDisplayInline
-                                     children:@[hudAct, installIpaAct]];
+                                     children:@[clipSyncAct, pasteToGuestAct, hudAct, installIpaAct]];
 
     UIAction *restartAct = [UIAction actionWithTitle:L(@"force_restart_title")
                                                image:[UIImage systemImageNamed:@"arrow.clockwise.circle"]
@@ -621,7 +1085,7 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
                                       options:UIMenuOptionsDisplayInline
                                      children:@[restartAct, exitAct]];
 
-    return [UIMenu menuWithTitle:@"" children:@[layoutMenu, toolsMenu, powerMenu]];
+    return [UIMenu menuWithTitle:@"" children:@[displayMenu, layoutMenu, toolsMenu, powerMenu]];
 }
 
 - (void)refreshMoreMenu {
@@ -681,9 +1145,9 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
     self.hardwareBar.backgroundColor = [UIColor clearColor];
     self.hardwareBar.layer.cornerRadius = 18.0;
     self.hardwareBar.layer.shadowColor = [UIColor blackColor].CGColor;
-    self.hardwareBar.layer.shadowOpacity = 0.08;
-    self.hardwareBar.layer.shadowRadius = 8.0;
-    self.hardwareBar.layer.shadowOffset = CGSizeMake(0, 2);
+    self.hardwareBar.layer.shadowOpacity = 0.20;
+    self.hardwareBar.layer.shadowRadius = 14.0;
+    self.hardwareBar.layer.shadowOffset = CGSizeMake(0, 4);
     [self.view addSubview:self.hardwareBar];
 
     BOOL isGlass = NO;
@@ -693,9 +1157,9 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
     blurView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     blurView.layer.cornerRadius = 18.0;
     blurView.layer.masksToBounds = YES;
-    blurView.alpha = 0.28;
+    blurView.alpha = 1.0;
     blurView.layer.borderWidth = 0.5;
-    blurView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:(isGlass ? 0.16 : 0.22)].CGColor;
+    blurView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:(isGlass ? 0.20 : 0.25)].CGColor;
     self.barBlurView = blurView;
     [self.hardwareBar insertSubview:blurView atIndex:0];
 
@@ -1499,20 +1963,52 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
     double rawGy = fabs(_gyroY) < 0.025 ? 0.0 : _gyroY;
     double gz = fabs(_gyroZ) < 0.025 ? 0.0 : _gyroZ;
 
-    // Normalize sensor axes to the host's current UI orientation so using an iPad in Landscape
-    // (or UpsideDown) keeps the guest upright instead of triggering unintended landscape rotation.
+    BOOL isPad = (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad);
+    UIInterfaceOrientation hostOri = (UIInterfaceOrientation)__atomic_load_n(&_hostInterfaceOrientation, __ATOMIC_ACQUIRE);
     double ax = rawAx, ay = rawAy;
     double gx = rawGx, gy = rawGy;
-    UIInterfaceOrientation hostOri = (UIInterfaceOrientation)__atomic_load_n(&_hostInterfaceOrientation, __ATOMIC_ACQUIRE);
-    if (hostOri == UIInterfaceOrientationPortraitUpsideDown) {
-        ax = -rawAx; ay = -rawAy;
-        gx = -rawGx; gy = -rawGy;
-    } else if (hostOri == UIInterfaceOrientationLandscapeLeft) {
-        ax = rawAy;  ay = -rawAx;
-        gx = rawGy;  gy = -rawGx;
-    } else if (hostOri == UIInterfaceOrientationLandscapeRight) {
-        ax = -rawAy; ay = rawAx;
-        gx = -rawGy; gy = rawGx;
+
+    if (isPad && !self.iPadLandscapeRotationEnabled) {
+        // iPad で横画面回転が無効 (縦固定・標準) の場合:
+        // iPad を横向きに置いても仮想マシン側が意図せず横回転しないよう、センサー軸を Portrait に打ち消す
+        if (hostOri == UIInterfaceOrientationPortraitUpsideDown) {
+            ax = -rawAx; ay = -rawAy;
+            gx = -rawGx; gy = -rawGy;
+        } else if (hostOri == UIInterfaceOrientationLandscapeLeft) {
+            ax = rawAy;  ay = -rawAx;
+            gx = rawGy;  gy = -rawGx;
+        } else if (hostOri == UIInterfaceOrientationLandscapeRight) {
+            ax = -rawAy; ay = rawAx;
+            gx = -rawGy; gy = rawGx;
+        }
+    } else {
+        // iPhone、または iPad で横画面回転が有効の場合:
+        // ホスト端末の向きをそのまま仮想マシンに反映する！
+        if (hostOri == UIInterfaceOrientationLandscapeLeft) {
+            // ホストが LandscapeLeft:
+            // 物理センサーの水平加速度が弱い（平置き・微傾斜など）場合でも確実に LandscapeLeft を維持
+            if (fabs(rawAx) < 4.0 && fabs(rawAy) < 4.0) {
+                ax = -9.80665;
+                ay = 0.0;
+            }
+        } else if (hostOri == UIInterfaceOrientationLandscapeRight) {
+            // ホストが LandscapeRight:
+            if (fabs(rawAx) < 4.0 && fabs(rawAy) < 4.0) {
+                ax = 9.80665;
+                ay = 0.0;
+            }
+        } else if (hostOri == UIInterfaceOrientationPortraitUpsideDown) {
+            if (fabs(rawAx) < 4.0 && fabs(rawAy) < 4.0) {
+                ax = 0.0;
+                ay = -9.80665;
+            }
+        } else {
+            // Portrait
+            if (fabs(rawAx) < 4.0 && fabs(rawAy) < 4.0) {
+                ax = 0.0;
+                ay = 9.80665;
+            }
+        }
     }
 
     // Keep sending steady-state samples every 100ms because lis302dl expires host motion after 250ms virtual time,
@@ -1637,6 +2133,7 @@ static void emulator_finish_thread_ui(EmulatorViewController *vc, NSString * _Nu
         [vc.motionManager stopMonitoring];
         [vc.telemetryTimer invalidate];
         vc.telemetryTimer = nil;
+        [vc stopClipboardSyncTimer];
         [vc->_shutdownOverlay removeFromSuperview];
         vc->_shutdownOverlay = nil;
         vc->_forceStopButton = nil;
@@ -1667,6 +2164,7 @@ typedef struct {
     NSUInteger uploadOffset;
     NSUInteger pendingChunkLen;
     NSInteger retryCount;
+    NSInteger pollErrorCount;
     CFAbsoluteTime retryAfterTime;
     NSData *ittrustData;
     NSData *itproxyData;
@@ -1687,38 +2185,72 @@ static void ClassicGuestNetworkTrustStep(lt_runtime *runtime, ClassicGuestTrustC
         lt_guest_result res = LT_INIT(lt_guest_result);
         lt_status pst = lt_runtime_guest_poll(runtime, ctx->pendingRequestId, &res, &gerr);
         if (pst != LT_OK) {
+            ctx->pollErrorCount++;
+            if (ctx->pollErrorCount < 5) {
+                NSLog(@"[EmulatorVC] Proxy trust poll transient error (%d: %s, attempt %ld/5)", pst, gerr.message, (long)ctx->pollErrorCount);
+                ctx->retryAfterTime = CFAbsoluteTimeGetCurrent() + 1.0;
+                return;
+            }
             NSLog(@"[EmulatorVC] Proxy trust poll failed (%d: %s)", pst, gerr.message);
             ctx->pendingRequestId = 0;
             ctx->stage = 6;
             return;
         }
+        ctx->pollErrorCount = 0;
         if (res.state == 1) {
             return; // still pending
         }
         ctx->pendingRequestId = 0;
         if (res.state != 2 || res.guest_status != 0) {
-            if (ctx->stage == 4 && strstr(res.output, "-25308") != NULL && ctx->retryCount < 24) {
-                // errSecInteractionNotAllowed (-25308): guest Keychain is locked while on Lock Screen; retry after unlock.
-                ctx->retryCount++;
-                ctx->retryAfterTime = CFAbsoluteTimeGetCurrent() + 5.0;
-                if (ctx->retryCount == 1) {
-                    NSLog(@"[EmulatorVC] Proxy trust deferred until guest screen is unlocked (-25308)");
+            // Stage-specific retry handling
+            if (ctx->stage == 1 || ctx->stage == 2) {
+                // it_agent discards .it-agent-part on any error; resend MUST start from offset 0!
+                if (ctx->retryCount < 8) {
+                    ctx->retryCount++;
+                    NSLog(@"[EmulatorVC] Proxy helper upload stage=%ld failed (state=%u guest_status=%d offset=%lu). Resetting to offset 0 and retrying in 2.0s (attempt %ld/8)...",
+                          (long)ctx->stage, res.state, res.guest_status, (unsigned long)ctx->uploadOffset, (long)ctx->retryCount);
+                    ctx->uploadOffset = 0;
+                    ctx->pendingChunkLen = 0;
+                    ctx->retryAfterTime = CFAbsoluteTimeGetCurrent() + 2.0;
+                    return;
                 }
-                return;
+            } else if (ctx->stage == 3) {
+                if (ctx->retryCount < 5) {
+                    ctx->retryCount++;
+                    NSLog(@"[EmulatorVC] Proxy cert upload failed (state=%u guest_status=%d). Retrying in 2.0s (attempt %ld/5)...",
+                          res.state, res.guest_status, (long)ctx->retryCount);
+                    ctx->pendingChunkLen = 0;
+                    ctx->retryAfterTime = CFAbsoluteTimeGetCurrent() + 2.0;
+                    return;
+                }
+            } else if (ctx->stage == 4) {
+                if (strstr(res.output, "-25308") != NULL && ctx->retryCount < 30) {
+                    // errSecInteractionNotAllowed (-25308): guest Keychain is locked while on Lock Screen; retry after unlock.
+                    ctx->retryCount++;
+                    ctx->retryAfterTime = CFAbsoluteTimeGetCurrent() + 3.0;
+                    if (ctx->retryCount == 1) {
+                        NSLog(@"[EmulatorVC] Proxy trust deferred until guest screen is unlocked (-25308)");
+                    }
+                    return;
+                }
+                if (ctx->retryCount < 10) {
+                    ctx->retryCount++;
+                    NSLog(@"[EmulatorVC] Proxy trust add (ittrust) failed (state=%u guest_status=%d out=%s). Retrying in 2.0s (attempt %ld/10)...",
+                          res.state, res.guest_status, res.output, (long)ctx->retryCount);
+                    ctx->retryAfterTime = CFAbsoluteTimeGetCurrent() + 2.0;
+                    return;
+                }
+            } else if (ctx->stage == 5) {
+                if (ctx->retryCount < 20) {
+                    ctx->retryCount++;
+                    NSLog(@"[EmulatorVC] Proxy route (itproxy) failed (state=%u guest_status=%d out=%s). Retrying in 2.5s (attempt %ld/20)...",
+                          res.state, res.guest_status, res.output, (long)ctx->retryCount);
+                    ctx->retryAfterTime = CFAbsoluteTimeGetCurrent() + 2.5;
+                    return;
+                }
             }
-            if (ctx->stage == 5 && res.guest_status == 5 && ctx->retryCount < 15) {
-                // itproxy exit 5: en0 NetworkService not yet populated by configd/DHCP; retry shortly.
-                ctx->retryCount++;
-                ctx->retryAfterTime = CFAbsoluteTimeGetCurrent() + 3.0;
-                return;
-            }
-            if (res.state == 5 && ctx->stage <= 3 && ctx->retryCount < 2) {
-                // Retry timed-out proxy setup chunk while guest boot daemons finish starting.
-                ctx->retryCount++;
-                ctx->retryAfterTime = CFAbsoluteTimeGetCurrent() + 2.0;
-                return;
-            }
-            NSLog(@"[EmulatorVC] Proxy trust step stage=%ld failed (state=%u guest_status=%d out=%s)",
+
+            NSLog(@"[EmulatorVC] Proxy trust step stage=%ld failed permanently (state=%u guest_status=%d out=%s)",
                   (long)ctx->stage, res.state, res.guest_status, res.output);
             if (ctx->stage == 4 && ctx->markerPath.length && ctx->fingerprint.length) {
                 NSString *savedFp = [NSString stringWithContentsOfFile:ctx->markerPath encoding:NSUTF8StringEncoding error:nil];
@@ -1732,11 +2264,14 @@ static void ClassicGuestNetworkTrustStep(lt_runtime *runtime, ClassicGuestTrustC
             ctx->stage = 6;
             return;
         }
+
+        // Successfully completed chunk / operation
         if (ctx->stage == 1) {
             ctx->uploadOffset += ctx->pendingChunkLen;
             ctx->pendingChunkLen = 0;
             ctx->retryCount = 0;
             if (ctx->uploadOffset >= ctx->ittrustData.length) {
+                NSLog(@"[EmulatorVC] ittrust helper uploaded successfully (%lu bytes)", (unsigned long)ctx->ittrustData.length);
                 ctx->stage = 2;
                 ctx->uploadOffset = 0;
             }
@@ -1745,9 +2280,11 @@ static void ClassicGuestNetworkTrustStep(lt_runtime *runtime, ClassicGuestTrustC
             ctx->pendingChunkLen = 0;
             ctx->retryCount = 0;
             if (ctx->uploadOffset >= ctx->itproxyData.length) {
+                NSLog(@"[EmulatorVC] itproxy helper uploaded successfully (%lu bytes)", (unsigned long)ctx->itproxyData.length);
                 ctx->stage = 3;
             }
         } else if (ctx->stage == 3) {
+            NSLog(@"[EmulatorVC] Certificate uploaded to guest successfully");
             ctx->retryCount = 0;
             ctx->stage = 4;
         } else if (ctx->stage == 4) {
@@ -1829,7 +2366,13 @@ static void ClassicGuestNetworkTrustStep(lt_runtime *runtime, ClassicGuestTrustC
         return;
     }
     if (rst != LT_OK) {
-        NSLog(@"[EmulatorVC] Proxy trust request stage=%ld rejected (%d: %s)", (long)ctx->stage, rst, gerr.message);
+        ctx->retryCount++;
+        if (ctx->retryCount < 5) {
+            NSLog(@"[EmulatorVC] Proxy trust request stage=%ld rejected (%d: %s). Retrying in 1.5s...", (long)ctx->stage, rst, gerr.message);
+            ctx->retryAfterTime = CFAbsoluteTimeGetCurrent() + 1.5;
+            return;
+        }
+        NSLog(@"[EmulatorVC] Proxy trust request stage=%ld failed permanently (%d: %s)", (long)ctx->stage, rst, gerr.message);
         ctx->stage = 6;
         return;
     }
@@ -1839,6 +2382,47 @@ static void ClassicGuestNetworkTrustStep(lt_runtime *runtime, ClassicGuestTrustC
         ctx->pendingChunkLen = 0;
     }
     ctx->pendingRequestId = reqId;
+}
+
+static void ClassicApplyCarrierNameIfConfigured(void) {
+    NSString *carrier = [[NSUserDefaults standardUserDefaults] stringForKey:@"ClassicTouch_CarrierName"];
+    if (!carrier || carrier.length == 0) {
+        carrier = @"ClassicTouch";
+    }
+
+    // 1. Modem property setter (qemu_ios_ui_modem_set)
+    typedef bool (*qemu_modem_set_fn)(const char *prop, const char *val);
+    static qemu_modem_set_fn s_modem_set = NULL;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        s_modem_set = (qemu_modem_set_fn)dlsym(RTLD_DEFAULT, "qemu_ios_ui_modem_set");
+        if (!s_modem_set) {
+            s_modem_set = (qemu_modem_set_fn)dlsym(RTLD_DEFAULT, "_qemu_ios_ui_modem_set");
+        }
+    });
+
+    if (s_modem_set) {
+        bool ok = s_modem_set("carrier", [carrier UTF8String]);
+        if (ok) {
+            NSLog(@"[EmulatorVC] Applied carrier name '%@' via modem emulation", carrier);
+        }
+    }
+
+    // 2. it_agent defaults write
+    typedef bool (*qemu_agent_req_fn)(const char *req);
+    static qemu_agent_req_fn s_agent_req = NULL;
+    static dispatch_once_t onceToken2;
+    dispatch_once(&onceToken2, ^{
+        s_agent_req = (qemu_agent_req_fn)dlsym(RTLD_DEFAULT, "qemu_ios_agent_request");
+        if (!s_agent_req) {
+            s_agent_req = (qemu_agent_req_fn)dlsym(RTLD_DEFAULT, "_qemu_ios_agent_request");
+        }
+    });
+
+    if (s_agent_req) {
+        NSString *cmd = [NSString stringWithFormat:@"exec defaults write com.apple.springboard SBCarrierName \"%@\"\n", carrier];
+        s_agent_req([cmd UTF8String]);
+    }
 }
 
 static void *emulator_worker_thread(void *arg) {
@@ -2105,10 +2689,17 @@ static void *emulator_worker_thread(void *arg) {
     uint64_t n42PrevFrames = 0;
     CFAbsoluteTime ppnStartTime = CFAbsoluteTimeGetCurrent();
     CFAbsoluteTime lastPpnProgressCheck = 0;
+    CFAbsoluteTime carrierApplyTime = CFAbsoluteTimeGetCurrent() + 5.0;
+    BOOL carrierApplied = NO;
     while (__atomic_load_n(&vc->_isEmulating, __ATOMIC_ACQUIRE)) {
         lt_runtime_status rstat = LT_INIT(lt_runtime_status);
         lt_error pollErr = LT_INIT(lt_error);
         lt_status pollSt = lt_runtime_poll(runtime, &rstat, &pollErr);
+
+        if (pollSt == LT_OK && rstat.state == LT_RUNNING && !carrierApplied && CFAbsoluteTimeGetCurrent() >= carrierApplyTime) {
+            ClassicApplyCarrierNameIfConfigured();
+            carrierApplied = YES;
+        }
 
         if (pollSt == LT_OK && rstat.state == LT_RUNNING && trustCtx.stage < 6) {
             ClassicGuestNetworkTrustStep(runtime, &trustCtx);
@@ -2171,18 +2762,18 @@ static void *emulator_worker_thread(void *arg) {
                         break;
                     }
                     float prog = 0.08f;
-                    NSString *phaseText = [NSString stringWithFormat:@"iPhone 5 リストア環境を起動中… (%ds)", elapsedSec];
+                    NSString *phaseText = [NSString stringWithFormat:L(@"n42_restore_env_starting"), elapsedSec];
                     if ([slog containsString:@"Starting VFL Format"] || [slog containsString:@"A6RESTORE WAITING_DISK"]) {
                         prog = 0.12f;
-                        phaseText = [NSString stringWithFormat:@"PPN NAND フラッシュをフォーマット中… (%ds)", elapsedSec];
+                        phaseText = [NSString stringWithFormat:L(@"n42_format_ppn_nand"), elapsedSec];
                     }
                     if ([slog containsString:@"FTL_Open"] || [slog containsString:@"Creating block device"]) {
                         prog = 0.16f;
-                        phaseText = [NSString stringWithFormat:@"PPN パーティションを構築中… (%ds)", elapsedSec];
+                        phaseText = [NSString stringWithFormat:L(@"n42_build_ppn_partitions"), elapsedSec];
                     }
                     if ([slog containsString:@"A6RESTORE MEDIA"]) {
                         prog = 0.18f;
-                        phaseText = [NSString stringWithFormat:@"システムイメージの展開を開始中… (%ds)", elapsedSec];
+                        phaseText = [NSString stringWithFormat:L(@"n42_restore_sys_image_start"), elapsedSec];
                     }
                     NSRange lastProg = [slog rangeOfString:@"A6RESTORE PROGRESS " options:NSBackwardsSearch];
                     if (lastProg.location != NSNotFound) {
@@ -2195,10 +2786,10 @@ static void *emulator_worker_thread(void *arg) {
                             prog = 0.18f + 0.46f * frac;
                             int pctVal = (int)(frac * 100.0f);
                             if (matched >= 3 && writtenBytes > 0) {
-                                phaseText = [NSString stringWithFormat:@"システムイメージを展開中… %d%% (%.0f MB / %ds)",
+                                phaseText = [NSString stringWithFormat:L(@"n42_restore_sys_image_progress_mb"),
                                              pctVal, (double)writtenBytes / 1048576.0, elapsedSec];
                             } else {
-                                phaseText = [NSString stringWithFormat:@"システムイメージを展開中… %d%% (%u/%u / %ds)",
+                                phaseText = [NSString stringWithFormat:L(@"n42_restore_sys_image_progress_chunks"),
                                              pctVal, curRec, totRec, elapsedSec];
                             }
                         } else {
@@ -2207,23 +2798,23 @@ static void *emulator_worker_thread(void *arg) {
                     }
                     if ([slog containsString:@"A6RESTORE DONE "]) {
                         prog = 0.66f;
-                        phaseText = [NSString stringWithFormat:@"イメージ検証完了・データ領域を準備中… (%ds)", elapsedSec];
+                        phaseText = [NSString stringWithFormat:L(@"n42_data_area_prep"), elapsedSec];
                     }
                     if ([slog containsString:@"A6NATIVEFORMAT START"]) {
                         prog = 0.72f;
-                        phaseText = [NSString stringWithFormat:@"データ領域フォーマット・Keybag 生成中… (%ds)", elapsedSec];
+                        phaseText = [NSString stringWithFormat:L(@"n42_format_data_keybag"), elapsedSec];
                     }
                     if ([slog containsString:@"A6NATIVEFORMAT copying original Data seed"]) {
                         prog = 0.80f;
-                        phaseText = [NSString stringWithFormat:@"初期データ・設定シードを書き込み中… (%ds)", elapsedSec];
+                        phaseText = [NSString stringWithFormat:L(@"n42_write_initial_seeds"), elapsedSec];
                     }
                     if ([slog containsString:@"A6NATIVEGESTALT starting worker"]) {
                         prog = 0.88f;
-                        phaseText = [NSString stringWithFormat:@"MobileGestalt キャッシュを生成中… (%ds)", elapsedSec];
+                        phaseText = [NSString stringWithFormat:L(@"n42_gen_gestalt_cache"), elapsedSec];
                     }
                     if ([slog containsString:@"A6NATIVEFORMAT both volumes unmounted cleanly"]) {
                         prog = 0.96f;
-                        phaseText = [NSString stringWithFormat:@"ストレージ整合性を最終確認中… (%ds)", elapsedSec];
+                        phaseText = [NSString stringWithFormat:L(@"n42_storage_verify_final"), elapsedSec];
                     }
                     dispatch_async(dispatch_get_main_queue(), ^{
                         if (!vc.ipaInstallInFlight && !vc.ipaProgressCard.hidden) {
@@ -2288,7 +2879,7 @@ static void *emulator_worker_thread(void *arg) {
             break;
         }
 
-        usleep(drainedAudio ? 2000 : 5000);
+        usleep(drainedAudio ? 1000 : 2500);
     }
 
 cleanup:
@@ -2417,6 +3008,9 @@ cleanup:
     pthread_attr_destroy(&emuAttr);
     if (createRc == 0) {
         pthread_detach(_emulatorThread);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self startClipboardSyncTimer];
+        });
     } else {
         CFBridgingRelease(ctx);
         __atomic_store_n(&_isEmulating, NO, __ATOMIC_RELEASE);
@@ -2441,6 +3035,7 @@ cleanup:
     [self.motionManager stopMonitoring];
     [self.telemetryTimer invalidate];
     self.telemetryTimer = nil;
+    [self stopClipboardSyncTimer];
 }
 
 - (void)setQemuGlesAllowed:(BOOL)allowed {
@@ -2473,6 +3068,7 @@ cleanup:
 - (void)handleAppDidBecomeActive:(NSNotification *)note {
     [self setQemuGlesAllowed:YES];
     self.metalView.paused = NO;
+    [self.metalView setNeedsDisplay];
     lt_runtime *rt = __atomic_load_n(&_runtime, __ATOMIC_ACQUIRE);
     if (rt && __atomic_load_n(&_isEmulating, __ATOMIC_ACQUIRE)) {
         [UIApplication sharedApplication].idleTimerDisabled = YES;
@@ -2485,6 +3081,14 @@ cleanup:
             });
         }
     }
+    if (self.clipboardSyncEnabled) {
+        [self checkHostPasteboardForSync];
+    }
+}
+
+- (void)didReceiveMemoryWarning {
+    [super didReceiveMemoryWarning];
+    [self.metalView purgeTextureCaches];
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
