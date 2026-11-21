@@ -85,7 +85,7 @@ ClassicTouch builds upon and takes inspiration from extensive prior work across 
 
 ---
 
-## 6. License (ライセンス)
+## 6. License 
 
 ClassicTouch is distributed under the terms of the **GNU General Public License Version 2 (GPL-2.0)**.
 - Full license terms: [LICENSE](LICENSE)
