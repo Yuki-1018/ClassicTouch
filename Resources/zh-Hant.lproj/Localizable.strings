@@ -1,7 +1,7 @@
 "vm_containers" = "虛擬機器";
 "main_footer" = "輕點項目檢視詳細資訊與記錄，輕點右側 ▶ 啟動。啟動前請使用 StikDebug（universal.js）等啟用 JIT。";
 "no_containers" = "尚無虛擬機器";
-"no_containers_desc" = "請點選下方按鈕（或右上角的 +）選擇裝置與 iOS 版本開始建立。";
+"no_containers_desc" = "請點選下方按鈕（或右上角的 +）選擇裝置與系統版本開始建立。";
 "create_container" = "建立容器";
 "boot_action" = "啟動";
 "bootrom_ok" = "BootROM：已就緒";
@@ -105,11 +105,11 @@
 "select_ipsw_title" = "準備韌體";
 "download_ipsw" = "下載 IPSW 韌體";
 "use_cached_ipsw" = "使用已下載的 IPSW";
-"import_local_ipsw" = "從檔案選擇 IPSW...";
+"import_local_ipsw" = "從檔案選擇韌體...";
 "preparing_container" = "正在建立容器...";
 "downloading_ipsw" = "正在下載 IPSW...";
 "firmware_mgmt_title" = "韌體管理";
-"downloaded_ipsws" = "已下載的 IPSW";
+"downloaded_ipsws" = "已下載的韌體";
 "prepared_bases" = "已準備的底包";
 "no_firmware" = "尚無已下載的韌體。";
 "in_use_badge" = "使用中";
@@ -122,7 +122,7 @@
 "no_serial_log" = "尚無序列埠記錄。";
 "copy" = "複製";
 "copied" = "已複製";
-"delete_ipsw_msg" = "確定要刪除此 IPSW 韌體檔案嗎？";
+"delete_ipsw_msg" = "確定要刪除此韌體檔案嗎？";
 "delete_base_msg" = "確定要刪除此底包映像檔嗎？";
 "unused" = "未使用";
 "no_bases" = "尚無已準備的底包。";
@@ -135,25 +135,25 @@
 "bootrom_required_s5l8720_msg" = "啟動此機型需要 64 KB 的 S5L8720 iBoot-240.4 BootROM (bootrom_240_4)。";
 "bootrom_missing_detail_fmt" = "%@\n\n請在「檔案」App 中選取對應的 S5L8900 或 S5L8720 BootROM，或直接放入 ClassicTouch 的「文件」(Documents) 資料夾中。";
 
-"download_catalog_ipsw" = "從官方目錄下載 IPSW...";
-"download_catalog_device_msg" = "請選擇要下載 IPSW 的裝置型號：";
-"download_catalog_version_msg" = "請選擇要下載的 iOS 版本：";
+"download_catalog_ipsw" = "從目錄下載韌體...";
+"download_catalog_device_msg" = "請選擇要下載韌體的裝置型號：";
+"download_catalog_version_msg" = "請選擇要下載的系統版本：";
 "downloaded_badge" = "已下載";
-"redownload_ipsw_title" = "IPSW 韌體已存在";
-"redownload_ipsw_msg" = "iOS %@ (%@) 已經下載。是否要重新下載並驗證？";
+"redownload_ipsw_title" = "韌體已存在";
+"redownload_ipsw_msg" = "%@ (%@) 已經下載。是否要重新下載並驗證？";
 "redownload_action" = "重新下載";
 "download_failed_title" = "下載失敗";
 "download_failed_msg" = "韌體下載失敗，請檢查網路連線後重試。";
 
-"ipsw_notif_done_title" = "IPSW 下載完成";
+"ipsw_notif_done_title" = "韌體下載完成";
 "ipsw_notif_done_body" = "%@ 的下載與驗證已完成。";
-"ipsw_notif_fail_title" = "IPSW 下載失敗";
+"ipsw_notif_fail_title" = "韌體下載失敗";
 "ipsw_notif_fail_body" = "%@ 下載失敗：%@ ";
 "ipsw_bg_connecting_detail" = "正在連線伺服器…\n關閉應用程式後仍會在背景繼續下載，完成時會發送通知";
 "ipsw_bg_progress_detail" = "%.1f / %.1f MB (%.1f MB/s)\n背景下載中";
 "ipsw_bg_reattached_detail" = "正在背景下載中…";
 "ipsw_download_complete_title" = "下載完成";
-"ipsw_download_complete_msg" = "%@ 的 IPSW 韌體下載與驗證已完成。";
+"ipsw_download_complete_msg" = "%@ 的韌體下載與驗證已完成。";
 
 "menu_install_ipa" = "安裝 IPA 應用程式...";
 "ipa_install_not_ready" = "請等待虛擬 iPhone 完全啟動且 USB 連線建立後再試。";
@@ -183,12 +183,12 @@
 "copy_container_id" = "複製容器 ID";
 "copied_container_id_fmt" = "已複製容器 ID：\n%@";
 "back_to_device_select" = "返回選擇裝置";
-"select_local_ipsw" = "從檔案選擇本機 IPSW...";
+"select_local_ipsw" = "從檔案選擇本機韌體...";
 "create_new_vm" = "建立新虛擬機器";
 "create_first_vm" = "建立第一個虛擬機器";
-"create_container_from_ipsw" = "從此 IPSW 建立新容器...";
-"delete_ipsw_free_space" = "刪除此 IPSW 檔案（釋放儲存空間）";
-"ipsw_management" = "IPSW 韌體管理";
+"create_container_from_ipsw" = "從此韌體建立新容器...";
+"delete_ipsw_free_space" = "刪除此韌體檔案（釋放儲存空間）";
+"ipsw_management" = "韌體管理";
 "first_run_note_title" = "初次使用須知";
 "first_run_note_msg" = "• 容器首次啟動時需進行系統初始化，若偶發啟動失敗請嘗試重新開啟應用程式或重新建立。\n\n• 在 StikDebug 中啟用 JIT 時，請務必載入「universal.js」指令碼。";
 "ok_dont_show_again" = "好（不再提示）";
@@ -219,9 +219,9 @@
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1～6.1.6)";
 "device_ipad_1g_desc" = "iPad 第1代 (iPhone OS 3.2～iOS 5.1.1)";
 "wizard_select_device_title" = "新建容器：選擇機型";
-"wizard_select_device_prompt" = "請選擇要模擬的 Apple 裝置：";
+"wizard_select_device_prompt" = "請選擇要模擬的裝置：";
 "wizard_select_os_title" = "選擇系統版本";
-"wizard_select_os_prompt_fmt" = "%@\n請選擇要安裝的 iOS 版本：";
+"wizard_select_os_prompt_fmt" = "%@\n請選擇要安裝的系統版本：";
 "tag_ready_cydia" = " [已就緒 / Cydia]";
 "tag_cydia_ready" = " [Cydia已就緒]";
 "tag_ready" = " [已就緒]";
@@ -235,14 +235,14 @@
 "btn_create_cydia_ready" = "含 Cydia 建立 [已就緒]";
 "btn_create_cydia_jb" = "含 Cydia 建立（越獄）";
 "downloading_fmt" = "正在下載：%@ ";
-"ipsw_verifying" = "正在驗證 IPSW 韌體...";
+"ipsw_verifying" = "正在驗證韌體...";
 "ipsw_extracting" = "正在解壓縮並解密韌體...";
 "ipsw_creating_boot_img" = "正在建立硬體身份與開機映像檔...";
 "ipsw_building_sys_data" = "正在建構系統與資料分割區...";
 "ipsw_writing_nand" = "正在寫入 NAND 儲存映像檔...";
 "ipsw_preparing_keybag" = "正在準備資料保護 Keybag...";
 "ipsw_validating_fs" = "正在驗證檔案系統完整性...";
-"firmware_err_ipsw_not_found_fmt" = "韌體建構錯誤 (代碼: -3)\n\n【錯誤詳細資訊】\n找不到 IPSW 檔案：\n%@";
+"firmware_err_ipsw_not_found_fmt" = "韌體建構錯誤 (代碼: -3)\n\n【錯誤詳細資訊】\n找不到韌體檔案：\n%@";
 "storage_build_failed" = "儲存空間建構失敗";
 "building_device_storage_cydia" = "正在建構裝置儲存空間 (含 Cydia)...";
 "building_device_storage" = "正在建構裝置儲存空間...";
@@ -258,12 +258,12 @@
 "cannot_delete_in_use" = "正在使用中，無法刪除";
 "cannot_delete" = "無法刪除";
 "ipsw_in_use_details_fmt" = "此韌體正在被以下容器使用：\n%@\n\n請先刪除對應容器後再重試。";
-"parsing_ipsw" = "正在剖析 IPSW 檔案...";
+"parsing_ipsw" = "正在剖析韌體檔案...";
 "verifying_checksum" = "正在核對校驗和...";
-"ipsw_read_failed" = "讀取 IPSW 失敗";
-"ipsw_save_failed" = "儲存 IPSW 失敗";
-"unsupported_ipsw" = "不支援的 IPSW";
-"ipsw_sha1_mismatch" = "所選 IPSW 的 SHA1 校驗和與目錄不相符。";
+"ipsw_read_failed" = "讀取韌體失敗";
+"ipsw_save_failed" = "儲存韌體失敗";
+"unsupported_ipsw" = "不支援的韌體";
+"ipsw_sha1_mismatch" = "所選韌體的 SHA1 校驗和與目錄不相符。";
 "another_vm" = "另一部虛擬機器";
 "already_running" = "虛擬機器已在執行中";
 "vm_already_running_fmt" = "虛擬機器「%@」正在執行中。\n同一時間只能執行一部虛擬機器。";
@@ -379,7 +379,7 @@
 /* Settings */
 "settings_title" = "設定";
 "settings_firmware_rom_header" = "韌體與 BootROM 管理";
-"settings_ipsw_management" = "IPSW 韌體管理";
+"settings_ipsw_management" = "韌體管理";
 "settings_ipsw_subtitle_fmt" = "%lu 個韌體檔案";
 "settings_bootrom_management" = "BootROM 管理";
 "settings_bootrom_subtitle_fmt" = "已安裝 %lu / 2";
@@ -417,3 +417,31 @@
 
 "settings_license_title" = "授權條款與開源聲明";
 "settings_license_subtitle" = "GNU 通用公共授權條款 v2 (GPL-2.0)";
+
+/* Android */
+"device_android_arm" = "Android";
+"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"android_variant_aosp" = "AOSP 標準版";
+"android_variant_gapps" = "Google APIs 版";
+"wizard_name_config_prompt_android" = "請輸入虛擬機名稱（之後可更改）。\n* 使用 ARMv7 Goldfish + OpenGL ES 硬體加速與 640×1136 解析度執行。";
+"building_android_storage" = "正在建置 Android 儲存空間...";
+"extracting_android_images" = "正在解壓系統映像並格式化 ext4 / SD 儲存空間...";
+
+/* Android Per-Container Settings */
+"section_android_config" = "Android 虛擬機設定";
+"android_cfg_ram" = "記憶體 (RAM)";
+"android_cfg_ram_hint" = "選擇分配給此 Android 容器的記憶體容量（A9 / 2GB 裝置建議 512 MB）。";
+"recommended" = "建議";
+"android_cfg_dpi" = "螢幕縮放 (DPI)";
+"android_cfg_dpi_hint" = "調整 Android 介面縮放密度（320 dpi 與 iPhone 5 比例相同）。";
+"android_cfg_gpu" = "GPU 硬體加速";
+"android_cfg_gpu_hint" = "切換 OpenGL ES 硬體渲染加速（建議開啟）。";
+"android_cfg_gpu_on" = "OpenGL ES（已啟用）";
+"android_cfg_gpu_off" = "軟體渲染（已停用）";
+"android_cfg_storage_reset" = "儲存空間維護";
+"android_cfg_cache_or_data" = "快取 / 使用者資料";
+"android_cfg_storage_hint" = "清除此容器的快取或重置使用者資料分割區。";
+"android_clear_cache_action" = "清除快取 (cache.img)";
+"android_wipe_userdata_action" = "清除使用者資料 (userdata.img)";
+"android_cfg_ram_custom" = "自訂輸入 (MB)...";
+"android_cfg_ram_custom_hint" = "請輸入分配的 RAM 容量（256–3072 MB）。在 2 GB 記憶體裝置（如 A9）上過高設定可能會導致系統強制結束應用程式。";

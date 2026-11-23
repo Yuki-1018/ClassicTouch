@@ -1,7 +1,7 @@
 "vm_containers" = "เครื่องเสมือน";
 "main_footer" = "แตะแถวเพื่อดูรายละเอียดและบันทึก หรือแตะ ▶ เพื่อเปิดเครื่อง เปิดใช้งาน JIT ก่อนเริ่ม (เช่น StikDebug ด้วย universal.js)";
 "no_containers" = "ไม่มีเครื่องเสมือน";
-"no_containers_desc" = "แตะปุ่มด้านล่าง (หรือเครื่องหมาย + ที่มุมขวาบน) เพื่อเลือกอุปกรณ์และเวอร์ชัน iOS เพื่อเริ่มสร้าง";
+"no_containers_desc" = "แตะปุ่มด้านล่าง (หรือเครื่องหมาย + ที่มุมขวาบน) เพื่อเลือกอุปกรณ์และเวอร์ชัน OS เพื่อเริ่มสร้าง";
 "create_container" = "สร้างคอนเทนเนอร์";
 "boot_action" = "เปิดเครื่อง";
 "bootrom_ok" = "BootROM: พร้อมใช้งาน";
@@ -105,11 +105,11 @@
 "select_ipsw_title" = "เตรียมเฟิร์มแวร์";
 "download_ipsw" = "ดาวน์โหลด IPSW";
 "use_cached_ipsw" = "ใช้ IPSW ที่ดาวน์โหลดไว้แล้ว";
-"import_local_ipsw" = "เลือก IPSW จากไฟล์...";
+"import_local_ipsw" = "เลือกเฟิร์มแวร์จากไฟล์...";
 "preparing_container" = "กำลังสร้างคอนเทนเนอร์...";
 "downloading_ipsw" = "กำลังดาวน์โหลด IPSW...";
 "firmware_mgmt_title" = "การจัดการเฟิร์มแวร์";
-"downloaded_ipsws" = "ไฟล์ IPSW ที่ดาวน์โหลดแล้ว";
+"downloaded_ipsws" = "ไฟล์เฟิร์มแวร์ที่ดาวน์โหลดแล้ว";
 "prepared_bases" = "อิมเมจฐานที่เตรียมไว้";
 "no_firmware" = "ไม่มีเฟิร์มแวร์ที่ดาวน์โหลดไว้";
 "in_use_badge" = "กำลังใช้งาน";
@@ -122,7 +122,7 @@
 "no_serial_log" = "ยังไม่มีบันทึกพอร์ตอนุกรม";
 "copy" = "คัดลอก";
 "copied" = "คัดลอกแล้ว";
-"delete_ipsw_msg" = "คุณต้องการลบไฟล์ IPSW นี้หรือไม่?";
+"delete_ipsw_msg" = "คุณต้องการลบไฟล์เฟิร์มแวร์นี้หรือไม่?";
 "delete_base_msg" = "คุณต้องการลบอิมเมจฐานนี้หรือไม่?";
 "unused" = "ไม่ได้ใช้งาน";
 "no_bases" = "ไม่มีอิมเมจฐานที่เตรียมไว้";
@@ -135,25 +135,25 @@
 "bootrom_required_s5l8720_msg" = "อุปกรณ์นี้ต้องการ BootROM 64 KB S5L8720 iBoot-240.4 (bootrom_240_4)";
 "bootrom_missing_detail_fmt" = "%@\n\nโปรดเลือก BootROM S5L8900 หรือ S5L8720 ในแอปไฟล์ หรือวางในโฟลเดอร์เอกสารของ ClassicTouch";
 
-"download_catalog_ipsw" = "ดาวน์โหลด IPSW จากแค็ตตาล็อก...";
+"download_catalog_ipsw" = "ดาวน์โหลดเฟิร์มแวร์จากแค็ตตาล็อก...";
 "download_catalog_device_msg" = "เลือกรุ่นอุปกรณ์ที่ต้องการดาวน์โหลด:";
-"download_catalog_version_msg" = "เลือกเวอร์ชัน iOS ที่ต้องการดาวน์โหลด:";
+"download_catalog_version_msg" = "เลือกเวอร์ชัน OS ที่ต้องการดาวน์โหลด:";
 "downloaded_badge" = "ดาวน์โหลดแล้ว";
-"redownload_ipsw_title" = "ไฟล์ IPSW มีอยู่แล้ว";
-"redownload_ipsw_msg" = "iOS %@ (%@) ดาวน์โหลดไว้แล้ว ต้องการดาวน์โหลดใหม่และตรวจสอบอีกครั้งหรือไม่?";
+"redownload_ipsw_title" = "ไฟล์เฟิร์มแวร์มีอยู่แล้ว";
+"redownload_ipsw_msg" = "%@ (%@) ดาวน์โหลดไว้แล้ว ต้องการดาวน์โหลดใหม่และตรวจสอบอีกครั้งหรือไม่?";
 "redownload_action" = "ดาวน์โหลดใหม่";
 "download_failed_title" = "ดาวน์โหลดล้มเหลว";
 "download_failed_msg" = "การดาวน์โหลดเฟิร์มแวร์ล้มเหลว โปรดตรวจสอบการเชื่อมต่อของคุณ";
 
-"ipsw_notif_done_title" = "ดาวน์โหลด IPSW เสร็จสมบูรณ์";
+"ipsw_notif_done_title" = "ดาวน์โหลดเฟิร์มแวร์เสร็จสมบูรณ์";
 "ipsw_notif_done_body" = "ดาวน์โหลดและตรวจสอบ %@ เสร็จสิ้นแล้ว";
-"ipsw_notif_fail_title" = "ดาวน์โหลด IPSW ล้มเหลว";
+"ipsw_notif_fail_title" = "ดาวน์โหลดเฟิร์มแวร์ล้มเหลว";
 "ipsw_notif_fail_body" = "ดาวน์โหลด %@ ล้มเหลว: %@";
 "ipsw_bg_connecting_detail" = "กำลังเชื่อมต่อเซิร์ฟเวอร์…\nการดาวน์โหลดจะดำเนินต่อไปในเบื้องหลังแม้คุณจะปิดแอป";
 "ipsw_bg_progress_detail" = "%.1f / %.1f MB (%.1f MB/s)\nกำลังดาวน์โหลดในเบื้องหลัง";
 "ipsw_bg_reattached_detail" = "กำลังดาวน์โหลดในเบื้องหลัง…";
 "ipsw_download_complete_title" = "ดาวน์โหลดเสร็จสมบูรณ์";
-"ipsw_download_complete_msg" = "ดาวน์โหลดและตรวจสอบ IPSW สำหรับ %@ เสร็จสิ้นแล้ว";
+"ipsw_download_complete_msg" = "ดาวน์โหลดและตรวจสอบเฟิร์มแวร์สำหรับ %@ เสร็จสิ้นแล้ว";
 
 "menu_install_ipa" = "ติดตั้ง IPA...";
 "ipa_install_not_ready" = "โปรดรอให้ iPhone เสมือนเปิดเครื่องเสร็จสมบูรณ์และการเชื่อมต่อ USB พร้อมใช้งาน";
@@ -183,12 +183,12 @@
 "copy_container_id" = "คัดลอก ID คอนเทนเนอร์";
 "copied_container_id_fmt" = "คัดลอก ID คอนเทนเนอร์แล้ว:\n%@";
 "back_to_device_select" = "กลับไปเลือกอุปกรณ์";
-"select_local_ipsw" = "เลือกไฟล์ IPSW ภายในเครื่อง...";
+"select_local_ipsw" = "เลือกไฟล์เฟิร์มแวร์ภายในเครื่อง...";
 "create_new_vm" = "สร้างเครื่องเสมือนใหม่";
 "create_first_vm" = "สร้างเครื่องเสมือนเครื่องแรก";
-"create_container_from_ipsw" = "สร้างคอนเทนเนอร์จาก IPSW นี้...";
-"delete_ipsw_free_space" = "ลบ IPSW นี้ (เพิ่มพื้นที่ว่าง)";
-"ipsw_management" = "การจัดการ IPSW";
+"create_container_from_ipsw" = "สร้างคอนเทนเนอร์จากเฟิร์มแวร์นี้...";
+"delete_ipsw_free_space" = "ลบเฟิร์มแวร์นี้ (เพิ่มพื้นที่ว่าง)";
+"ipsw_management" = "การจัดการเฟิร์มแวร์";
 "first_run_note_title" = "คำแนะนำสำหรับการใช้งานครั้งแรก";
 "first_run_note_msg" = "• ในการบูตคอนเทนเนอร์ครั้งแรก การตั้งค่าระบบอาจล้มเหลวได้ในบางครั้ง ให้รีสตาร์ทแอปหรือสร้างคอนเทนเนอร์ใหม่หากเกิดขึ้น\n\n• อย่าลืมโหลดสคริปต์ «universal.js» ใน StikDebug เพื่อเปิดใช้งาน JIT";
 "ok_dont_show_again" = "ตกลง (ไม่ต้องแสดงอีก)";
@@ -219,9 +219,9 @@
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1–6.1.6)";
 "device_ipad_1g_desc" = "iPad รุ่นที่ 1 (iPhone OS 3.2–iOS 5.1.1)";
 "wizard_select_device_title" = "สร้างคอนเทนเนอร์ใหม่: อุปกรณ์";
-"wizard_select_device_prompt" = "เลือกอุปกรณ์ Apple ที่คุณต้องการจำลอง:";
-"wizard_select_os_title" = "เวอร์ชัน iOS";
-"wizard_select_os_prompt_fmt" = "%@\nเลือกเวอร์ชัน iOS ที่ต้องการติดตั้ง:";
+"wizard_select_device_prompt" = "เลือกอุปกรณ์ที่คุณต้องการจำลอง:";
+"wizard_select_os_title" = "เวอร์ชัน OS";
+"wizard_select_os_prompt_fmt" = "%@\nเลือกเวอร์ชัน OS ที่ต้องการติดตั้ง:";
 "tag_ready_cydia" = " [พร้อม / Cydia]";
 "tag_cydia_ready" = " [Cydia พร้อม]";
 "tag_ready" = " [พร้อม]";
@@ -235,14 +235,14 @@
 "btn_create_cydia_ready" = "สร้างพร้อม Cydia [พร้อม]";
 "btn_create_cydia_jb" = "สร้างพร้อม Cydia (เจลเบรค)";
 "downloading_fmt" = "กำลังดาวน์โหลด: %@";
-"ipsw_verifying" = "กำลังตรวจสอบไฟล์ IPSW...";
+"ipsw_verifying" = "กำลังตรวจสอบไฟล์เฟิร์มแวร์...";
 "ipsw_extracting" = "กำลังแตกไฟล์และถอดรหัสเฟิร์มแวร์...";
 "ipsw_creating_boot_img" = "กำลังสร้างข้อมูลประจำตัวและอิมเมจบูต...";
 "ipsw_building_sys_data" = "กำลังสร้างพาร์ติชันระบบและข้อมูล...";
 "ipsw_writing_nand" = "กำลังเขียนอิมเมจพื้นที่จัดเก็บ NAND...";
 "ipsw_preparing_keybag" = "กำลังเตรียม Keybag การปกป้องข้อมูล...";
 "ipsw_validating_fs" = "กำลังตรวจสอบความสมบูรณ์ของระบบไฟล์...";
-"firmware_err_ipsw_not_found_fmt" = "ข้อผิดพลาดในการสร้างเฟิร์มแวร์ (รหัส: -3)\n\n【รายละเอียดข้อผิดพลาด】\nไม่พบไฟล์ IPSW:\n%@";
+"firmware_err_ipsw_not_found_fmt" = "ข้อผิดพลาดในการสร้างเฟิร์มแวร์ (รหัส: -3)\n\n【รายละเอียดข้อผิดพลาด】\nไม่พบไฟล์เฟิร์มแวร์:\n%@";
 "storage_build_failed" = "สร้างพื้นที่จัดเก็บไม่สำเร็จ";
 "building_device_storage_cydia" = "กำลังสร้างพื้นที่จัดเก็บอุปกรณ์ (พร้อม Cydia)...";
 "building_device_storage" = "กำลังสร้างพื้นที่จัดเก็บอุปกรณ์...";
@@ -258,12 +258,12 @@
 "cannot_delete_in_use" = "กำลังใช้งาน ไม่สามารถลบได้";
 "cannot_delete" = "ไม่สามารถลบได้";
 "ipsw_in_use_details_fmt" = "เฟิร์มแวร์นี้กำลังถูกใช้งานโดยคอนเทนเนอร์ต่อไปนี้:\n%@\n\nโปรดลบคอนเทนเนอร์เหล่านั้นก่อนลองใหม่อีกครั้ง";
-"parsing_ipsw" = "กำลังวิเคราะห์ไฟล์ IPSW...";
+"parsing_ipsw" = "กำลังวิเคราะห์ไฟล์เฟิร์มแวร์...";
 "verifying_checksum" = "กำลังตรวจสอบ Checksum...";
-"ipsw_read_failed" = "อ่านไฟล์ IPSW ล้มเหลว";
-"ipsw_save_failed" = "บันทึกไฟล์ IPSW ล้มเหลว";
-"unsupported_ipsw" = "IPSW ที่ไม่รองรับ";
-"ipsw_sha1_mismatch" = "Checksum SHA1 ของ IPSW ไม่ตรงกับแค็ตตาล็อก";
+"ipsw_read_failed" = "อ่านไฟล์เฟิร์มแวร์ล้มเหลว";
+"ipsw_save_failed" = "บันทึกไฟล์เฟิร์มแวร์ล้มเหลว";
+"unsupported_ipsw" = "เฟิร์มแวร์ที่ไม่รองรับ";
+"ipsw_sha1_mismatch" = "Checksum SHA1 ของเฟิร์มแวร์ไม่ตรงกับแค็ตตาล็อก";
 "another_vm" = "เครื่องเสมือนอื่น";
 "already_running" = "กำลังทำงานอยู่แล้ว";
 "vm_already_running_fmt" = "เครื่องเสมือน «%@» กำลังทำงานอยู่\nสามารถเรียกใช้ได้ครั้งละหนึ่งเครื่องเท่านั้น";
@@ -379,7 +379,7 @@
 /* Settings */
 "settings_title" = "การตั้งค่า";
 "settings_firmware_rom_header" = "การจัดการเฟิร์มแวร์ & ROM";
-"settings_ipsw_management" = "การจัดการ IPSW";
+"settings_ipsw_management" = "การจัดการเฟิร์มแวร์";
 "settings_ipsw_subtitle_fmt" = "%lu ไฟล์เฟิร์มแวร์";
 "settings_bootrom_management" = "การจัดการ BootROM";
 "settings_bootrom_subtitle_fmt" = "ติดตั้งแล้ว %lu / 2";
@@ -417,3 +417,31 @@
 
 "settings_license_title" = "ใบอนุญาตและประกาศโอเพนซอร์ส";
 "settings_license_subtitle" = "GNU General Public License v2 (GPL-2.0)";
+
+/* Android */
+"device_android_arm" = "Android";
+"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"android_variant_aosp" = "AOSP มาตรฐาน";
+"android_variant_gapps" = "Google APIs";
+"wizard_name_config_prompt_android" = "กรอกชื่อเครื่องเสมือน (สามารถเปลี่ยนภายหลังได้)\n* ทำงานบน ARMv7 Goldfish พร้อมการเร่งความเร็ว OpenGL ES และหน้าจอ 640×1136";
+"building_android_storage" = "กำลังสร้างพื้นที่จัดเก็บ Android...";
+"extracting_android_images" = "กำลังแตกไฟล์ระบบและฟอร์แมต ext4 / SD...";
+
+/* Android Per-Container Settings */
+"section_android_config" = "การตั้งค่า VM Android";
+"android_cfg_ram" = "หน่วยความจำ (RAM)";
+"android_cfg_ram_hint" = "เลือกขนาด RAM สำหรับคอนเทนเนอร์ Android นี้ (แนะนำ 512 MB สำหรับ A9)";
+"recommended" = "แนะนำ";
+"android_cfg_dpi" = "ความหนาแน่นหน้าจอ (DPI)";
+"android_cfg_dpi_hint" = "ปรับความหนาแน่น UI ของ Android (320 dpi เทียบเท่า iPhone 5)";
+"android_cfg_gpu" = "การเร่งความเร็ว GPU";
+"android_cfg_gpu_hint" = "เปิดหรือปิดการเร่งฮาร์ดแวร์ OpenGL ES";
+"android_cfg_gpu_on" = "OpenGL ES (เปิด)";
+"android_cfg_gpu_off" = "ซอฟต์แวร์ (ปิด)";
+"android_cfg_storage_reset" = "จัดการพื้นที่จัดเก็บ";
+"android_cfg_cache_or_data" = "แคช / ข้อมูลผู้ใช้";
+"android_cfg_storage_hint" = "ล้างแคชหรือรีเซ็ตข้อมูลผู้ใช้ของคอนเทนเนอร์นี้";
+"android_clear_cache_action" = "ล้างแคช (cache.img)";
+"android_wipe_userdata_action" = "ล้างข้อมูลผู้ใช้ (userdata.img)";
+"android_cfg_ram_custom" = "กำหนดเอง (MB)...";
+"android_cfg_ram_custom_hint" = "ป้อนขนาด RAM เป็น MB (256–3072 MB) หากเกินหน่วยความจำที่รองรับบนอุปกรณ์ 2 GB (เช่น A9) แอปอาจปิดตัวลงได้";

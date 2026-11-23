@@ -1,7 +1,7 @@
 "vm_containers" = "Máy ảo";
 "main_footer" = "Chạm vào một hàng để xem chi tiết và nhật ký, hoặc chạm ▶ để khởi động. Bật JIT trước khi chạy (ví dụ: StikDebug với universal.js).";
 "no_containers" = "Chưa có máy ảo";
-"no_containers_desc" = "Chạm nút bên dưới (hoặc dấu + ở góc trên bên phải) để chọn thiết bị và phiên bản iOS bắt đầu tạo.";
+"no_containers_desc" = "Chạm nút bên dưới (hoặc dấu + ở góc trên bên phải) để chọn thiết bị và phiên bản hệ điều hành bắt đầu tạo.";
 "create_container" = "Tạo vùng chứa";
 "boot_action" = "Khởi động";
 "bootrom_ok" = "BootROM: Sẵn sàng";
@@ -105,11 +105,11 @@
 "select_ipsw_title" = "Chuẩn bị phần mềm";
 "download_ipsw" = "Tải về IPSW";
 "use_cached_ipsw" = "Dùng IPSW đã tải sẵn";
-"import_local_ipsw" = "Chọn IPSW từ tệp...";
+"import_local_ipsw" = "Chọn phần mềm từ tệp...";
 "preparing_container" = "Đang tạo vùng chứa...";
 "downloading_ipsw" = "Đang tải về IPSW...";
 "firmware_mgmt_title" = "Quản lý phần mềm";
-"downloaded_ipsws" = "Các tệp IPSW đã tải";
+"downloaded_ipsws" = "Các tệp phần mềm đã tải";
 "prepared_bases" = "Hình ảnh nền sẵn có";
 "no_firmware" = "Chưa có phần mềm nào được tải về.";
 "in_use_badge" = "Đang dùng";
@@ -122,7 +122,7 @@
 "no_serial_log" = "Chưa có nhật ký nối tiếp.";
 "copy" = "Sao chép";
 "copied" = "Đã sao chép";
-"delete_ipsw_msg" = "Bạn có chắc chắn muốn xóa tệp IPSW này?";
+"delete_ipsw_msg" = "Bạn có chắc chắn muốn xóa tệp phần mềm này?";
 "delete_base_msg" = "Bạn có chắc chắn muốn xóa hình ảnh nền này?";
 "unused" = "Không dùng";
 "no_bases" = "Chưa có hình ảnh nền nào được chuẩn bị.";
@@ -135,25 +135,25 @@
 "bootrom_required_s5l8720_msg" = "Thiết bị này yêu cầu BootROM 64 KB S5L8720 iBoot-240.4 (bootrom_240_4).";
 "bootrom_missing_detail_fmt" = "%@\n\nHãy chọn BootROM S5L8900 hoặc S5L8720 trong ứng dụng Tệp hoặc đặt vào thư mục Documents của ClassicTouch.";
 
-"download_catalog_ipsw" = "Tải IPSW từ danh mục...";
+"download_catalog_ipsw" = "Tải phần mềm từ danh mục...";
 "download_catalog_device_msg" = "Chọn kiểu thiết bị để tải về:";
-"download_catalog_version_msg" = "Chọn phiên bản iOS để tải về:";
+"download_catalog_version_msg" = "Chọn phiên bản hệ điều hành để tải về:";
 "downloaded_badge" = "Đã tải";
-"redownload_ipsw_title" = "Tệp IPSW đã tồn tại";
-"redownload_ipsw_msg" = "iOS %@ (%@) đã được tải về. Bạn có muốn tải lại và kiểm tra?";
+"redownload_ipsw_title" = "Tệp phần mềm đã tồn tại";
+"redownload_ipsw_msg" = "%@ (%@) đã được tải về. Bạn có muốn tải lại và kiểm tra?";
 "redownload_action" = "Tải lại";
 "download_failed_title" = "Tải về thất bại";
 "download_failed_msg" = "Tải về phần mềm thất bại. Vui lòng kiểm tra lại kết nối mạng.";
 
-"ipsw_notif_done_title" = "Tải IPSW hoàn tất";
+"ipsw_notif_done_title" = "Tải phần mềm hoàn tất";
 "ipsw_notif_done_body" = "Đã hoàn tất tải về và xác minh %@.";
-"ipsw_notif_fail_title" = "Tải IPSW thất bại";
+"ipsw_notif_fail_title" = "Tải phần mềm thất bại";
 "ipsw_notif_fail_body" = "Không thể tải về %@: %@";
 "ipsw_bg_connecting_detail" = "Đang kết nối đến máy chủ…\nQuá trình tải về sẽ tiếp tục ở chế độ nền kể cả khi bạn đóng app";
 "ipsw_bg_progress_detail" = "%.1f / %.1f MB (%.1f MB/s)\nĐang tải về trong nền";
 "ipsw_bg_reattached_detail" = "Đang tải về trong nền…";
 "ipsw_download_complete_title" = "Tải về hoàn tất";
-"ipsw_download_complete_msg" = "Đã hoàn tất tải về và xác minh IPSW cho %@.";
+"ipsw_download_complete_msg" = "Đã hoàn tất tải về và xác minh phần mềm cho %@.";
 
 "menu_install_ipa" = "Cài đặt IPA...";
 "ipa_install_not_ready" = "Vui lòng đợi iPhone ảo khởi động hoàn tất và kết nối USB được thiết lập.";
@@ -183,12 +183,12 @@
 "copy_container_id" = "Sao chép ID máy ảo";
 "copied_container_id_fmt" = "Đã sao chép ID máy ảo:\n%@";
 "back_to_device_select" = "Quay lại chọn thiết bị";
-"select_local_ipsw" = "Chọn tệp IPSW cục bộ...";
+"select_local_ipsw" = "Chọn tệp phần mềm cục bộ...";
 "create_new_vm" = "Tạo máy ảo mới";
 "create_first_vm" = "Tạo máy ảo đầu tiên";
-"create_container_from_ipsw" = "Tạo máy ảo từ IPSW này...";
-"delete_ipsw_free_space" = "Xóa IPSW này (giải phóng dung lượng)";
-"ipsw_management" = "Quản lý IPSW";
+"create_container_from_ipsw" = "Tạo máy ảo từ phần mềm này...";
+"delete_ipsw_free_space" = "Xóa phần mềm này (giải phóng dung lượng)";
+"ipsw_management" = "Quản lý Phần mềm";
 "first_run_note_title" = "Lưu ý cho lần dùng đầu tiên";
 "first_run_note_msg" = "• Trong lần khởi động đầu tiên, quá trình thiết lập có thể thỉnh thoảng thất bại. Hãy khởi động lại ứng dụng hoặc tạo lại máy ảo nếu gặp vấn đề.\n\n• Hãy chắc chắn tải tập lệnh «universal.js» trong StikDebug để bật JIT.";
 "ok_dont_show_again" = "OK (Không hiển thị lại)";
@@ -219,9 +219,9 @@
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1–6.1.6)";
 "device_ipad_1g_desc" = "iPad thế hệ 1 (iPhone OS 3.2–iOS 5.1.1)";
 "wizard_select_device_title" = "Tạo máy ảo mới: Thiết bị";
-"wizard_select_device_prompt" = "Chọn thiết bị Apple bạn muốn giả lập:";
-"wizard_select_os_title" = "Phiên bản iOS";
-"wizard_select_os_prompt_fmt" = "%@\nChọn phiên bản iOS bạn muốn cài đặt:";
+"wizard_select_device_prompt" = "Chọn thiết bị bạn muốn giả lập:";
+"wizard_select_os_title" = "Phiên bản hệ điều hành";
+"wizard_select_os_prompt_fmt" = "%@\nChọn phiên bản hệ điều hành bạn muốn cài đặt:";
 "tag_ready_cydia" = " [Sẵn sàng / Cydia]";
 "tag_cydia_ready" = " [Cydia sẵn sàng]";
 "tag_ready" = " [Sẵn sàng]";
@@ -235,14 +235,14 @@
 "btn_create_cydia_ready" = "Tạo kèm Cydia [Sẵn sàng]";
 "btn_create_cydia_jb" = "Tạo kèm Cydia (Jailbreak)";
 "downloading_fmt" = "Đang tải về: %@";
-"ipsw_verifying" = "Đang xác minh tệp IPSW...";
+"ipsw_verifying" = "Đang xác minh tệp phần mềm...";
 "ipsw_extracting" = "Đang giải nén và giải mã phần mềm...";
 "ipsw_creating_boot_img" = "Đang tạo danh tính và ảnh khởi động...";
 "ipsw_building_sys_data" = "Đang xây dựng phân vùng hệ thống và dữ liệu...";
 "ipsw_writing_nand" = "Đang ghi hình ảnh bộ nhớ NAND...";
 "ipsw_preparing_keybag" = "Đang chuẩn bị Keybag bảo vệ dữ liệu...";
 "ipsw_validating_fs" = "Đang kiểm tra tính toàn vẹn hệ thống tệp...";
-"firmware_err_ipsw_not_found_fmt" = "Lỗi xây dựng phần mềm (Mã: -3)\n\n【Chi tiết lỗi】\nKhông tìm thấy tệp IPSW:\n%@";
+"firmware_err_ipsw_not_found_fmt" = "Lỗi xây dựng phần mềm (Mã: -3)\n\n【Chi tiết lỗi】\nKhông tìm thấy tệp phần mềm:\n%@";
 "storage_build_failed" = "Xây dựng bộ nhớ thất bại";
 "building_device_storage_cydia" = "Đang tạo bộ nhớ thiết bị (kèm Cydia)...";
 "building_device_storage" = "Đang tạo bộ nhớ thiết bị...";
@@ -258,12 +258,12 @@
 "cannot_delete_in_use" = "Đang được dùng, không thể xóa";
 "cannot_delete" = "Không thể xóa";
 "ipsw_in_use_details_fmt" = "Phần mềm này đang được dùng bởi các máy ảo sau:\n%@\n\nVui lòng xóa các máy ảo đó trước khi thử lại.";
-"parsing_ipsw" = "Đang phân tích tệp IPSW...";
+"parsing_ipsw" = "Đang phân tích tệp phần mềm...";
 "verifying_checksum" = "Đang đối chiếu mã kiểm tra...";
-"ipsw_read_failed" = "Đọc tệp IPSW thất bại";
-"ipsw_save_failed" = "Lưu tệp IPSW thất bại";
-"unsupported_ipsw" = "Tệp IPSW không được hỗ trợ";
-"ipsw_sha1_mismatch" = "Mã kiểm tra SHA1 của IPSW không khớp với danh mục.";
+"ipsw_read_failed" = "Đọc tệp phần mềm thất bại";
+"ipsw_save_failed" = "Lưu tệp phần mềm thất bại";
+"unsupported_ipsw" = "Phần mềm không được hỗ trợ";
+"ipsw_sha1_mismatch" = "Mã kiểm tra SHA1 của phần mềm không khớp với danh mục.";
 "another_vm" = "Một máy ảo khác";
 "already_running" = "Đang chạy";
 "vm_already_running_fmt" = "Máy ảo «%@» hiện đang chạy.\nMỗi lần chỉ có thể chạy một máy ảo duy nhất.";
@@ -379,7 +379,7 @@
 /* Settings */
 "settings_title" = "Cài đặt";
 "settings_firmware_rom_header" = "Quản lý Phần mềm & ROM";
-"settings_ipsw_management" = "Quản lý IPSW";
+"settings_ipsw_management" = "Quản lý Phần mềm";
 "settings_ipsw_subtitle_fmt" = "%lu tệp phần mềm";
 "settings_bootrom_management" = "Quản lý BootROM";
 "settings_bootrom_subtitle_fmt" = "Đã cài đặt: %lu / 2";
@@ -417,3 +417,31 @@
 
 "settings_license_title" = "Giấy phép & Thông báo mã nguồn mở";
 "settings_license_subtitle" = "GNU General Public License v2 (GPL-2.0)";
+
+/* Android */
+"device_android_arm" = "Android";
+"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"android_variant_aosp" = "AOSP Tiêu chuẩn";
+"android_variant_gapps" = "Google APIs";
+"wizard_name_config_prompt_android" = "Nhập tên máy ảo (có thể đổi sau).\n* Chạy ARMv7 Goldfish với tăng tốc OpenGL ES và màn hình 640×1136.";
+"building_android_storage" = "Đang tạo bộ nhớ Android...";
+"extracting_android_images" = "Đang giải nén ảnh hệ thống & định dạng ext4 / SD...";
+
+/* Android Per-Container Settings */
+"section_android_config" = "Cấu hình VM Android";
+"android_cfg_ram" = "Bộ nhớ (RAM)";
+"android_cfg_ram_hint" = "Chọn dung lượng RAM cho container Android này (khuyên dùng 512 MB cho A9).";
+"recommended" = "Khuyên dùng";
+"android_cfg_dpi" = "Tỉ lệ màn hình (DPI)";
+"android_cfg_dpi_hint" = "Điều chỉnh mật độ giao diện Android (320 dpi giống iPhone 5).";
+"android_cfg_gpu" = "Tăng tốc GPU";
+"android_cfg_gpu_hint" = "Bật hoặc tắt tăng tốc phần cứng OpenGL ES.";
+"android_cfg_gpu_on" = "OpenGL ES (Bật)";
+"android_cfg_gpu_off" = "Phần mềm (Tắt)";
+"android_cfg_storage_reset" = "Bảo trì bộ nhớ";
+"android_cfg_cache_or_data" = "Bộ nhớ đệm / Dữ liệu";
+"android_cfg_storage_hint" = "Xóa bộ nhớ đệm hoặc đặt lại dữ liệu người dùng của container này.";
+"android_clear_cache_action" = "Xóa bộ nhớ đệm (cache.img)";
+"android_wipe_userdata_action" = "Xóa dữ liệu người dùng (userdata.img)";
+"android_cfg_ram_custom" = "Tùy chỉnh (MB)...";
+"android_cfg_ram_custom_hint" = "Nhập dung lượng RAM theo MB (256–3072 MB). Vượt quá bộ nhớ khả dụng trên thiết bị 2 GB (như A9) có thể khiến ứng dụng bị đóng.";

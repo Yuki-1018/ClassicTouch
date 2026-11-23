@@ -1,7 +1,7 @@
 "vm_containers" = "Mesin Virtual";
 "main_footer" = "Ketuk baris untuk detail dan log, atau ketuk ▶ untuk memulai. Aktifkan JIT sebelum mulai (misalnya StikDebug dengan universal.js).";
 "no_containers" = "Belum Ada Mesin Virtual";
-"no_containers_desc" = "Ketuk tombol di bawah (atau + di kanan atas) untuk memilih perangkat dan versi iOS untuk mulai membuat.";
+"no_containers_desc" = "Ketuk tombol di bawah (atau + di kanan atas) untuk memilih perangkat dan versi OS untuk mulai membuat.";
 "create_container" = "Buat Kontainer";
 "boot_action" = "Mulai";
 "bootrom_ok" = "BootROM: Siap";
@@ -105,11 +105,11 @@
 "select_ipsw_title" = "Persiapan Firmware";
 "download_ipsw" = "Unduh IPSW";
 "use_cached_ipsw" = "Gunakan IPSW yang Sudah Diunduh";
-"import_local_ipsw" = "Pilih IPSW dari Berkas...";
+"import_local_ipsw" = "Pilih Firmware dari Berkas...";
 "preparing_container" = "Membuat kontainer...";
 "downloading_ipsw" = "Mengunduh IPSW...";
 "firmware_mgmt_title" = "Manajemen Firmware";
-"downloaded_ipsws" = "Berkas IPSW yang Diunduh";
+"downloaded_ipsws" = "Berkas Firmware yang Diunduh";
 "prepared_bases" = "Citra Dasar yang Disiapkan";
 "no_firmware" = "Belum ada firmware yang diunduh.";
 "in_use_badge" = "Digunakan";
@@ -122,7 +122,7 @@
 "no_serial_log" = "Belum ada log serial.";
 "copy" = "Salin";
 "copied" = "Disalin";
-"delete_ipsw_msg" = "Apakah Anda yakin ingin menghapus berkas IPSW ini?";
+"delete_ipsw_msg" = "Apakah Anda yakin ingin menghapus berkas firmware ini?";
 "delete_base_msg" = "Apakah Anda yakin ingin menghapus citra dasar ini?";
 "unused" = "Tidak Digunakan";
 "no_bases" = "Belum ada citra dasar yang disiapkan.";
@@ -135,25 +135,25 @@
 "bootrom_required_s5l8720_msg" = "Perangkat ini memerlukan BootROM 64 KB S5L8720 iBoot-240.4 (bootrom_240_4).";
 "bootrom_missing_detail_fmt" = "%@\n\nPilih BootROM S5L8900 atau S5L8720 yang sesuai di aplikasi Berkas atau letakkan di folder Dokumen ClassicTouch.";
 
-"download_catalog_ipsw" = "Unduh IPSW dari Katalog...";
+"download_catalog_ipsw" = "Unduh Firmware dari Katalog...";
 "download_catalog_device_msg" = "Pilih model perangkat untuk diunduh:";
-"download_catalog_version_msg" = "Pilih versi iOS untuk diunduh:";
+"download_catalog_version_msg" = "Pilih versi OS untuk diunduh:";
 "downloaded_badge" = "Diunduh";
-"redownload_ipsw_title" = "Berkas IPSW Sudah Ada";
-"redownload_ipsw_msg" = "iOS %@ (%@) sudah diunduh. Apakah Anda ingin mengunduh ulang dan memverifikasinya?";
+"redownload_ipsw_title" = "Berkas Firmware Sudah Ada";
+"redownload_ipsw_msg" = "%@ (%@) sudah diunduh. Apakah Anda ingin mengunduh ulang dan memverifikasinya?";
 "redownload_action" = "Unduh Ulang";
 "download_failed_title" = "Pengunduhan Gagal";
 "download_failed_msg" = "Gagal mengunduh firmware. Periksa koneksi internet Anda.";
 
-"ipsw_notif_done_title" = "Pengunduhan IPSW Selesai";
+"ipsw_notif_done_title" = "Pengunduhan Firmware Selesai";
 "ipsw_notif_done_body" = "Pengunduhan dan verifikasi %@ telah selesai.";
-"ipsw_notif_fail_title" = "Pengunduhan IPSW Gagal";
+"ipsw_notif_fail_title" = "Pengunduhan Firmware Gagal";
 "ipsw_notif_fail_body" = "Gagal mengunduh %@: %@";
 "ipsw_bg_connecting_detail" = "Menghubungkan ke server…\nPengunduhan akan berlanjut di latar belakang meskipun Anda menutup aplikasi";
 "ipsw_bg_progress_detail" = "%.1f / %.1f MB (%.1f MB/s)\nMengunduh di latar belakang";
 "ipsw_bg_reattached_detail" = "Pengunduhan di latar belakang sedang berjalan…";
 "ipsw_download_complete_title" = "Pengunduhan Selesai";
-"ipsw_download_complete_msg" = "Pengunduhan dan verifikasi IPSW untuk %@ telah selesai.";
+"ipsw_download_complete_msg" = "Pengunduhan dan verifikasi firmware untuk %@ telah selesai.";
 
 "menu_install_ipa" = "Pasang IPA...";
 "ipa_install_not_ready" = "Harap tunggu sampai iPhone virtual selesai melakukan boot dan koneksi USB terhubung.";
@@ -183,12 +183,12 @@
 "copy_container_id" = "Salin ID Kontainer";
 "copied_container_id_fmt" = "ID Kontainer disalin:\n%@";
 "back_to_device_select" = "Kembali ke Pemilihan Perangkat";
-"select_local_ipsw" = "Pilih Berkas IPSW Lokal...";
+"select_local_ipsw" = "Pilih Berkas Firmware Lokal...";
 "create_new_vm" = "Buat Mesin Virtual Baru";
 "create_first_vm" = "Buat Mesin Virtual Pertama";
-"create_container_from_ipsw" = "Buat Kontainer dari IPSW Ini...";
-"delete_ipsw_free_space" = "Hapus IPSW Ini (Kosongkan Ruang)";
-"ipsw_management" = "Manajemen IPSW";
+"create_container_from_ipsw" = "Buat Kontainer dari Firmware Ini...";
+"delete_ipsw_free_space" = "Hapus Firmware Ini (Kosongkan Ruang)";
+"ipsw_management" = "Manajemen Firmware";
 "first_run_note_title" = "Catatan Penggunaan Pertama";
 "first_run_note_msg" = "• Pada boot pertama kontainer, penyiapan awal terkadang bisa gagal. Buka ulang aplikasi atau buat ulang kontainer jika ini terjadi.\n\n• Pastikan untuk memuat skrip «universal.js» di StikDebug untuk mengaktifkan JIT.";
 "ok_dont_show_again" = "Oke (Jangan Tampilkan Lagi)";
@@ -219,9 +219,9 @@
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1–6.1.6)";
 "device_ipad_1g_desc" = "iPad Generasi ke-1 (iPhone OS 3.2–iOS 5.1.1)";
 "wizard_select_device_title" = "Kontainer Baru: Perangkat";
-"wizard_select_device_prompt" = "Pilih perangkat Apple yang ingin diemulasikan:";
-"wizard_select_os_title" = "Versi iOS";
-"wizard_select_os_prompt_fmt" = "%@\nPilih versi iOS yang ingin dipasang:";
+"wizard_select_device_prompt" = "Pilih perangkat yang ingin diemulasikan:";
+"wizard_select_os_title" = "Versi OS";
+"wizard_select_os_prompt_fmt" = "%@\nPilih versi OS yang ingin dipasang:";
 "tag_ready_cydia" = " [Siap / Cydia]";
 "tag_cydia_ready" = " [Cydia siap]";
 "tag_ready" = " [Siap]";
@@ -235,14 +235,14 @@
 "btn_create_cydia_ready" = "Buat dengan Cydia [Siap]";
 "btn_create_cydia_jb" = "Buat dengan Cydia (Jailbreak)";
 "downloading_fmt" = "Mengunduh: %@";
-"ipsw_verifying" = "Memverifikasi berkas IPSW...";
+"ipsw_verifying" = "Memverifikasi berkas firmware...";
 "ipsw_extracting" = "Mengekstrak dan mendekripsi firmware...";
 "ipsw_creating_boot_img" = "Membuat identitas dan citra boot...";
 "ipsw_building_sys_data" = "Membangun partisi sistem dan data...";
 "ipsw_writing_nand" = "Menuliskan citra penyimpanan NAND...";
 "ipsw_preparing_keybag" = "Menyiapkan Keybag proteksi data...";
 "ipsw_validating_fs" = "Memvalidasi integritas sistem berkas...";
-"firmware_err_ipsw_not_found_fmt" = "Kesalahan pembuatan firmware (Kode: -3)\n\n【Detail Kesalahan】\nBerkas IPSW tidak ditemukan:\n%@";
+"firmware_err_ipsw_not_found_fmt" = "Kesalahan pembuatan firmware (Kode: -3)\n\n【Detail Kesalahan】\nBerkas firmware tidak ditemukan:\n%@";
 "storage_build_failed" = "Pembangunan Penyimpanan Gagal";
 "building_device_storage_cydia" = "Membangun penyimpanan perangkat (dengan Cydia)...";
 "building_device_storage" = "Membangun penyimpanan perangkat...";
@@ -258,12 +258,12 @@
 "cannot_delete_in_use" = "Sedang Digunakan, Tidak Dapat Dihapus";
 "cannot_delete" = "Tidak Dapat Dihapus";
 "ipsw_in_use_details_fmt" = "Firmware ini sedang digunakan oleh kontainer berikut:\n%@\n\nHapus kontainer tersebut terlebih dahulu untuk mencoba lagi.";
-"parsing_ipsw" = "Mengurai berkas IPSW...";
+"parsing_ipsw" = "Mengurai berkas firmware...";
 "verifying_checksum" = "Memeriksa checksum...";
-"ipsw_read_failed" = "Gagal membaca IPSW";
-"ipsw_save_failed" = "Gagal menyimpan berkas IPSW";
-"unsupported_ipsw" = "IPSW Tidak Didukung";
-"ipsw_sha1_mismatch" = "Checksum SHA1 pada IPSW tidak cocok dengan katalog.";
+"ipsw_read_failed" = "Gagal membaca firmware";
+"ipsw_save_failed" = "Gagal menyimpan berkas firmware";
+"unsupported_ipsw" = "Firmware Tidak Didukung";
+"ipsw_sha1_mismatch" = "Checksum SHA1 pada firmware tidak cocok dengan katalog.";
 "another_vm" = "Mesin virtual lain";
 "already_running" = "Sedang Berjalan";
 "vm_already_running_fmt" = "Mesin virtual «%@» saat ini sedang berjalan.\nHanya satu mesin virtual yang dapat berjalan dalam satu waktu.";
@@ -379,7 +379,7 @@
 /* Settings */
 "settings_title" = "Pengaturan";
 "settings_firmware_rom_header" = "Manajemen Firmware & ROM";
-"settings_ipsw_management" = "Manajemen IPSW";
+"settings_ipsw_management" = "Manajemen Firmware";
 "settings_ipsw_subtitle_fmt" = "%lu berkas firmware";
 "settings_bootrom_management" = "Manajemen BootROM";
 "settings_bootrom_subtitle_fmt" = "Terpasang %lu / 2";
@@ -417,3 +417,31 @@
 
 "settings_license_title" = "Lisensi & Pemberitahuan Sumber Terbuka";
 "settings_license_subtitle" = "GNU General Public License v2 (GPL-2.0)";
+
+/* Android */
+"device_android_arm" = "Android";
+"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"android_variant_aosp" = "AOSP Standar";
+"android_variant_gapps" = "Google APIs";
+"wizard_name_config_prompt_android" = "Masukkan nama mesin virtual (dapat diubah nanti).\n* Berjalan di ARMv7 Goldfish dengan akselerasi GPU OpenGL ES dan layar 640×1136.";
+"building_android_storage" = "Membangun penyimpanan Android...";
+"extracting_android_images" = "Mengekstrak image sistem & memformat penyimpanan ext4 / SD...";
+
+/* Android Per-Container Settings */
+"section_android_config" = "Konfigurasi VM Android";
+"android_cfg_ram" = "Memori (RAM)";
+"android_cfg_ram_hint" = "Pilih kapasitas RAM untuk kontainer Android ini (512 MB disarankan untuk perangkat A9).";
+"recommended" = "Disarankan";
+"android_cfg_dpi" = "Skala Layar (DPI)";
+"android_cfg_dpi_hint" = "Atur kepadatan UI Android (320 dpi setara iPhone 5).";
+"android_cfg_gpu" = "Akselerasi GPU";
+"android_cfg_gpu_hint" = "Aktifkan atau nonaktifkan akselerasi OpenGL ES.";
+"android_cfg_gpu_on" = "OpenGL ES (Aktif)";
+"android_cfg_gpu_off" = "Perangkat Lunak (Nonaktif)";
+"android_cfg_storage_reset" = "Pemeliharaan Penyimpanan";
+"android_cfg_cache_or_data" = "Cache / Data Pengguna";
+"android_cfg_storage_hint" = "Hapus cache atau reset data pengguna kontainer ini.";
+"android_clear_cache_action" = "Hapus Cache (cache.img)";
+"android_wipe_userdata_action" = "Hapus Data Pengguna (userdata.img)";
+"android_cfg_ram_custom" = "Kustom (MB)...";
+"android_cfg_ram_custom_hint" = "Masukkan ukuran RAM dalam MB (256–3072 MB). Melebihi memori yang tersedia pada perangkat 2 GB (mis. A9) dapat menutup aplikasi.";

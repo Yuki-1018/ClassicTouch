@@ -1,7 +1,7 @@
 "vm_containers" = "Virtual Machines";
 "main_footer" = "Tap a row for details & logs, or tap ▶ to boot. Enable JIT with StikDebug (universal.js) before starting.";
 "no_containers" = "No Virtual Machines";
-"no_containers_desc" = "Tap the button below (or + at the top right) to choose a device and iOS version.";
+"no_containers_desc" = "Tap the button below (or + at the top right) to choose a device and OS version.";
 "create_container" = "Create Container";
 "boot_action" = "Boot";
 "bootrom_ok" = "BootROM: Ready";
@@ -105,11 +105,11 @@
 "select_ipsw_title" = "Prepare Firmware";
 "download_ipsw" = "Download IPSW";
 "use_cached_ipsw" = "Use Downloaded IPSW";
-"import_local_ipsw" = "Import Local IPSW...";
+"import_local_ipsw" = "Import Local Firmware...";
 "preparing_container" = "Creating Container...";
 "downloading_ipsw" = "Downloading IPSW...";
 "firmware_mgmt_title" = "Firmware Management";
-"downloaded_ipsws" = "Downloaded IPSWs";
+"downloaded_ipsws" = "Downloaded Firmware";
 "prepared_bases" = "Prepared Bases";
 "no_firmware" = "No downloaded firmware.";
 "in_use_badge" = "In Use";
@@ -122,7 +122,7 @@
 "no_serial_log" = "No serial log recorded yet.";
 "copy" = "Copy";
 "copied" = "Copied";
-"delete_ipsw_msg" = "Delete this IPSW file?";
+"delete_ipsw_msg" = "Delete this firmware file?";
 "delete_base_msg" = "Delete this prepared base?";
 "unused" = "Unused";
 "no_bases" = "No prepared bases.";
@@ -135,25 +135,25 @@
 "bootrom_required_s5l8720_msg" = "This device requires the 64 KB S5L8720 iBoot-240.4 BootROM (bootrom_240_4).";
 "bootrom_missing_detail_fmt" = "%@\n\nPlease import the matching S5L8900 or S5L8720 BootROM from Files or place it in Documents.";
 
-"download_catalog_ipsw" = "Download IPSW from Catalog...";
-"download_catalog_device_msg" = "Select a device to download its stock IPSW into Firmware Management.";
-"download_catalog_version_msg" = "Select the iOS version to download.";
+"download_catalog_ipsw" = "Download Firmware from Catalog...";
+"download_catalog_device_msg" = "Select a device to download its stock firmware into Firmware Management.";
+"download_catalog_version_msg" = "Select the OS version to download.";
 "downloaded_badge" = "Downloaded";
-"redownload_ipsw_title" = "IPSW Already Downloaded";
-"redownload_ipsw_msg" = "iOS %@ (%@) is already downloaded. Do you want to re-download and verify it?";
+"redownload_ipsw_title" = "Firmware Already Downloaded";
+"redownload_ipsw_msg" = "%@ (%@) is already downloaded. Do you want to re-download and verify it?";
 "redownload_action" = "Re-download";
 "download_failed_title" = "Download Failed";
 "download_failed_msg" = "Could not download the firmware package.";
 
-"ipsw_notif_done_title" = "IPSW Download Complete";
+"ipsw_notif_done_title" = "Firmware Download Complete";
 "ipsw_notif_done_body" = "%@ finished downloading and passed verification.";
-"ipsw_notif_fail_title" = "IPSW Download Failed";
+"ipsw_notif_fail_title" = "Firmware Download Failed";
 "ipsw_notif_fail_body" = "Failed to download %@: %@";
 "ipsw_bg_connecting_detail" = "Connecting to server…\nDownloads continue in the background and notify you when done";
 "ipsw_bg_progress_detail" = "%.1f / %.1f MB (%.1f MB/s)\nContinues in background";
 "ipsw_bg_reattached_detail" = "Downloading in background…";
 "ipsw_download_complete_title" = "Download Complete";
-"ipsw_download_complete_msg" = "%@ IPSW finished downloading and verification.";
+"ipsw_download_complete_msg" = "%@ firmware finished downloading and verification.";
 
 "menu_install_ipa" = "Install IPA...";
 "ipa_install_not_ready" = "Wait for the virtual iPhone to finish booting and attach USB before installing an IPA.";
@@ -164,6 +164,19 @@
 "ipa_install_success_title" = "Install Complete";
 "ipa_install_success_msg_fmt" = "Installed %@ (%@ / %@).";
 "ipa_install_failed_title" = "IPA Install Failed";
+
+"menu_install_apk" = "Install APK...";
+"apk_install_not_ready" = "Wait for Android to finish booting and ADB to connect before installing an APK.";
+"apk_install_in_progress" = "Another package installation is already in progress.";
+"apk_invalid_extension" = "Please select an .apk file.";
+"apk_preparing" = "Preparing APK...";
+"apk_connecting_adb" = "Connecting ADB (accept prompt on Android screen if shown)...";
+"apk_pushing" = "Transferring APK...";
+"apk_pushing_pct_fmt" = "Transferring APK... %d%%";
+"apk_installing" = "Installing APK on Android...";
+"apk_install_success_title" = "APK Install Complete";
+"apk_install_success_msg_fmt" = "Installed %@.";
+"apk_install_failed_title" = "APK Install Failed";
 
 "n42_ppn_init_banner" = "Initializing iPhone 5 PPN storage & Data Protection…\nWill shut down automatically when complete (please wait a few minutes)";
 "n42_ppn_init_done_title" = "Initial Setup Complete";
@@ -183,12 +196,12 @@
 "copy_container_id" = "Copy Container ID";
 "copied_container_id_fmt" = "Copied Container ID:\n%@";
 "back_to_device_select" = "Back to Devices";
-"select_local_ipsw" = "Select Local IPSW File...";
+"select_local_ipsw" = "Select Local Firmware File...";
 "create_new_vm" = "Create New Virtual Machine";
 "create_first_vm" = "Create First Virtual Machine";
-"create_container_from_ipsw" = "Create Container from this IPSW...";
-"delete_ipsw_free_space" = "Delete this IPSW (Free Storage)";
-"ipsw_management" = "IPSW Management";
+"create_container_from_ipsw" = "Create Container from this Firmware...";
+"delete_ipsw_free_space" = "Delete this Firmware (Free Storage)";
+"ipsw_management" = "Firmware Management";
 "first_run_note_title" = "Notice Before Use";
 "first_run_note_msg" = "• The first boot of a container may take longer or fail during initial setup. In that case, restart the app or recreate the container.\n\n• When enabling JIT with StikDebug, please use the \"universal.js\" script.";
 "ok_dont_show_again" = "OK (Do Not Show Again)";
@@ -219,9 +232,9 @@
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1 - 6.1.6)";
 "device_ipad_1g_desc" = "iPad 1st Gen (iPhone OS 3.2 - iOS 5.1.1)";
 "wizard_select_device_title" = "New Container: Select Device";
-"wizard_select_device_prompt" = "Select the Apple device to emulate:";
-"wizard_select_os_title" = "Select iOS Version";
-"wizard_select_os_prompt_fmt" = "%@\nSelect iOS version to install:";
+"wizard_select_device_prompt" = "Select the device to emulate:";
+"wizard_select_os_title" = "Select OS Version";
+"wizard_select_os_prompt_fmt" = "%@\nSelect OS version to install:";
 "tag_ready_cydia" = " [Ready / Cydia]";
 "tag_cydia_ready" = " [Cydia Ready]";
 "tag_ready" = " [Ready]";
@@ -235,14 +248,14 @@
 "btn_create_cydia_ready" = "Create with Cydia [Ready]";
 "btn_create_cydia_jb" = "Create with Cydia (Jailbreak)";
 "downloading_fmt" = "Downloading: %@";
-"ipsw_verifying" = "Verifying IPSW file...";
+"ipsw_verifying" = "Verifying firmware file...";
 "ipsw_extracting" = "Extracting & decrypting firmware...";
 "ipsw_creating_boot_img" = "Creating device identity & boot image...";
 "ipsw_building_sys_data" = "Building system and data partitions...";
 "ipsw_writing_nand" = "Writing NAND storage image...";
 "ipsw_preparing_keybag" = "Preparing Data Protection Keybag...";
 "ipsw_validating_fs" = "Finalizing filesystem verification...";
-"firmware_err_ipsw_not_found_fmt" = "Firmware build error (Code: -3)\n\n[Details]\nIPSW file not found:\n%@";
+"firmware_err_ipsw_not_found_fmt" = "Firmware build error (Code: -3)\n\n[Details]\nFirmware file not found:\n%@";
 "storage_build_failed" = "Storage Build Failed";
 "building_device_storage_cydia" = "Building device storage (with Cydia)...";
 "building_device_storage" = "Building device storage...";
@@ -257,13 +270,13 @@
 "ipsw_detail_fmt" = "File: %@\nSize: %.1f MB\n%@";
 "cannot_delete_in_use" = "In Use - Cannot Delete";
 "cannot_delete" = "Cannot Delete";
-"ipsw_in_use_details_fmt" = "This firmware is in use by the following containers:\n%@\n\nPlease delete those containers first before removing this IPSW.";
-"parsing_ipsw" = "Parsing IPSW file...";
+"ipsw_in_use_details_fmt" = "This firmware is in use by the following containers:\n%@\n\nPlease delete those containers first before removing this firmware.";
+"parsing_ipsw" = "Parsing firmware file...";
 "verifying_checksum" = "Verifying checksum...";
-"ipsw_read_failed" = "Failed to Read IPSW";
-"ipsw_save_failed" = "Could not save IPSW file.";
-"unsupported_ipsw" = "Unsupported IPSW";
-"ipsw_sha1_mismatch" = "The SHA1 of the selected IPSW did not match any in the catalog.";
+"ipsw_read_failed" = "Failed to Read Firmware";
+"ipsw_save_failed" = "Could not save firmware file.";
+"unsupported_ipsw" = "Unsupported Firmware";
+"ipsw_sha1_mismatch" = "The SHA1 of the selected firmware did not match any in the catalog.";
 "another_vm" = "Another Virtual Machine";
 "already_running" = "Already Running";
 "vm_already_running_fmt" = "Virtual machine \"%@\" is already running.\nOnly one VM can run at a time.";
@@ -379,7 +392,7 @@
 /* Settings */
 "settings_title" = "Settings";
 "settings_firmware_rom_header" = "Firmware & ROM Management";
-"settings_ipsw_management" = "IPSW Management";
+"settings_ipsw_management" = "Firmware Management";
 "settings_ipsw_subtitle_fmt" = "%lu files installed";
 "settings_bootrom_management" = "BootROM Management";
 "settings_bootrom_subtitle_fmt" = "%lu of 2 installed";
@@ -417,3 +430,31 @@
 
 "settings_license_title" = "Licenses & Open Source Notices";
 "settings_license_subtitle" = "GNU General Public License v2 (GPL-2.0)";
+
+/* Android */
+"device_android_arm" = "Android";
+"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"android_variant_aosp" = "AOSP Standard";
+"android_variant_gapps" = "Google APIs";
+"wizard_name_config_prompt_android" = "Enter virtual machine name (can be changed later).\n* Runs ARMv7 Goldfish with hardware OpenGL ES acceleration and 640×1136 display.";
+"building_android_storage" = "Building Android storage...";
+"extracting_android_images" = "Extracting system images & formatting ext4 / SD storage...";
+
+/* Android Per-Container Settings */
+"section_android_config" = "Android Hardware Config";
+"android_cfg_ram" = "Memory (RAM)";
+"android_cfg_ram_hint" = "Choose guest RAM allocation for this Android container (512 MB recommended for 2 GB A9 devices).";
+"recommended" = "Recommended";
+"android_cfg_dpi" = "Display Scaling (DPI)";
+"android_cfg_dpi_hint" = "Adjust Android UI scaling density (320 dpi matches iPhone 5 scale).";
+"android_cfg_gpu" = "GPU Acceleration";
+"android_cfg_gpu_hint" = "Switch Android rendering backend (OpenGL ES GPU Acceleration is recommended; Metal Framebuffer is deprecated).";
+"android_cfg_gpu_on" = "OpenGL ES GPU Acceleration (Recommended)";
+"android_cfg_gpu_off" = "Metal Framebuffer (Deprecated)";
+"android_cfg_storage_reset" = "Storage Maintenance";
+"android_cfg_cache_or_data" = "Cache / User Data";
+"android_cfg_storage_hint" = "Clear cached data or reset this container's userdata partition.";
+"android_clear_cache_action" = "Clear Cache (cache.img)";
+"android_wipe_userdata_action" = "Erase User Data (userdata.img)";
+"android_cfg_ram_custom" = "Custom (MB)...";
+"android_cfg_ram_custom_hint" = "Enter RAM size in MB (256–3072 MB). Exceeding host available memory on 2 GB devices (e.g. A9) may trigger iOS Jetsam.";

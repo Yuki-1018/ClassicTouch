@@ -1,7 +1,7 @@
 "vm_containers" = "仮想マシン";
 "main_footer" = "行をタップで詳細・ログ確認、右の ▶ で起動します。起動前に StikDebug（universal.js）等で JIT を有効にしてください。";
 "no_containers" = "仮想マシンがありません";
-"no_containers_desc" = "まずは下のボタン（または右上の +）からエミュレートしたい機種と iOS を選んで作成しましょう。";
+"no_containers_desc" = "下のボタン（または右上の +）をタップして、機種とOSバージョンを選択してください。";
 "create_container" = "コンテナを作成";
 "boot_action" = "起動";
 "bootrom_ok" = "BootROM: 選択済み";
@@ -105,11 +105,11 @@
 "select_ipsw_title" = "ファームウェア準備";
 "download_ipsw" = "IPSWをダウンロード";
 "use_cached_ipsw" = "ダウンロード済みIPSWを使用";
-"import_local_ipsw" = "ファイルからIPSWを選択...";
+"import_local_ipsw" = "ファイルからファームウェアを選択...";
 "preparing_container" = "コンテナを作成中...";
 "downloading_ipsw" = "IPSWをダウンロード中...";
 "firmware_mgmt_title" = "ファームウェア管理";
-"downloaded_ipsws" = "ダウンロード済みIPSW";
+"downloaded_ipsws" = "ダウンロード済みファームウェア";
 "prepared_bases" = "準備済みベース";
 "no_firmware" = "ダウンロード済みのファームウェアはありません。";
 "in_use_badge" = "使用中";
@@ -122,7 +122,7 @@
 "no_serial_log" = "シリアルログはまだありません。";
 "copy" = "コピー";
 "copied" = "コピーしました";
-"delete_ipsw_msg" = "このIPSWファイルを削除しますか？";
+"delete_ipsw_msg" = "このファームウェアファイルを削除しますか？";
 "delete_base_msg" = "このベースイメージを削除しますか？";
 "unused" = "未使用";
 "no_bases" = "準備済みのベースはありません。";
@@ -135,25 +135,25 @@
 "bootrom_required_s5l8720_msg" = "この機種の起動には 64 KB の S5L8720 iBoot-240.4 BootROM (bootrom_240_4) が必要です。";
 "bootrom_missing_detail_fmt" = "%@\n\nファイルアプリ等から対応する S5L8900 または S5L8720 BootROM を選択するか、ClassicTouch の書類（Documents）フォルダに配置してください。";
 
-"download_catalog_ipsw" = "カタログからIPSWをダウンロード...";
-"download_catalog_device_msg" = "ダウンロードするIPSWの機種を選択してください:";
-"download_catalog_version_msg" = "ダウンロードするiOSバージョンを選択してください:";
+"download_catalog_ipsw" = "カタログからファームウェアをダウンロード...";
+"download_catalog_device_msg" = "ダウンロードするファームウェアの機種を選択してください:";
+"download_catalog_version_msg" = "ダウンロードするOSバージョンを選択してください:";
 "downloaded_badge" = "取得済み";
-"redownload_ipsw_title" = "IPSWは既に取得済みです";
-"redownload_ipsw_msg" = "iOS %@ (%@) は既にダウンロードされています。再ダウンロードして検証しますか？";
+"redownload_ipsw_title" = "ファームウェアは既に取得済みです";
+"redownload_ipsw_msg" = "%@ (%@) は既にダウンロードされています。再ダウンロードして検証しますか？";
 "redownload_action" = "再ダウンロード";
 "download_failed_title" = "ダウンロード失敗";
 "download_failed_msg" = "ファームウェアのダウンロードに失敗しました。";
 
-"ipsw_notif_done_title" = "IPSWダウンロード完了";
+"ipsw_notif_done_title" = "ファームウェアダウンロード完了";
 "ipsw_notif_done_body" = "%@ のダウンロードと検証が完了しました。";
-"ipsw_notif_fail_title" = "IPSWダウンロード失敗";
+"ipsw_notif_fail_title" = "ファームウェアダウンロード失敗";
 "ipsw_notif_fail_body" = "%@ のダウンロードに失敗しました: %@";
 "ipsw_bg_connecting_detail" = "サーバーに接続中…\nアプリを閉じてもバックグラウンドで継続し、完了時に通知します";
 "ipsw_bg_progress_detail" = "%.1f / %.1f MB (%.1f MB/s)\nバックグラウンドでも継続されます";
 "ipsw_bg_reattached_detail" = "バックグラウンドでダウンロード中…";
 "ipsw_download_complete_title" = "ダウンロード完了";
-"ipsw_download_complete_msg" = "%@ のIPSWのダウンロードと検証が完了しました。";
+"ipsw_download_complete_msg" = "%@ のファームウェアのダウンロードと検証が完了しました。";
 
 "menu_install_ipa" = "IPAをインストール...";
 "ipa_install_not_ready" = "仮想 iPhone の起動が完了して USB が接続されてからもう一度お試しください。";
@@ -164,6 +164,19 @@
 "ipa_install_success_title" = "インストール完了";
 "ipa_install_success_msg_fmt" = "%@ (%@ / %@) をインストールしました。";
 "ipa_install_failed_title" = "IPA インストール失敗";
+
+"menu_install_apk" = "APKをインストール...";
+"apk_install_not_ready" = "Android の起動と ADB の接続が完了してからもう一度お試しください。";
+"apk_install_in_progress" = "現在別のパッケージをインストール中です。";
+"apk_invalid_extension" = ".apk ファイルを選択してください。";
+"apk_preparing" = "APK を準備中...";
+"apk_connecting_adb" = "ADB に接続中（端末に確認画面が出た場合は許可してください）...";
+"apk_pushing" = "APK を転送中...";
+"apk_pushing_pct_fmt" = "APK を転送中... %d%%";
+"apk_installing" = "Android に APK をインストール中...";
+"apk_install_success_title" = "APK インストール完了";
+"apk_install_success_msg_fmt" = "%@ をインストールしました。";
+"apk_install_failed_title" = "APK インストール失敗";
 
 "n42_ppn_init_banner" = "iPhone 5 初回ストレージ・データ保護を初期化中…\n完了すると自動で停止します（そのまま数分お待ちください）";
 "n42_ppn_init_done_title" = "初回セットアップ完了";
@@ -183,12 +196,12 @@
 "copy_container_id" = "コンテナ ID をコピー";
 "copied_container_id_fmt" = "コンテナ ID をコピーしました:\n%@";
 "back_to_device_select" = "機種選択に戻る";
-"select_local_ipsw" = "ローカルIPSWファイルを選択...";
+"select_local_ipsw" = "ローカルのファームウェアファイルを選択...";
 "create_new_vm" = "新規仮想マシンを作成";
 "create_first_vm" = "最初の仮想マシンを作成";
-"create_container_from_ipsw" = "このIPSWから新規コンテナを作成...";
-"delete_ipsw_free_space" = "このIPSWファイルを削除 (空き容量を解放)";
-"ipsw_management" = "IPSW管理";
+"create_container_from_ipsw" = "このファームウェアから新規コンテナを作成...";
+"delete_ipsw_free_space" = "このファームウェアファイルを削除 (空き容量を解放)";
+"ipsw_management" = "ファームウェア管理";
 "first_run_note_title" = "ご利用前のご注意";
 "first_run_note_msg" = "• コンテナの初回起動時は初期セットアップ処理のため失敗することがあります。その場合は再起動またはコンテナの再作成をお試しください。\n\n• StikDebug で JIT を有効化する際は、スクリプトに「universal.js」を使用してください。";
 "ok_dont_show_again" = "OK（今後は表示しない）";
@@ -219,9 +232,9 @@
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1〜6.1.6)";
 "device_ipad_1g_desc" = "iPad 第1世代 (iPhone OS 3.2〜iOS 5.1.1)";
 "wizard_select_device_title" = "新規コンテナ作成: 端末の選択";
-"wizard_select_device_prompt" = "エミュレートするAppleデバイスを選択してください:";
+"wizard_select_device_prompt" = "エミュレートするデバイスを選択してください:";
 "wizard_select_os_title" = "OSバージョンの選択";
-"wizard_select_os_prompt_fmt" = "%@\nインストールするiOSバージョンを選択してください:";
+"wizard_select_os_prompt_fmt" = "%@\nインストールするOSバージョンを選択してください:";
 "tag_ready_cydia" = " [準備済み / Cydia]";
 "tag_cydia_ready" = " [Cydia準備済み]";
 "tag_ready" = " [準備済み]";
@@ -235,14 +248,14 @@
 "btn_create_cydia_ready" = "Cydia入りで作成 [準備済み]";
 "btn_create_cydia_jb" = "Cydia入りで作成（脱獄）";
 "downloading_fmt" = "ダウンロード中: %@";
-"ipsw_verifying" = "IPSW ファイルを検証中...";
+"ipsw_verifying" = "ファームウェアファイルを検証中...";
 "ipsw_extracting" = "ファームウェアを展開・復号中...";
 "ipsw_creating_boot_img" = "個体情報・ブートイメージを作成中...";
 "ipsw_building_sys_data" = "システム・データ領域を構築中...";
 "ipsw_writing_nand" = "NAND ストレージイメージを書き込み中...";
 "ipsw_preparing_keybag" = "データ保護 Keybag を準備中...";
 "ipsw_validating_fs" = "ファイルシステムを最終検証中...";
-"firmware_err_ipsw_not_found_fmt" = "ファームウェア構築エラー (コード: -3)\n\n【エラー詳細】\nIPSWファイルが見つかりません:\n%@";
+"firmware_err_ipsw_not_found_fmt" = "ファームウェア構築エラー (コード: -3)\n\n【エラー詳細】\nファームウェアファイルが見つかりません:\n%@";
 "storage_build_failed" = "ストレージ構築失敗";
 "building_device_storage_cydia" = "デバイスストレージを構築中 (Cydia入り)...";
 "building_device_storage" = "デバイスストレージを構築中...";
@@ -258,12 +271,12 @@
 "cannot_delete_in_use" = "使用中のため削除不可";
 "cannot_delete" = "削除できません";
 "ipsw_in_use_details_fmt" = "このファームウェアは以下のコンテナで使用されています:\n%@\n\n先に対象のコンテナを削除してから再度お試しください。";
-"parsing_ipsw" = "IPSWファイルを解析中...";
+"parsing_ipsw" = "ファームウェアファイルを解析中...";
 "verifying_checksum" = "チェックサムを照合中...";
-"ipsw_read_failed" = "IPSWの読み込みに失敗しました";
-"ipsw_save_failed" = "IPSWファイルを保存できませんでした。";
-"unsupported_ipsw" = "未対応のIPSW";
-"ipsw_sha1_mismatch" = "選択されたIPSWのSHA1がカタログに一致しませんでした。";
+"ipsw_read_failed" = "ファームウェアの読み込みに失敗しました";
+"ipsw_save_failed" = "ファームウェアファイルを保存できませんでした。";
+"unsupported_ipsw" = "未対応のファームウェア";
+"ipsw_sha1_mismatch" = "選択されたファームウェアのSHA1がカタログに一致しませんでした。";
 "another_vm" = "別の仮想マシン";
 "already_running" = "すでに起動中です";
 "vm_already_running_fmt" = "仮想マシン「%@」が起動中です。\n一度に起動できるのは1台までです。";
@@ -379,7 +392,7 @@
 /* Settings */
 "settings_title" = "設定";
 "settings_firmware_rom_header" = "ファームウェア & ROM 管理";
-"settings_ipsw_management" = "IPSW 管理";
+"settings_ipsw_management" = "ファームウェア管理";
 "settings_ipsw_subtitle_fmt" = "%lu 個のファームウェア";
 "settings_bootrom_management" = "BootROM 管理";
 "settings_bootrom_subtitle_fmt" = "%lu / 2 導入済み";
@@ -417,3 +430,31 @@
 
 "settings_license_title" = "ライセンス & オープンソース情報";
 "settings_license_subtitle" = "GNU General Public License v2 (GPL-2.0)";
+
+/* Android */
+"device_android_arm" = "Android";
+"device_android_arm_desc" = "Android (4.0〜7.1 ARM)";
+"android_variant_aosp" = "AOSP 標準構成";
+"android_variant_gapps" = "Google APIs 搭載";
+"wizard_name_config_prompt_android" = "仮想マシンの名前を入力してください（あとから変更できます）。\n※ ARMv7 Goldfish + OpenGL ES GPUアクセラレーション（640×1136）で動作します。";
+"building_android_storage" = "Android ストレージを構築中...";
+"extracting_android_images" = "システムイメージの展開・ext4 / SD ストレージ初期化中...";
+
+/* Android Per-Container Settings */
+"section_android_config" = "Android VM 構成";
+"android_cfg_ram" = "メモリ (RAM)";
+"android_cfg_ram_hint" = "この Android コンテナに割り当てる RAM 容量を選択します（A9 / 2GB 端末では 512 MB 推奨）。";
+"recommended" = "推奨";
+"android_cfg_dpi" = "画面スケーリング (DPI)";
+"android_cfg_dpi_hint" = "Android の UI 密度を変更します（320 dpi が iPhone 5 標準サイズです）。";
+"android_cfg_gpu" = "GPU アクセラレーション";
+"android_cfg_gpu_hint" = "Android の描画方式を切り替えます（高速な OpenGL ES GPU アクセラレーションを推奨。Metal フレームバッファは非推奨です）。";
+"android_cfg_gpu_on" = "OpenGL ES GPU アクセラレーション (推奨)";
+"android_cfg_gpu_off" = "Metal フレームバッファ (非推奨)";
+"android_cfg_storage_reset" = "ストレージ管理";
+"android_cfg_cache_or_data" = "キャッシュ / ユーザーデータ";
+"android_cfg_storage_hint" = "このコンテナのキャッシュ削除、またはユーザーデータの初期化を行います。";
+"android_clear_cache_action" = "キャッシュを削除 (cache.img)";
+"android_wipe_userdata_action" = "ユーザーデータを初期化 (userdata.img)";
+"android_cfg_ram_custom" = "カスタム入力 (MB)...";
+"android_cfg_ram_custom_hint" = "割り当てる RAM 容量を MB 単位で入力してください（256〜3072 MB）。A9 などの 2GB 端末では上限を超えると強制終了する場合があります。";

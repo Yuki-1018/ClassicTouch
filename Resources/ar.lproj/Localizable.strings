@@ -1,7 +1,7 @@
 "vm_containers" = "الأجهزة الافتراضية";
 "main_footer" = "اضغط على صف لعرض التفاصيل والسجلات، أو اضغط على ▶ للتشغيل. قم بتمكين JIT قبل البدء (مثلاً عبر StikDebug مع universal.js).";
 "no_containers" = "لا توجد أجهزة افتراضية";
-"no_containers_desc" = "اضغط على الزر أدناه (أو + في الزاوية العلوية) لاختيار جهاز وإصدار iOS للبدء في الإنشاء.";
+"no_containers_desc" = "اضغط على الزر أدناه (أو + في الزاوية العلوية) لاختيار جهاز وإصدار نظام للبدء في الإنشاء.";
 "create_container" = "إنشاء حاوية";
 "boot_action" = "تشغيل";
 "bootrom_ok" = "BootROM: جاهز";
@@ -105,11 +105,11 @@
 "select_ipsw_title" = "تحضير النظام";
 "download_ipsw" = "تنزيل IPSW";
 "use_cached_ipsw" = "استخدام IPSW الذي تم تنزيله";
-"import_local_ipsw" = "اختيار ملف IPSW...";
+"import_local_ipsw" = "اختيار ملف برنامج ثابت...";
 "preparing_container" = "جارٍ إنشاء الحاوية...";
 "downloading_ipsw" = "جارٍ تنزيل IPSW...";
 "firmware_mgmt_title" = "إدارة البرامج الثابتة";
-"downloaded_ipsws" = "ملفات IPSW التي تم تنزيلها";
+"downloaded_ipsws" = "ملفات البرامج الثابتة التي تم تنزيلها";
 "prepared_bases" = "الصور الأساسية الجاهزة";
 "no_firmware" = "لا توجد برامج ثابتة تم تنزيلها.";
 "in_use_badge" = "قيد الاستخدام";
@@ -122,7 +122,7 @@
 "no_serial_log" = "لا يوجد سجل تسلسلي بعد.";
 "copy" = "نسخ";
 "copied" = "تم النسخ";
-"delete_ipsw_msg" = "هل تريد حذف ملف IPSW هذا؟";
+"delete_ipsw_msg" = "هل تريد حذف ملف البرنامج الثابت هذا؟";
 "delete_base_msg" = "هل تريد حذف هذه الصورة الأساسية؟";
 "unused" = "غير مستخدم";
 "no_bases" = "لا توجد صور أساسية جاهزة.";
@@ -135,25 +135,25 @@
 "bootrom_required_s5l8720_msg" = "يتطلب هذا الجهاز ملف BootROM S5L8720 iBoot-240.4 بحجم 64 كيلوبايت (bootrom_240_4).";
 "bootrom_missing_detail_fmt" = "%@\n\nيرجى تحديد BootROM S5L8900 أو S5L8720 في تطبيق الملفات أو وضعه في مجلد المستندات لتطبيق ClassicTouch.";
 
-"download_catalog_ipsw" = "تنزيل IPSW من الكتالوج...";
+"download_catalog_ipsw" = "تنزيل البرنامج الثابت من الكتالوج...";
 "download_catalog_device_msg" = "اختر طراز الجهاز للتنزيل:";
-"download_catalog_version_msg" = "اختر إصدار iOS للتنزيل:";
+"download_catalog_version_msg" = "اختر إصدار النظام للتنزيل:";
 "downloaded_badge" = "تم التنزيل";
-"redownload_ipsw_title" = "ملف IPSW موجود بالفعل";
-"redownload_ipsw_msg" = "تم تنزيل iOS %@ (%@) مسبقاً. هل تريد إعادة تنزيله والتحقق منه مجدداً؟";
+"redownload_ipsw_title" = "ملف البرنامج الثابت موجود بالفعل";
+"redownload_ipsw_msg" = "تم تنزيل %@ (%@) مسبقاً. هل تريد إعادة تنزيله والتحقق منه مجدداً؟";
 "redownload_action" = "إعادة التنزيل";
 "download_failed_title" = "فشل التنزيل";
 "download_failed_msg" = "فشل تنزيل البرنامج الثابت. يرجى التحقق من اتصالك بالإنترنت.";
 
-"ipsw_notif_done_title" = "اكتمل تنزيل IPSW";
+"ipsw_notif_done_title" = "اكتمل تنزيل البرنامج الثابت";
 "ipsw_notif_done_body" = "تم الانتهاء من تنزيل والتحقق من %@ بنجاح.";
-"ipsw_notif_fail_title" = "فشل تنزيل IPSW";
+"ipsw_notif_fail_title" = "فشل تنزيل البرنامج الثابت";
 "ipsw_notif_fail_body" = "فشل تنزيل %@: %@";
 "ipsw_bg_connecting_detail" = "جارٍ الاتصال بالخادم…\nسيستمر التنزيل في الخلفية حتى لو أغلقت التطبيق";
 "ipsw_bg_progress_detail" = "%.1f / %.1f ميجابايت (%.1f ميجابايت/ث)\nجارٍ التنزيل في الخلفية";
 "ipsw_bg_reattached_detail" = "التنزيل قيد التقدم في الخلفية…";
 "ipsw_download_complete_title" = "اكتمل التنزيل";
-"ipsw_download_complete_msg" = "تم الانتهاء من تنزيل والتحقق من IPSW لـ %@.";
+"ipsw_download_complete_msg" = "تم الانتهاء من تنزيل والتحقق من البرنامج الثابت لـ %@.";
 
 "menu_install_ipa" = "تثبيت حزمة IPA...";
 "ipa_install_not_ready" = "يرجى الانتظار حتى يكتمل تشغيل جهاز iPhone الافتراضي وإنشاء اتصال USB.";
@@ -183,12 +183,12 @@
 "copy_container_id" = "نسخ معرف الحاوية";
 "copied_container_id_fmt" = "تم نسخ معرف الحاوية:\n%@";
 "back_to_device_select" = "العودة لاختيار الجهاز";
-"select_local_ipsw" = "اختيار ملف IPSW محلي...";
+"select_local_ipsw" = "اختيار ملف برنامج ثابت محلي...";
 "create_new_vm" = "إنشاء جهاز افتراضي جديد";
 "create_first_vm" = "إنشاء أول جهاز افتراضي";
-"create_container_from_ipsw" = "إنشاء حاوية من ملف IPSW هذا...";
+"create_container_from_ipsw" = "إنشاء حاوية من هذا البرنامج الثابت...";
 "delete_ipsw_free_space" = "حذف هذا الملف لتوفير المساحة";
-"ipsw_management" = "إدارة ملفات IPSW";
+"ipsw_management" = "إدارة البرامج الثابتة";
 "first_run_note_title" = "ملاحظة الاستخدام الأول";
 "first_run_note_msg" = "• عند أول تشغيل للحاوية، قد يفشل الإعداد الأولي أحياناً. أعد تشغيل التطبيق أو أعد إنشاء الحاوية إن حدث ذلك.\n\n• تأكد من تحميل سكريبت «universal.js» في StikDebug لتمكين JIT.";
 "ok_dont_show_again" = "موافق (عدم الإظهار مرة أخرى)";
@@ -219,9 +219,9 @@
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1–6.1.6)";
 "device_ipad_1g_desc" = "iPad الجيل الأول (iPhone OS 3.2–iOS 5.1.1)";
 "wizard_select_device_title" = "حاوية جديدة: الجهاز";
-"wizard_select_device_prompt" = "اختر جهاز Apple الذي ترغب بمحاكاته:";
-"wizard_select_os_title" = "إصدار iOS";
-"wizard_select_os_prompt_fmt" = "%@\nاختر إصدار iOS الذي ترغب بتثبيته:";
+"wizard_select_device_prompt" = "اختر الجهاز الذي ترغب بمحاكاته:";
+"wizard_select_os_title" = "إصدار النظام";
+"wizard_select_os_prompt_fmt" = "%@\nاختر إصدار النظام الذي ترغب بتثبيته:";
 "tag_ready_cydia" = " [جاهز / Cydia]";
 "tag_cydia_ready" = " [Cydia جاهز]";
 "tag_ready" = " [جاهز]";
@@ -235,14 +235,14 @@
 "btn_create_cydia_ready" = "إنشاء مع Cydia [جاهز]";
 "btn_create_cydia_jb" = "إنشاء مع Cydia (جيلبريك)";
 "downloading_fmt" = "جارٍ التنزيل: %@";
-"ipsw_verifying" = "جارٍ التحقق من ملف IPSW...";
+"ipsw_verifying" = "جارٍ التحقق من ملف البرنامج الثابت...";
 "ipsw_extracting" = "جارٍ فك الضغط وفك تشفير النظام...";
 "ipsw_creating_boot_img" = "جارٍ إنشاء الهويات وصور الإقلاع...";
 "ipsw_building_sys_data" = "جارٍ بناء أقسام النظام والبيانات...";
 "ipsw_writing_nand" = "جارٍ كتابة صورة تخزين NAND...";
 "ipsw_preparing_keybag" = "جارٍ تحضير Keybag لحماية البيانات...";
 "ipsw_validating_fs" = "جارٍ التحقق النهائي من سلامة نظام الملفات...";
-"firmware_err_ipsw_not_found_fmt" = "خطأ في بناء النظام الثابت (الرمز: -3)\n\n【تفاصيل الخطأ】\nلم يتم العثور على ملف IPSW:\n%@";
+"firmware_err_ipsw_not_found_fmt" = "خطأ في بناء النظام الثابت (الرمز: -3)\n\n【تفاصيل الخطأ】\nلم يتم العثور على ملف البرنامج الثابت:\n%@";
 "storage_build_failed" = "فشل إنشاء مساحة التخزين";
 "building_device_storage_cydia" = "جارٍ بناء مساحة تخزين الجهاز (مع Cydia)...";
 "building_device_storage" = "جارٍ بناء مساحة تخزين الجهاز...";
@@ -257,13 +257,13 @@
 "ipsw_detail_fmt" = "الملف: %@\nالحجم: %.1f ميجابايت\n%@";
 "cannot_delete_in_use" = "قيد الاستخدام، لا يمكن الحذف";
 "cannot_delete" = "تعذر الحذف";
-"ipsw_in_use_details_fmt" = "هذا النظام الثابت مستخدم بواسطة الحاويات التالية:\n%@\n\nيرجى حذف هذه الحاويات أولاً للمحاولة مرة أخرى.";
-"parsing_ipsw" = "جارٍ تحليل ملف IPSW...";
+"ipsw_in_use_details_fmt" = "هذا البرنامج الثابت مستخدم بواسطة الحاويات التالية:\n%@\n\nيرجى حذف هذه الحاويات أولاً للمحاولة مرة أخرى.";
+"parsing_ipsw" = "جارٍ تحليل ملف البرنامج الثابت...";
 "verifying_checksum" = "جارٍ التحقق من المجموع الاختباري...";
-"ipsw_read_failed" = "فشلت قراءة ملف IPSW";
-"ipsw_save_failed" = "فشل حفظ ملف IPSW";
-"unsupported_ipsw" = "ملف IPSW غير مدعوم";
-"ipsw_sha1_mismatch" = "المجموع الاختباري SHA1 لملف IPSW لا يتطابق مع الكتالوج.";
+"ipsw_read_failed" = "فشلت قراءة ملف البرنامج الثابت";
+"ipsw_save_failed" = "فشل حفظ ملف البرنامج الثابت";
+"unsupported_ipsw" = "ملف برنامج ثابت غير مدعوم";
+"ipsw_sha1_mismatch" = "المجموع الاختباري SHA1 لملف البرنامج الثابت لا يتطابق مع الكتالوج.";
 "another_vm" = "جهاز افتراضي آخر";
 "already_running" = "قيد التشغيل بالفعل";
 "vm_already_running_fmt" = "الجهاز الافتراضي «%@» قيد التشغيل حالياً.\nيمكن تشغيل جهاز افتراضي واحد فقط في كل مرة.";
@@ -379,7 +379,7 @@
 /* Settings */
 "settings_title" = "الإعدادات";
 "settings_firmware_rom_header" = "إدارة البرامج الثابتة و ROM";
-"settings_ipsw_management" = "إدارة ملفات IPSW";
+"settings_ipsw_management" = "إدارة البرامج الثابتة";
 "settings_ipsw_subtitle_fmt" = "%lu ملفات برامج ثابتة";
 "settings_bootrom_management" = "إدارة BootROM";
 "settings_bootrom_subtitle_fmt" = "تم تثبيت %lu / 2";
@@ -417,3 +417,31 @@
 
 "settings_license_title" = "التراخيص وإشعارات المصدر المفتوح";
 "settings_license_subtitle" = "GNU General Public License v2 (GPL-2.0)";
+
+/* Android */
+"device_android_arm" = "Android";
+"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"android_variant_aosp" = "إصدار AOSP القياسي";
+"android_variant_gapps" = "واجهات Google APIs";
+"wizard_name_config_prompt_android" = "أدخل اسم الجهاز الافتراضي (يمكن تغييره لاحقاً).\n* يعمل بمحرك ARMv7 Goldfish مع تسريع OpenGL ES ودقة 640×1136.";
+"building_android_storage" = "جارٍ إنشاء مساحة تخزين Android...";
+"extracting_android_images" = "جارٍ استخراج صور النظام وتهيئة ext4 وبطاقة SD...";
+
+/* Android Per-Container Settings */
+"section_android_config" = "إعدادات أجهزة Android";
+"android_cfg_ram" = "الذاكرة (RAM)";
+"android_cfg_ram_hint" = "اختر حجم ذاكرة RAM المخصص لحاوية Android (يوصى بـ 512 MB لأجهزة A9).";
+"recommended" = "موصى به";
+"android_cfg_dpi" = "تحجيم الشاشة (DPI)";
+"android_cfg_dpi_hint" = "اضبط كثافة واجهة Android (يوافق 320 dpi حجم iPhone 5).";
+"android_cfg_gpu" = "تسريع الرسوميات GPU";
+"android_cfg_gpu_hint" = "تبديل تسريع OpenGL ES (موصى بتفعيله).";
+"android_cfg_gpu_on" = "OpenGL ES (مفعّل)";
+"android_cfg_gpu_off" = "برمجي (معطّل)";
+"android_cfg_storage_reset" = "صيانة التخزين";
+"android_cfg_cache_or_data" = "الذاكرة المؤقتة / بيانات المستخدم";
+"android_cfg_storage_hint" = "مسح الذاكرة المؤقتة أو إعادة ضبط بيانات المستخدم لهذه الحاوية.";
+"android_clear_cache_action" = "مسح الذاكرة المؤقتة (cache.img)";
+"android_wipe_userdata_action" = "مسح بيانات المستخدم (userdata.img)";
+"android_cfg_ram_custom" = "إدخال مخصص (MB)...";
+"android_cfg_ram_custom_hint" = "أدخل حجم ذاكرة RAM بالميجابايت (من 256 إلى 3072 MB). الأجهزة ذات 2 GB RAM (مثل A9) قد تغلق إذا تم تجاوز الحد.";

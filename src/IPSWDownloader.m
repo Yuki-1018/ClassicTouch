@@ -345,7 +345,7 @@ static NSString * const kPendingCompletedDefaultsKey = @"ClassicTouchPendingComp
                                    downloadId:(NSString *)downloadId
                                  errorMessage:(nullable NSString *)errorMessage {
     UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
-    NSString *label = displayTitle.length > 0 ? displayTitle : (downloadId ?: @"IPSW");
+    NSString *label = displayTitle.length > 0 ? displayTitle : (downloadId ?: @"Firmware");
 
     if (success) {
         content.title = NSLocalizedString(@"ipsw_notif_done_title", nil);
@@ -610,7 +610,8 @@ didFinishDownloadingToURL:(NSURL *)location {
     // Move location synchronously before returning (iOS deletes `location` once this delegate returns).
     NSFileManager *fm = [NSFileManager defaultManager];
     NSString *firmwaresDir = [self firmwaresDirectoryPath];
-    NSString *stagingPath = [firmwaresDir stringByAppendingPathComponent:[NSString stringWithFormat:@".downloading-%@.ipsw", currentId]];
+    NSString *ext = [currentId hasPrefix:@"android-"] ? @"zip" : @"ipsw";
+    NSString *stagingPath = [firmwaresDir stringByAppendingPathComponent:[NSString stringWithFormat:@".downloading-%@.%@", currentId, ext]];
     NSURL *stagingURL = [NSURL fileURLWithPath:stagingPath];
     [fm removeItemAtURL:stagingURL error:nil];
 
@@ -648,8 +649,8 @@ didFinishDownloadingToURL:(NSURL *)location {
         NSLog(@"[IPSWDownloader] SHA1 verification succeeded: %@", actualSHA1);
     }
 
-    // Move to Documents/Firmwares/<id>.ipsw
-    NSString *destPath = [firmwaresDir stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.ipsw", currentId]];
+    // Move to Documents/Firmwares/<id>.(ipsw|zip)
+    NSString *destPath = [firmwaresDir stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.%@", currentId, ext]];
     NSURL *destURL = [NSURL fileURLWithPath:destPath];
     [fm removeItemAtURL:destURL error:nil];
 

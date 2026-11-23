@@ -1,7 +1,7 @@
 "vm_containers" = "가상 머신";
 "main_footer" = "행을 탭하여 상세 정보와 로그를 확인하고, 오른쪽 ▶를 눌러 부팅합니다. 시작 전 StikDebug(universal.js) 등으로 JIT를 활성화하세요.";
 "no_containers" = "가상 머신이 없습니다";
-"no_containers_desc" = "아래 버튼(또는 오른쪽 상단 +)을 눌러 기기와 iOS 버전을 선택하여 생성하세요.";
+"no_containers_desc" = "아래 버튼(또는 오른쪽 상단 +)을 눌러 기기와 OS 버전을 선택하여 생성하세요.";
 "create_container" = "컨테이너 생성";
 "boot_action" = "부팅";
 "bootrom_ok" = "BootROM: 준비됨";
@@ -105,11 +105,11 @@
 "select_ipsw_title" = "펌웨어 준비";
 "download_ipsw" = "IPSW 다운로드";
 "use_cached_ipsw" = "다운로드된 IPSW 사용";
-"import_local_ipsw" = "파일에서 IPSW 선택...";
+"import_local_ipsw" = "파일에서 펌웨어 선택...";
 "preparing_container" = "컨테이너 생성 중...";
 "downloading_ipsw" = "IPSW 다운로드 중...";
 "firmware_mgmt_title" = "펌웨어 관리";
-"downloaded_ipsws" = "다운로드된 IPSW";
+"downloaded_ipsws" = "다운로드된 펌웨어";
 "prepared_bases" = "준비된 베이스";
 "no_firmware" = "다운로드된 펌웨어가 없습니다.";
 "in_use_badge" = "사용 중";
@@ -122,7 +122,7 @@
 "no_serial_log" = "시리얼 로그가 없습니다.";
 "copy" = "복사";
 "copied" = "복사됨";
-"delete_ipsw_msg" = "이 IPSW 파일을 삭제하시겠습니까?";
+"delete_ipsw_msg" = "이 펌웨어 파일을 삭제하시겠습니까?";
 "delete_base_msg" = "이 베이스 이미지를 삭제하시겠습니까?";
 "unused" = "사용 안 됨";
 "no_bases" = "준비된 베이스 이미지가 없습니다.";
@@ -135,25 +135,25 @@
 "bootrom_required_s5l8720_msg" = "이 기기를 부팅하려면 64 KB S5L8720 iBoot-240.4 BootROM(bootrom_240_4)이 필요합니다.";
 "bootrom_missing_detail_fmt" = "%@\n\n'파일' 앱에서 해당 S5L8900 또는 S5L8720 BootROM을 선택하거나 ClassicTouch의 '도큐멘트'(Documents) 폴더에 복사해 주세요.";
 
-"download_catalog_ipsw" = "카탈로그에서 IPSW 다운로드...";
-"download_catalog_device_msg" = "다운로드할 IPSW 기기 모델을 선택하세요:";
-"download_catalog_version_msg" = "다운로드할 iOS 버전을 선택하세요:";
+"download_catalog_ipsw" = "카탈로그에서 펌웨어 다운로드...";
+"download_catalog_device_msg" = "다운로드할 펌웨어 기기 모델을 선택하세요:";
+"download_catalog_version_msg" = "다운로드할 OS 버전을 선택하세요:";
 "downloaded_badge" = "다운로드 완료";
-"redownload_ipsw_title" = "IPSW 파일 이미 존재함";
-"redownload_ipsw_msg" = "iOS %@ (%@) 파일이 이미 다운로드되어 있습니다. 다시 다운로드하고 검증하시겠습니까?";
+"redownload_ipsw_title" = "펌웨어 파일 이미 존재함";
+"redownload_ipsw_msg" = "%@ (%@) 파일이 이미 다운로드되어 있습니다. 다시 다운로드하고 검증하시겠습니까?";
 "redownload_action" = "다시 다운로드";
 "download_failed_title" = "다운로드 실패";
 "download_failed_msg" = "펌웨어 다운로드에 실패했습니다. 네트워크를 확인한 후 다시 시도하세요.";
 
-"ipsw_notif_done_title" = "IPSW 다운로드 완료";
+"ipsw_notif_done_title" = "펌웨어 다운로드 완료";
 "ipsw_notif_done_body" = "%@ 다운로드 및 검증이 완료되었습니다.";
-"ipsw_notif_fail_title" = "IPSW 다운로드 실패";
+"ipsw_notif_fail_title" = "펌웨어 다운로드 실패";
 "ipsw_notif_fail_body" = "%@ 다운로드 실패: %@";
 "ipsw_bg_connecting_detail" = "서버 연결 중…\n앱을 닫아도 백그라운드에서 다운로드가 계속되며 완료 시 알림이 전송됩니다";
 "ipsw_bg_progress_detail" = "%.1f / %.1f MB (%.1f MB/s)\n백그라운드에서 다운로드 중";
 "ipsw_bg_reattached_detail" = "백그라운드 다운로드 진행 중…";
 "ipsw_download_complete_title" = "다운로드 완료";
-"ipsw_download_complete_msg" = "%@ IPSW 다운로드 및 검증이 완료되었습니다.";
+"ipsw_download_complete_msg" = "%@ 펌웨어 다운로드 및 검증이 완료되었습니다.";
 
 "menu_install_ipa" = "IPA 설치...";
 "ipa_install_not_ready" = "가상 iPhone이 완전히 부팅되고 USB 연결이 완료된 후 다시 시도해 주세요.";
@@ -183,12 +183,12 @@
 "copy_container_id" = "컨테이너 ID 복사";
 "copied_container_id_fmt" = "컨테이너 ID가 복사되었습니다:\n%@";
 "back_to_device_select" = "기기 선택으로 돌아가기";
-"select_local_ipsw" = "로컬 IPSW 파일 선택...";
+"select_local_ipsw" = "로컬 펌웨어 파일 선택...";
 "create_new_vm" = "새 가상 머신 생성";
 "create_first_vm" = "첫 번째 가상 머신 생성";
-"create_container_from_ipsw" = "이 IPSW로 새 컨테이너 생성...";
-"delete_ipsw_free_space" = "이 IPSW 파일 삭제 (저장 공간 확보)";
-"ipsw_management" = "IPSW 펌웨어 관리";
+"create_container_from_ipsw" = "이 펌웨어로 새 컨테이너 생성...";
+"delete_ipsw_free_space" = "이 펌웨어 파일 삭제 (저장 공간 확보)";
+"ipsw_management" = "펌웨어 관리";
 "first_run_note_title" = "처음 사용 시 주의 사항";
 "first_run_note_msg" = "• 컨테이너 초기 부팅 시 시스템 초기 설정으로 인해 부팅에 실패할 수 있습니다. 그럴 경우 앱 재시작이나 컨테이너 재생성을 시도하세요.\n\n• StikDebug에서 JIT를 활성화할 때는 반드시 'universal.js' 스크립트를 사용하세요.";
 "ok_dont_show_again" = "확인 (다시 표시 안 함)";
@@ -219,9 +219,9 @@
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1～6.1.6)";
 "device_ipad_1g_desc" = "iPad 1세대 (iPhone OS 3.2～iOS 5.1.1)";
 "wizard_select_device_title" = "새 컨테이너: 기기 선택";
-"wizard_select_device_prompt" = "에뮬레이션할 Apple 기기를 선택하세요:";
+"wizard_select_device_prompt" = "에뮬레이션할 기기를 선택하세요:";
 "wizard_select_os_title" = "OS 버전 선택";
-"wizard_select_os_prompt_fmt" = "%@\n설치할 iOS 버전을 선택하세요:";
+"wizard_select_os_prompt_fmt" = "%@\n설치할 OS 버전을 선택하세요:";
 "tag_ready_cydia" = " [준비 완료 / Cydia]";
 "tag_cydia_ready" = " [Cydia 준비 완료]";
 "tag_ready" = " [준비 완료]";
@@ -235,14 +235,14 @@
 "btn_create_cydia_ready" = "Cydia 포함 생성 [준비 완료]";
 "btn_create_cydia_jb" = "Cydia 포함 생성 (탈옥)";
 "downloading_fmt" = "다운로드 중: %@";
-"ipsw_verifying" = "IPSW 파일 검증 중...";
+"ipsw_verifying" = "펌웨어 파일 검증 중...";
 "ipsw_extracting" = "펌웨어 압축 해제 및 복호화 중...";
 "ipsw_creating_boot_img" = "기기 식별 및 부트 이미지 생성 중...";
 "ipsw_building_sys_data" = "시스템 및 데이터 파티션 구축 중...";
 "ipsw_writing_nand" = "NAND 스토리지 이미지 기록 중...";
 "ipsw_preparing_keybag" = "데이터 보호 Keybag 준비 중...";
 "ipsw_validating_fs" = "파일 시스템 무결성 검증 중...";
-"firmware_err_ipsw_not_found_fmt" = "펌웨어 구축 오류 (코드: -3)\n\n【오류 상세】\nIPSW 파일을 찾을 수 없습니다:\n%@";
+"firmware_err_ipsw_not_found_fmt" = "펌웨어 구축 오류 (코드: -3)\n\n【오류 상세】\n펌웨어 파일을 찾을 수 없습니다:\n%@";
 "storage_build_failed" = "스토리지 구축 실패";
 "building_device_storage_cydia" = "기기 스토리지 구축 중 (Cydia 포함)...";
 "building_device_storage" = "기기 스토리지 구축 중...";
@@ -258,12 +258,12 @@
 "cannot_delete_in_use" = "사용 중이므로 삭제 불가";
 "cannot_delete" = "삭제할 수 없음";
 "ipsw_in_use_details_fmt" = "이 펌웨어는 다음 컨테이너에서 사용 중입니다:\n%@\n\n먼저 해당 컨테이너를 삭제한 후 다시 시도하세요.";
-"parsing_ipsw" = "IPSW 파일 분석 중...";
+"parsing_ipsw" = "펌웨어 파일 분석 중...";
 "verifying_checksum" = "체크섬 검증 중...";
-"ipsw_read_failed" = "IPSW 읽기 실패";
-"ipsw_save_failed" = "IPSW 파일 저장 실패";
-"unsupported_ipsw" = "지원되지 않는 IPSW";
-"ipsw_sha1_mismatch" = "선택한 IPSW의 SHA1 체크섬이 카탈로그와 일치하지 않습니다.";
+"ipsw_read_failed" = "펌웨어 읽기 실패";
+"ipsw_save_failed" = "펌웨어 파일 저장 실패";
+"unsupported_ipsw" = "지원되지 않는 펌웨어";
+"ipsw_sha1_mismatch" = "선택한 펌웨어의 SHA1 체크섬이 카탈로그와 일치하지 않습니다.";
 "another_vm" = "다른 가상 머신";
 "already_running" = "이미 실행 중입니다";
 "vm_already_running_fmt" = "가상 머신 “%@”이(가) 이미 실행 중입니다.\n한 번에 하나의 가상 머신만 실행할 수 있습니다.";
@@ -379,7 +379,7 @@
 /* Settings */
 "settings_title" = "설정";
 "settings_firmware_rom_header" = "펌웨어 및 BootROM 관리";
-"settings_ipsw_management" = "IPSW 관리";
+"settings_ipsw_management" = "펌웨어 관리";
 "settings_ipsw_subtitle_fmt" = "%lu개의 펌웨어";
 "settings_bootrom_management" = "BootROM 관리";
 "settings_bootrom_subtitle_fmt" = "%lu / 2개 설치됨";
@@ -417,3 +417,31 @@
 
 "settings_license_title" = "라이선스 및 오픈 소스 정보";
 "settings_license_subtitle" = "GNU General Public License v2 (GPL-2.0)";
+
+/* Android */
+"device_android_arm" = "Android";
+"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"android_variant_aosp" = "AOSP 기본 구성";
+"android_variant_gapps" = "Google APIs 포함";
+"wizard_name_config_prompt_android" = "가상 머신 이름을 입력하세요 (나중에 변경 가능).\n* ARMv7 Goldfish + OpenGL ES GPU 가속(640×1136) 환경으로 실행됩니다.";
+"building_android_storage" = "Android 스토리지 구축 중...";
+"extracting_android_images" = "시스템 이미지 압축 해제 및 ext4 / SD 포맷 중...";
+
+/* Android Per-Container Settings */
+"section_android_config" = "Android VM 구성";
+"android_cfg_ram" = "메모리 (RAM)";
+"android_cfg_ram_hint" = "이 Android 컨테이너에 할당할 RAM 용량을 선택합니다 (A9 / 2GB 기기 512 MB 권장).";
+"recommended" = "권장";
+"android_cfg_dpi" = "화면 배율 (DPI)";
+"android_cfg_dpi_hint" = "Android UI 밀도를 조정합니다 (320 dpi가 iPhone 5 기본 배율).";
+"android_cfg_gpu" = "GPU 가속";
+"android_cfg_gpu_hint" = "OpenGL ES 하드웨어 가속을 전환합니다 (활성화 권장).";
+"android_cfg_gpu_on" = "OpenGL ES (사용)";
+"android_cfg_gpu_off" = "소프트웨어 렌더링 (끔)";
+"android_cfg_storage_reset" = "스토리지 관리";
+"android_cfg_cache_or_data" = "캐시 / 사용자 데이터";
+"android_cfg_storage_hint" = "이 컨테이너의 캐시를 삭제하거나 사용자 데이터를 초기화합니다.";
+"android_clear_cache_action" = "캐시 삭제 (cache.img)";
+"android_wipe_userdata_action" = "사용자 데이터 초기화 (userdata.img)";
+"android_cfg_ram_custom" = "직접 입력 (MB)...";
+"android_cfg_ram_custom_hint" = "할당할 RAM 용량을 MB 단위로 입력하세요 (256~3072 MB). A9 등 2GB 기기에서는 가용 메모리를 초과하면 종료될 수 있습니다.";

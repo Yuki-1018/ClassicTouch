@@ -1,7 +1,7 @@
 "vm_containers" = "Machines virtuelles";
 "main_footer" = "Touchez une ligne pour les détails & journaux, ou ▶ pour démarrer. Activez JIT avant de lancer (ex. StikDebug avec universal.js).";
 "no_containers" = "Aucune machine virtuelle";
-"no_containers_desc" = "Touchez le bouton ci-dessous (ou le + en haut à droite) pour choisir un appareil et une version iOS.";
+"no_containers_desc" = "Touchez le bouton ci-dessous (ou le + en haut à droite) pour choisir un appareil et une version de l'OS.";
 "create_container" = "Créer un conteneur";
 "boot_action" = "Démarrer";
 "bootrom_ok" = "BootROM : Prête";
@@ -105,11 +105,11 @@
 "select_ipsw_title" = "Préparation du firmware";
 "download_ipsw" = "Télécharger l'IPSW";
 "use_cached_ipsw" = "Utiliser l'IPSW déjà téléchargé";
-"import_local_ipsw" = "Choisir un IPSW depuis un fichier...";
+"import_local_ipsw" = "Choisir un firmware depuis un fichier...";
 "preparing_container" = "Création du conteneur...";
 "downloading_ipsw" = "Téléchargement de l'IPSW...";
 "firmware_mgmt_title" = "Gestion des firmwares";
-"downloaded_ipsws" = "Fichiers IPSW téléchargés";
+"downloaded_ipsws" = "Firmwares téléchargés";
 "prepared_bases" = "Bases préparées";
 "no_firmware" = "Aucun firmware téléchargé.";
 "in_use_badge" = "Utilisé";
@@ -122,7 +122,7 @@
 "no_serial_log" = "Aucun journal série pour le moment.";
 "copy" = "Copier";
 "copied" = "Copié";
-"delete_ipsw_msg" = "Voulez-vous supprimer ce fichier IPSW ?";
+"delete_ipsw_msg" = "Voulez-vous supprimer ce fichier firmware ?";
 "delete_base_msg" = "Voulez-vous supprimer cette image de base ?";
 "unused" = "Non utilisé";
 "no_bases" = "Aucune base préparée.";
@@ -135,25 +135,25 @@
 "bootrom_required_s5l8720_msg" = "Cet appareil nécessite une BootROM S5L8720 iBoot-240.4 de 64 Ko (bootrom_240_4).";
 "bootrom_missing_detail_fmt" = "%@\n\nSélectionnez la BootROM S5L8900 ou S5L8720 dans l'application Fichiers ou placez-la dans le dossier Documents de ClassicTouch.";
 
-"download_catalog_ipsw" = "Télécharger l'IPSW depuis le catalogue...";
+"download_catalog_ipsw" = "Télécharger le firmware depuis le catalogue...";
 "download_catalog_device_msg" = "Sélectionnez le modèle d'appareil à télécharger :";
-"download_catalog_version_msg" = "Sélectionnez la version d'iOS à télécharger :";
+"download_catalog_version_msg" = "Sélectionnez la version de l'OS à télécharger :";
 "downloaded_badge" = "Téléchargé";
-"redownload_ipsw_title" = "Fichier IPSW déjà présent";
-"redownload_ipsw_msg" = "iOS %@ (%@) est déjà présent. Voulez-vous le télécharger à nouveau et le revérifier ?";
+"redownload_ipsw_title" = "Fichier firmware déjà présent";
+"redownload_ipsw_msg" = "%@ (%@) est déjà présent. Voulez-vous le télécharger à nouveau et le revérifier ?";
 "redownload_action" = "Retélécharger";
 "download_failed_title" = "Échec du téléchargement";
 "download_failed_msg" = "Le téléchargement du firmware a échoué. Vérifiez votre connexion.";
 
-"ipsw_notif_done_title" = "Téléchargement IPSW terminé";
+"ipsw_notif_done_title" = "Téléchargement du firmware terminé";
 "ipsw_notif_done_body" = "Le téléchargement et la vérification de %@ sont terminés.";
-"ipsw_notif_fail_title" = "Échec du téléchargement IPSW";
+"ipsw_notif_fail_title" = "Échec du téléchargement du firmware";
 "ipsw_notif_fail_body" = "Échec du téléchargement de %@ : %@";
 "ipsw_bg_connecting_detail" = "Connexion au serveur…\nLe téléchargement continue en arrière-plan même si vous fermez l'app";
 "ipsw_bg_progress_detail" = "%.1f / %.1f Mo (%.1f Mo/s)\nTéléchargement en arrière-plan";
 "ipsw_bg_reattached_detail" = "Téléchargement en arrière-plan en cours…";
 "ipsw_download_complete_title" = "Téléchargement terminé";
-"ipsw_download_complete_msg" = "Téléchargement et vérification de l'IPSW pour %@ terminés.";
+"ipsw_download_complete_msg" = "Téléchargement et vérification du firmware pour %@ terminés.";
 
 "menu_install_ipa" = "Installer une IPA...";
 "ipa_install_not_ready" = "Veuillez patienter jusqu'au démarrage complet de l'iPhone virtuel et la connexion USB.";
@@ -183,12 +183,12 @@
 "copy_container_id" = "Copier l'identifiant";
 "copied_container_id_fmt" = "Identifiant du conteneur copié :\n%@";
 "back_to_device_select" = "Retour au choix de l'appareil";
-"select_local_ipsw" = "Sélectionner un fichier IPSW local...";
+"select_local_ipsw" = "Sélectionner un fichier firmware local...";
 "create_new_vm" = "Créer une nouvelle VM";
 "create_first_vm" = "Créer la première VM";
-"create_container_from_ipsw" = "Créer un conteneur depuis cet IPSW...";
-"delete_ipsw_free_space" = "Supprimer cet IPSW (libérer de l'espace)";
-"ipsw_management" = "Gestion des IPSW";
+"create_container_from_ipsw" = "Créer un conteneur depuis ce firmware...";
+"delete_ipsw_free_space" = "Supprimer ce firmware (libérer de l'espace)";
+"ipsw_management" = "Gestion des firmwares";
 "first_run_note_title" = "Remarque pour la première utilisation";
 "first_run_note_msg" = "• Lors du premier démarrage d'un conteneur, l'initialisation peut parfois échouer. Dans ce cas, redémarrez l'application ou recréez le conteneur.\n\n• Veillez à charger le script « universal.js » dans StikDebug pour activer JIT.";
 "ok_dont_show_again" = "OK (Ne plus afficher)";
@@ -219,9 +219,9 @@
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1–6.1.6)";
 "device_ipad_1g_desc" = "iPad 1re gén. (iPhone OS 3.2–iOS 5.1.1)";
 "wizard_select_device_title" = "Nouveau conteneur : Appareil";
-"wizard_select_device_prompt" = "Sélectionnez l'appareil Apple à émuler :";
-"wizard_select_os_title" = "Version d'iOS";
-"wizard_select_os_prompt_fmt" = "%@\nSélectionnez la version d'iOS à installer :";
+"wizard_select_device_prompt" = "Sélectionnez l'appareil à émuler :";
+"wizard_select_os_title" = "Version de l'OS";
+"wizard_select_os_prompt_fmt" = "%@\nSélectionnez la version de l'OS à installer :";
 "tag_ready_cydia" = " [Prêt / Cydia]";
 "tag_cydia_ready" = " [Cydia prêt]";
 "tag_ready" = " [Prêt]";
@@ -235,14 +235,14 @@
 "btn_create_cydia_ready" = "Créer avec Cydia [Prêt]";
 "btn_create_cydia_jb" = "Créer avec Cydia (Jailbreak)";
 "downloading_fmt" = "Téléchargement : %@";
-"ipsw_verifying" = "Vérification du fichier IPSW...";
+"ipsw_verifying" = "Vérification du fichier firmware...";
 "ipsw_extracting" = "Extraction et déchiffrement du firmware...";
 "ipsw_creating_boot_img" = "Création des identités et des images de démarrage...";
 "ipsw_building_sys_data" = "Construction des partitions système & données...";
 "ipsw_writing_nand" = "Écriture de l'image de stockage NAND...";
 "ipsw_preparing_keybag" = "Préparation du Keybag de protection...";
 "ipsw_validating_fs" = "Validation finale de l'intégrité du système de fichiers...";
-"firmware_err_ipsw_not_found_fmt" = "Erreur de construction du firmware (Code : -3)\n\n【Détails】\nFichier IPSW introuvable :\n%@";
+"firmware_err_ipsw_not_found_fmt" = "Erreur de création du firmware (Code : -3)\n\n【Détails de l'erreur】\nFichier firmware introuvable :\n%@";
 "storage_build_failed" = "Échec de construction du stockage";
 "building_device_storage_cydia" = "Construction du stockage (avec Cydia)...";
 "building_device_storage" = "Construction du stockage de l'appareil...";
@@ -257,13 +257,13 @@
 "ipsw_detail_fmt" = "Fichier : %@\nTaille : %.1f Mo\n%@";
 "cannot_delete_in_use" = "En cours d'utilisation, suppression impossible";
 "cannot_delete" = "Suppression impossible";
-"ipsw_in_use_details_fmt" = "Ce firmware est utilisé par les conteneurs suivants :\n%@\n\nVeuillez supprimer ces conteneurs avant de réessayer.";
-"parsing_ipsw" = "Analyse du fichier IPSW...";
+"ipsw_in_use_details_fmt" = "Ce firmware est utilisé par les conteneurs suivants :\n%@\n\nVeuillez d'abord supprimer ces conteneurs pour réessayer.";
+"parsing_ipsw" = "Analyse du fichier firmware...";
 "verifying_checksum" = "Vérification de la somme de contrôle...";
-"ipsw_read_failed" = "Échec de lecture de l'IPSW";
-"ipsw_save_failed" = "Échec d'enregistrement de l'IPSW";
-"unsupported_ipsw" = "Fichier IPSW non pris en charge";
-"ipsw_sha1_mismatch" = "La somme SHA1 de l'IPSW ne correspond pas au catalogue.";
+"ipsw_read_failed" = "Échec de lecture du firmware";
+"ipsw_save_failed" = "Échec de l'enregistrement du firmware";
+"unsupported_ipsw" = "Fichier firmware non pris en charge";
+"ipsw_sha1_mismatch" = "La somme de contrôle SHA1 du firmware ne correspond pas au catalogue.";
 "another_vm" = "Une autre machine virtuelle";
 "already_running" = "Déjà en cours d'exécution";
 "vm_already_running_fmt" = "La machine virtuelle « %@ » est déjà en cours d'exécution.\nUne seule machine virtuelle peut tourner à la fois.";
@@ -379,7 +379,7 @@
 /* Settings */
 "settings_title" = "Réglages";
 "settings_firmware_rom_header" = "Gestion des firmwares & ROMs";
-"settings_ipsw_management" = "Gestion des IPSW";
+"settings_ipsw_management" = "Gestion des firmwares";
 "settings_ipsw_subtitle_fmt" = "%lu fichiers de firmware";
 "settings_bootrom_management" = "Gestion des BootROMs";
 "settings_bootrom_subtitle_fmt" = "%lu / 2 installées";
@@ -417,3 +417,31 @@
 
 "settings_license_title" = "Licences et mentions open source";
 "settings_license_subtitle" = "GNU General Public License v2 (GPL-2.0)";
+
+/* Android */
+"device_android_arm" = "Android";
+"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"android_variant_aosp" = "AOSP Standard";
+"android_variant_gapps" = "Google APIs";
+"wizard_name_config_prompt_android" = "Saisissez le nom de la machine virtuelle (modifiable plus tard).\n* Fonctionne sous ARMv7 Goldfish avec accélération OpenGL ES et écran 640×1136.";
+"building_android_storage" = "Préparation du stockage Android...";
+"extracting_android_images" = "Extraction des images système et formatage ext4 / carte SD...";
+
+/* Android Per-Container Settings */
+"section_android_config" = "Configuration VM Android";
+"android_cfg_ram" = "Mémoire (RAM)";
+"android_cfg_ram_hint" = "Choisissez la RAM pour ce conteneur Android (512 Mo recommandé sur A9 2 Go).";
+"recommended" = "Recommandé";
+"android_cfg_dpi" = "Densité d'affichage (DPI)";
+"android_cfg_dpi_hint" = "Ajustez la densité de l'interface Android (320 dpi = échelle iPhone 5).";
+"android_cfg_gpu" = "Accélération GPU";
+"android_cfg_gpu_hint" = "Activer/désactiver le rendu matériel OpenGL ES (recommandé).";
+"android_cfg_gpu_on" = "OpenGL ES (Activé)";
+"android_cfg_gpu_off" = "Logiciel (Désactivé)";
+"android_cfg_storage_reset" = "Maintenance du stockage";
+"android_cfg_cache_or_data" = "Cache / Données";
+"android_cfg_storage_hint" = "Vider le cache ou réinitialiser les données utilisateur de ce conteneur.";
+"android_clear_cache_action" = "Vider le cache (cache.img)";
+"android_wipe_userdata_action" = "Effacer les données utilisateur (userdata.img)";
+"android_cfg_ram_custom" = "Personnalisé (Mo)...";
+"android_cfg_ram_custom_hint" = "Saisissez la RAM en Mo (256–3072 Mo). Dépasser la mémoire disponible sur un appareil 2 Go (ex. A9) peut fermer l'app.";

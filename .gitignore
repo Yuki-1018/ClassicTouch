@@ -8,3 +8,8 @@ packages/
 *.deb
 .DS_Store
 tmp/
+__pycache__/
+*.pyc
+*.pyo
+*.swp
+*~

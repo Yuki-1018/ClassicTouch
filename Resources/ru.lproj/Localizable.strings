@@ -1,7 +1,7 @@
 "vm_containers" = "Виртуальные машины";
 "main_footer" = "Нажмите на строку для просмотра деталей и логов или на ▶ для запуска. Перед стартом включите JIT (например, через StikDebug с universal.js).";
 "no_containers" = "Нет виртуальных машин";
-"no_containers_desc" = "Нажмите кнопку ниже (или + вверху справа), чтобы выбрать устройство и версию iOS.";
+"no_containers_desc" = "Нажмите кнопку ниже (или + вверху справа), чтобы выбрать устройство и версию ОС.";
 "create_container" = "Создать контейнер";
 "boot_action" = "Запуск";
 "bootrom_ok" = "BootROM: Готов";
@@ -105,11 +105,11 @@
 "select_ipsw_title" = "Подготовка прошивки";
 "download_ipsw" = "Скачать IPSW";
 "use_cached_ipsw" = "Использовать скачанный IPSW";
-"import_local_ipsw" = "Выбрать IPSW из файла...";
+"import_local_ipsw" = "Выбрать прошивку из файла...";
 "preparing_container" = "Создание контейнера...";
 "downloading_ipsw" = "Загрузка IPSW...";
 "firmware_mgmt_title" = "Управление прошивками";
-"downloaded_ipsws" = "Загруженные файлы IPSW";
+"downloaded_ipsws" = "Загруженные прошивки";
 "prepared_bases" = "Готовые базовые образы";
 "no_firmware" = "Нет загруженных прошивок.";
 "in_use_badge" = "Используется";
@@ -122,7 +122,7 @@
 "no_serial_log" = "Лог последовательного порта пуст.";
 "copy" = "Копировать";
 "copied" = "Скопировано";
-"delete_ipsw_msg" = "Удалить этот файл IPSW?";
+"delete_ipsw_msg" = "Удалить этот файл прошивки?";
 "delete_base_msg" = "Удалить этот базовый образ?";
 "unused" = "Не используется";
 "no_bases" = "Нет подготовленных базовых образов.";
@@ -135,25 +135,25 @@
 "bootrom_required_s5l8720_msg" = "Для этого устройства требуется 64 КБ BootROM S5L8720 iBoot-240.4 (bootrom_240_4).";
 "bootrom_missing_detail_fmt" = "%@\n\nВыберите соответствующий BootROM S5L8900 или S5L8720 в приложении «Файлы» либо поместите его в папку Documents программы ClassicTouch.";
 
-"download_catalog_ipsw" = "Скачать IPSW из каталога...";
+"download_catalog_ipsw" = "Скачать прошивку из каталога...";
 "download_catalog_device_msg" = "Выберите модель устройства для загрузки:";
-"download_catalog_version_msg" = "Выберите версию iOS для загрузки:";
+"download_catalog_version_msg" = "Выберите версию ОС для загрузки:";
 "downloaded_badge" = "Скачано";
-"redownload_ipsw_title" = "Файл IPSW уже существует";
-"redownload_ipsw_msg" = "iOS %@ (%@) уже загружена. Загрузить повторно и перепроверить?";
+"redownload_ipsw_title" = "Файл прошивки уже существует";
+"redownload_ipsw_msg" = "%@ (%@) уже загружена. Загрузить повторно и перепроверить?";
 "redownload_action" = "Перекачать";
 "download_failed_title" = "Ошибка загрузки";
 "download_failed_msg" = "Не удалось загрузить прошивку. Проверьте подключение к сети.";
 
-"ipsw_notif_done_title" = "Загрузка IPSW завершена";
+"ipsw_notif_done_title" = "Загрузка прошивки завершена";
 "ipsw_notif_done_body" = "Загрузка и проверка %@ успешно завершены.";
-"ipsw_notif_fail_title" = "Ошибка загрузки IPSW";
+"ipsw_notif_fail_title" = "Ошибка загрузки прошивки";
 "ipsw_notif_fail_body" = "Не удалось загрузить %@: %@";
 "ipsw_bg_connecting_detail" = "Подключение к серверу…\nЗагрузка продолжится в фоновом режиме даже после закрытия приложения";
 "ipsw_bg_progress_detail" = "%.1f / %.1f МБ (%.1f МБ/с)\nФоновая загрузка продолжается";
 "ipsw_bg_reattached_detail" = "Выполняется фоновая загрузка…";
 "ipsw_download_complete_title" = "Загрузка завершена";
-"ipsw_download_complete_msg" = "Загрузка и проверка IPSW для %@ завершены.";
+"ipsw_download_complete_msg" = "Загрузка и проверка прошивки для %@ завершены.";
 
 "menu_install_ipa" = "Установить IPA...";
 "ipa_install_not_ready" = "Пожалуйста, дождитесь полной загрузки виртуального iPhone и установки USB-соединения.";
@@ -183,12 +183,12 @@
 "copy_container_id" = "Копировать ID контейнера";
 "copied_container_id_fmt" = "ID контейнера скопирован:\n%@";
 "back_to_device_select" = "Назад к выбору устройства";
-"select_local_ipsw" = "Выбрать локальный файл IPSW...";
+"select_local_ipsw" = "Выбрать локальный файл прошивки...";
 "create_new_vm" = "Создать новую ВМ";
 "create_first_vm" = "Создать первую ВМ";
-"create_container_from_ipsw" = "Создать контейнер из этого IPSW...";
-"delete_ipsw_free_space" = "Удалить этот IPSW (освободить место)";
-"ipsw_management" = "Управление IPSW";
+"create_container_from_ipsw" = "Создать контейнер из этой прошивки...";
+"delete_ipsw_free_space" = "Удалить эту прошивку (освободить место)";
+"ipsw_management" = "Управление прошивками";
 "first_run_note_title" = "Информация о первом запуске";
 "first_run_note_msg" = "• При первом старте контейнера первоначальная настройка может иногда завершаться сбоем. В этом случае перезапустите приложение или создайте контейнер заново.\n\n• Не забудьте указать скрипт «universal.js» в StikDebug для активации JIT.";
 "ok_dont_show_again" = "ОК (Больше не показывать)";
@@ -219,9 +219,9 @@
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1–6.1.6)";
 "device_ipad_1g_desc" = "iPad 1-го поколения (iPhone OS 3.2–iOS 5.1.1)";
 "wizard_select_device_title" = "Новый контейнер: Устройство";
-"wizard_select_device_prompt" = "Выберите эмулируемое устройство Apple:";
-"wizard_select_os_title" = "Версия iOS";
-"wizard_select_os_prompt_fmt" = "%@\nВыберите версию iOS для установки:";
+"wizard_select_device_prompt" = "Выберите эмулируемое устройство:";
+"wizard_select_os_title" = "Версия ОС";
+"wizard_select_os_prompt_fmt" = "%@\nВыберите версию ОС для установки:";
 "tag_ready_cydia" = " [Готов / Cydia]";
 "tag_cydia_ready" = " [Cydia готов]";
 "tag_ready" = " [Готов]";
@@ -235,14 +235,14 @@
 "btn_create_cydia_ready" = "Создать с Cydia [Готов]";
 "btn_create_cydia_jb" = "Создать с Cydia (джейлбрейк)";
 "downloading_fmt" = "Загрузка: %@";
-"ipsw_verifying" = "Проверка файла IPSW...";
+"ipsw_verifying" = "Проверка файла прошивки...";
 "ipsw_extracting" = "Распаковка и расшифровка прошивки...";
 "ipsw_creating_boot_img" = "Создание идентификаторов и образов загрузки...";
 "ipsw_building_sys_data" = "Формирование разделов системы и данных...";
 "ipsw_writing_nand" = "Запись образа накопителя NAND...";
 "ipsw_preparing_keybag" = "Подготовка Keybag защиты данных...";
 "ipsw_validating_fs" = "Итоговая проверка целостности файловой системы...";
-"firmware_err_ipsw_not_found_fmt" = "Ошибка сборки прошивки (Код: -3)\n\n【Подробности】\nФайл IPSW не найден:\n%@";
+"firmware_err_ipsw_not_found_fmt" = "Ошибка сборки прошивки (Код: -3)\n\n【Подробности】\nФайл прошивки не найден:\n%@";
 "storage_build_failed" = "Сбой построения хранилища";
 "building_device_storage_cydia" = "Построение хранилища устройства (с Cydia)...";
 "building_device_storage" = "Построение хранилища устройства...";
@@ -258,12 +258,12 @@
 "cannot_delete_in_use" = "Используется, удаление невозможно";
 "cannot_delete" = "Невозможно удалить";
 "ipsw_in_use_details_fmt" = "Эта прошивка используется следующими контейнерами:\n%@\n\nСначала удалите эти контейнеры, чтобы повторить попытку.";
-"parsing_ipsw" = "Анализ файла IPSW...";
+"parsing_ipsw" = "Анализ файла прошивки...";
 "verifying_checksum" = "Сверка контрольной суммы...";
-"ipsw_read_failed" = "Не удалось прочитать IPSW";
-"ipsw_save_failed" = "Не удалось сохранить IPSW";
-"unsupported_ipsw" = "Неподдерживаемый IPSW";
-"ipsw_sha1_mismatch" = "Контрольная сумма SHA1 файла IPSW не совпала с каталогом.";
+"ipsw_read_failed" = "Не удалось прочитать прошивку";
+"ipsw_save_failed" = "Не удалось сохранить прошивку";
+"unsupported_ipsw" = "Неподдерживаемая прошивка";
+"ipsw_sha1_mismatch" = "Контрольная сумма SHA1 файла прошивки не совпала с каталогом.";
 "another_vm" = "Другая виртуальная машина";
 "already_running" = "Уже выполняется";
 "vm_already_running_fmt" = "Виртуальная машина «%@» уже запущена.\nОдновременно может работать только одна ВМ.";
@@ -379,7 +379,7 @@
 /* Settings */
 "settings_title" = "Настройки";
 "settings_firmware_rom_header" = "Управление прошивками и ROM";
-"settings_ipsw_management" = "Управление IPSW";
+"settings_ipsw_management" = "Управление прошивками";
 "settings_ipsw_subtitle_fmt" = "%lu файлов прошивок";
 "settings_bootrom_management" = "Управление BootROM";
 "settings_bootrom_subtitle_fmt" = "Установлено: %lu / 2";
@@ -417,3 +417,31 @@
 
 "settings_license_title" = "Лицензии и уведомления об исходном коде";
 "settings_license_subtitle" = "GNU General Public License v2 (GPL-2.0)";
+
+/* Android */
+"device_android_arm" = "Android";
+"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"android_variant_aosp" = "AOSP Стандарт";
+"android_variant_gapps" = "Google APIs";
+"wizard_name_config_prompt_android" = "Введите имя виртуальной машины (можно изменить позже).\n* Работает на ARMv7 Goldfish с аппаратным ускорением OpenGL ES и экраном 640×1136.";
+"building_android_storage" = "Создание хранилища Android...";
+"extracting_android_images" = "Распаковка образов системы и форматирование ext4 / SD...";
+
+/* Android Per-Container Settings */
+"section_android_config" = "Конфигурация ВМ Android";
+"android_cfg_ram" = "Память (ОЗУ)";
+"android_cfg_ram_hint" = "Выберите объём ОЗУ для этого контейнера Android (512 МБ рекомендуется для A9).";
+"recommended" = "Рекомендуется";
+"android_cfg_dpi" = "Масштаб экрана (DPI)";
+"android_cfg_dpi_hint" = "Настройте плотность интерфейса Android (320 dpi как у iPhone 5).";
+"android_cfg_gpu" = "Ускорение GPU";
+"android_cfg_gpu_hint" = "Переключить аппаратное ускорение OpenGL ES (рекомендуется).";
+"android_cfg_gpu_on" = "OpenGL ES (Вкл.)";
+"android_cfg_gpu_off" = "Программный (Выкл.)";
+"android_cfg_storage_reset" = "Обслуживание хранилища";
+"android_cfg_cache_or_data" = "Кэш / Данные";
+"android_cfg_storage_hint" = "Очистить кэш или сбросить пользовательские данные этого контейнера.";
+"android_clear_cache_action" = "Очистить кэш (cache.img)";
+"android_wipe_userdata_action" = "Стереть данные (userdata.img)";
+"android_cfg_ram_custom" = "Другой размер (МБ)...";
+"android_cfg_ram_custom_hint" = "Введите объём ОЗУ в МБ (256–3072 МБ). На устройствах с 2 ГБ ОЗУ (напр. A9) превышение лимита может закрыть приложение.";

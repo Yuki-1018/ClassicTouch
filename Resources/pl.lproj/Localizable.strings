@@ -1,7 +1,7 @@
 "vm_containers" = "Maszyny wirtualne";
 "main_footer" = "Dotknij wiersza, aby wyświetlić szczegóły i logi, lub ▶, aby uruchomić. Włącz JIT przed startem (np. StikDebug z universal.js).";
 "no_containers" = "Brak maszyn wirtualnych";
-"no_containers_desc" = "Dotknij przycisku poniżej (lub + w prawym górnym rogu), aby wybrać urządzenie i wersję iOS.";
+"no_containers_desc" = "Dotknij przycisku poniżej (lub + w prawym górnym rogu), aby wybrać urządzenie i wersję systemu.";
 "create_container" = "Utwórz kontener";
 "boot_action" = "Uruchom";
 "bootrom_ok" = "BootROM: Gotowy";
@@ -105,11 +105,11 @@
 "select_ipsw_title" = "Przygotowanie oprogramowania";
 "download_ipsw" = "Pobierz IPSW";
 "use_cached_ipsw" = "Użyj pobranego IPSW";
-"import_local_ipsw" = "Wybierz IPSW z pliku...";
+"import_local_ipsw" = "Wybierz oprogramowanie z pliku...";
 "preparing_container" = "Tworzenie kontenera...";
 "downloading_ipsw" = "Pobieranie IPSW...";
 "firmware_mgmt_title" = "Zarządzanie oprogramowaniem";
-"downloaded_ipsws" = "Pobrane pliki IPSW";
+"downloaded_ipsws" = "Pobrane pliki oprogramowania";
 "prepared_bases" = "Przygotowane obrazy bazowe";
 "no_firmware" = "Brak pobranych plików oprogramowania.";
 "in_use_badge" = "W użyciu";
@@ -122,7 +122,7 @@
 "no_serial_log" = "Brak logów portu szeregowego.";
 "copy" = "Kopiuj";
 "copied" = "Skopiowano";
-"delete_ipsw_msg" = "Czy na pewno chcesz usunąć ten plik IPSW?";
+"delete_ipsw_msg" = "Czy na pewno chcesz usunąć ten plik oprogramowania?";
 "delete_base_msg" = "Czy na pewno chcesz usunąć ten obraz bazowy?";
 "unused" = "Nieużywany";
 "no_bases" = "Brak przygotowanych obrazów bazowych.";
@@ -135,25 +135,25 @@
 "bootrom_required_s5l8720_msg" = "To urządzenie wymaga 64 KB BootROMu S5L8720 iBoot-240.4 (bootrom_240_4).";
 "bootrom_missing_detail_fmt" = "%@\n\nWybierz odpowiedni BootROM S5L8900 lub S5L8720 w aplikacji Pliki lub umieść go w folderze Dokumenty aplikacji ClassicTouch.";
 
-"download_catalog_ipsw" = "Pobierz IPSW z katalogu...";
+"download_catalog_ipsw" = "Pobierz oprogramowanie z katalogu...";
 "download_catalog_device_msg" = "Wybierz model urządzenia do pobrania:";
-"download_catalog_version_msg" = "Wybierz wersję iOS do pobrania:";
+"download_catalog_version_msg" = "Wybierz wersję systemu do pobrania:";
 "downloaded_badge" = "Pobrane";
-"redownload_ipsw_title" = "Plik IPSW już istnieje";
-"redownload_ipsw_msg" = "iOS %@ (%@) jest już pobrany. Czy chcesz pobrać go ponownie i zweryfikować?";
+"redownload_ipsw_title" = "Plik oprogramowania już istnieje";
+"redownload_ipsw_msg" = "%@ (%@) jest już pobrany. Czy chcesz pobrać go ponownie i zweryfikować?";
 "redownload_action" = "Pobierz ponownie";
 "download_failed_title" = "Błąd pobierania";
 "download_failed_msg" = "Nie udało się pobrać oprogramowania. Sprawdź połączenie z siecią.";
 
-"ipsw_notif_done_title" = "Pobieranie IPSW zakończone";
+"ipsw_notif_done_title" = "Pobieranie oprogramowania zakończone";
 "ipsw_notif_done_body" = "Pobieranie i weryfikacja %@ zostały ukończone.";
-"ipsw_notif_fail_title" = "Błąd pobierania IPSW";
+"ipsw_notif_fail_title" = "Błąd pobierania oprogramowania";
 "ipsw_notif_fail_body" = "Nie udało się pobrać %@: %@";
 "ipsw_bg_connecting_detail" = "Łączenie z serwerem…\nPobieranie będzie kontynuowane w tle nawet po zamknięciu aplikacji";
 "ipsw_bg_progress_detail" = "%.1f / %.1f MB (%.1f MB/s)\nPobieranie w tle w toku";
 "ipsw_bg_reattached_detail" = "Trwa pobieranie w tle…";
 "ipsw_download_complete_title" = "Pobieranie ukończone";
-"ipsw_download_complete_msg" = "Pobieranie i weryfikacja IPSW dla %@ zostały zakończone.";
+"ipsw_download_complete_msg" = "Pobieranie i weryfikacja oprogramowania dla %@ zostały zakończone.";
 
 "menu_install_ipa" = "Zainstaluj IPA...";
 "ipa_install_not_ready" = "Poczekaj na pełne uruchomienie wirtualnego iPhone'a oraz nawiązanie połączenia USB.";
@@ -183,12 +183,12 @@
 "copy_container_id" = "Kopiuj ID kontenera";
 "copied_container_id_fmt" = "ID kontenera skopiowane:\n%@";
 "back_to_device_select" = "Wróć do wyboru urządzenia";
-"select_local_ipsw" = "Wybierz lokalny plik IPSW...";
+"select_local_ipsw" = "Wybierz lokalny plik oprogramowania...";
 "create_new_vm" = "Utwórz nową VM";
 "create_first_vm" = "Utwórz pierwszą VM";
-"create_container_from_ipsw" = "Utwórz kontener z tego IPSW...";
-"delete_ipsw_free_space" = "Usuń ten IPSW (zwolnij miejsce)";
-"ipsw_management" = "Zarządzanie IPSW";
+"create_container_from_ipsw" = "Utwórz kontener z tego oprogramowania...";
+"delete_ipsw_free_space" = "Usuń to oprogramowanie (zwolnij miejsce)";
+"ipsw_management" = "Zarządzanie oprogramowaniem";
 "first_run_note_title" = "Informacja o pierwszym użyciu";
 "first_run_note_msg" = "• Podczas pierwszego startu kontenera konfiguracja wstępna może czasami zakończyć się niepowodzeniem. W takim wypadku uruchom ponownie aplikację lub utwórz kontener ponownie.\n\n• Upewnij się, że w StikDebug załadowano skrypt „universal.js”, aby aktywować JIT.";
 "ok_dont_show_again" = "OK (Nie pokazuj ponownie)";
@@ -219,9 +219,9 @@
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1–6.1.6)";
 "device_ipad_1g_desc" = "iPad 1. gen. (iPhone OS 3.2–iOS 5.1.1)";
 "wizard_select_device_title" = "Nowy kontener: Urządzenie";
-"wizard_select_device_prompt" = "Wybierz urządzenie Apple do emulacji:";
-"wizard_select_os_title" = "Wersja iOS";
-"wizard_select_os_prompt_fmt" = "%@\nWybierz wersję iOS do zainstalowania:";
+"wizard_select_device_prompt" = "Wybierz urządzenie do emulacji:";
+"wizard_select_os_title" = "Wersja systemu";
+"wizard_select_os_prompt_fmt" = "%@\nWybierz wersję systemu do zainstalowania:";
 "tag_ready_cydia" = " [Gotowe / Cydia]";
 "tag_cydia_ready" = " [Cydia gotowa]";
 "tag_ready" = " [Gotowe]";
@@ -235,14 +235,14 @@
 "btn_create_cydia_ready" = "Utwórz z Cydia [Gotowe]";
 "btn_create_cydia_jb" = "Utwórz z Cydia (Jailbreak)";
 "downloading_fmt" = "Pobieranie: %@";
-"ipsw_verifying" = "Weryfikowanie pliku IPSW...";
+"ipsw_verifying" = "Weryfikowanie pliku oprogramowania...";
 "ipsw_extracting" = "Wypakowywanie i deszyfrowanie oprogramowania...";
 "ipsw_creating_boot_img" = "Tworzenie tożsamości i obrazów startowych...";
 "ipsw_building_sys_data" = "Tworzenie partycji systemowych i danych...";
 "ipsw_writing_nand" = "Zapisywanie obrazu pamięci NAND...";
 "ipsw_preparing_keybag" = "Przygotowywanie Keybag ochrony danych...";
 "ipsw_validating_fs" = "Końcowa weryfikacja spójności systemu plików...";
-"firmware_err_ipsw_not_found_fmt" = "Błąd tworzenia oprogramowania (Kod: -3)\n\n【Szczegóły】\nNie znaleziono pliku IPSW:\n%@";
+"firmware_err_ipsw_not_found_fmt" = "Błąd tworzenia oprogramowania (Kod: -3)\n\n【Szczegóły】\nNie znaleziono pliku oprogramowania:\n%@";
 "storage_build_failed" = "Błąd tworzenia pamięci";
 "building_device_storage_cydia" = "Tworzenie pamięci urządzenia (z Cydia)...";
 "building_device_storage" = "Tworzenie pamięci urządzenia...";
@@ -258,12 +258,12 @@
 "cannot_delete_in_use" = "W użyciu, usunięcie niemożliwe";
 "cannot_delete" = "Nie można usunąć";
 "ipsw_in_use_details_fmt" = "To oprogramowanie jest używane przez następujące kontenery:\n%@\n\nUsuń najpierw odpowiednie kontenery, aby spróbować ponownie.";
-"parsing_ipsw" = "Analizowanie pliku IPSW...";
+"parsing_ipsw" = "Analizowanie pliku oprogramowania...";
 "verifying_checksum" = "Weryfikacja sumy kontrolnej...";
-"ipsw_read_failed" = "Błąd odczytu IPSW";
-"ipsw_save_failed" = "Błąd zapisu IPSW";
-"unsupported_ipsw" = "Nieobsługiwany plik IPSW";
-"ipsw_sha1_mismatch" = "Suma kontrolna SHA1 pliku IPSW nie zgadza się z katalogiem.";
+"ipsw_read_failed" = "Błąd odczytu oprogramowania";
+"ipsw_save_failed" = "Błąd zapisu oprogramowania";
+"unsupported_ipsw" = "Nieobsługiwane oprogramowanie";
+"ipsw_sha1_mismatch" = "Suma kontrolna SHA1 pliku oprogramowania nie zgadza się z katalogiem.";
 "another_vm" = "Inna maszyna wirtualna";
 "already_running" = "Już uruchomiony";
 "vm_already_running_fmt" = "Maszyna wirtualna „%@” jest już uruchomiona.\nTylko jedna maszyna wirtualna może działać jednocześnie.";
@@ -379,7 +379,7 @@
 /* Settings */
 "settings_title" = "Ustawienia";
 "settings_firmware_rom_header" = "Zarządzanie oprogramowaniem i ROM";
-"settings_ipsw_management" = "Zarządzanie IPSW";
+"settings_ipsw_management" = "Zarządzanie oprogramowaniem";
 "settings_ipsw_subtitle_fmt" = "%lu plików oprogramowania";
 "settings_bootrom_management" = "Zarządzanie BootROM";
 "settings_bootrom_subtitle_fmt" = "%lu / 2 zainstalowane";
@@ -417,3 +417,31 @@
 
 "settings_license_title" = "Licencje i informacje open source";
 "settings_license_subtitle" = "GNU General Public License v2 (GPL-2.0)";
+
+/* Android */
+"device_android_arm" = "Android";
+"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"android_variant_aosp" = "AOSP Standard";
+"android_variant_gapps" = "Google APIs";
+"wizard_name_config_prompt_android" = "Wpisz nazwę maszyny wirtualnej (możesz zmienić ją później).\n* Działa na ARMv7 Goldfish z akceleracją OpenGL ES i ekranem 640×1136.";
+"building_android_storage" = "Tworzenie pamięci Androida...";
+"extracting_android_images" = "Rozpakowywanie obrazów systemu i formatowanie ext4 / SD...";
+
+/* Android Per-Container Settings */
+"section_android_config" = "Konfiguracja VM Android";
+"android_cfg_ram" = "Pamięć (RAM)";
+"android_cfg_ram_hint" = "Wybierz ilość RAM dla tego kontenera Android (512 MB zalecane na A9).";
+"recommended" = "Zalecane";
+"android_cfg_dpi" = "Skalowanie ekranu (DPI)";
+"android_cfg_dpi_hint" = "Dostosuj gęstość interfejsu Androida (320 dpi = skala iPhone 5).";
+"android_cfg_gpu" = "Akceleracja GPU";
+"android_cfg_gpu_hint" = "Przełącz akcelerację OpenGL ES (zalecane).";
+"android_cfg_gpu_on" = "OpenGL ES (Włączona)";
+"android_cfg_gpu_off" = "Programowa (Wyłączona)";
+"android_cfg_storage_reset" = "Zarządzanie pamięcią";
+"android_cfg_cache_or_data" = "Pamięć podręczna / Dane";
+"android_cfg_storage_hint" = "Wyczyść pamięć podręczną lub zresetuj dane użytkownika tego kontenera.";
+"android_clear_cache_action" = "Wyczyść pamięć podręczną (cache.img)";
+"android_wipe_userdata_action" = "Wymaż dane użytkownika (userdata.img)";
+"android_cfg_ram_custom" = "Własny rozmiar (MB)...";
+"android_cfg_ram_custom_hint" = "Podaj rozmiar RAM w MB (256–3072 MB). Na urządzeniach 2 GB (np. A9) przekroczenie pamięci może zamknąć aplikację.";

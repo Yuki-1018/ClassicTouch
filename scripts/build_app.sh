@@ -28,6 +28,13 @@ for src in \
     "$ROOT/src/IPSWDownloader.m" \
     "$ROOT/src/ios_audio_bridge.m" \
     "$ROOT/src/ios_metal_view.m" \
+    "$ROOT/src/FrameMailbox.cpp" \
+    "$ROOT/src/AndroidMetalView.mm" \
+    "$ROOT/src/adb/Protocol.cpp" \
+    "$ROOT/src/adb/RSAPublicKey.cpp" \
+    "$ROOT/src/adb/Client.cpp" \
+    "$ROOT/src/adb/ADBKey.mm" \
+    "$ROOT/src/adb/ADBClient.mm" \
     "$ROOT/src/ios_motion_manager.m" \
     "$ROOT/src/ios_network_proxy.mm" \
     "$ROOT/src/ios_usb_mux.mm" \
@@ -38,12 +45,13 @@ do
     obj="$OBJ_DIR/$(basename "${src%.*}").o"
     echo "  Compiling $(basename "$src")..."
     EXTRA_CPP=""
-    if [ "${src##*.}" = "mm" ]; then
-        EXTRA_CPP="-std=c++17"
+    if [ "${src##*.}" = "mm" ] || [ "${src##*.}" = "cpp" ]; then
+        EXTRA_CPP="-std=c++20"
     fi
     $CLANG -target "$TRIPLE" -isysroot "$SDK" \
         -O3 -mcpu=apple-a9 $EXTRA_CPP -fobjc-arc -Wno-deprecated-declarations \
         -I"$ROOT/src" \
+        -I"$ROOT/src/adb" \
         -I"$SYSROOT/include" \
         -I"$ROOT/refs/LightTouch/Portable/include" \
         -I"$ROOT/refs/LightTouch/Portable/network" \

@@ -23,6 +23,10 @@ cp -f "$ROOT/Info.plist" "$BUNDLE/Info.plist"
 
 # Copy Resources
 cp -f "$ROOT/Resources/firmware-catalog.json" "$BUNDLE/firmware-catalog.json"
+cp -f "$ROOT/Resources/android-catalog.json" "$BUNDLE/android-catalog.json"
+if [ -f "$ROOT/Resources/goldfish-highmem.zImage" ]; then
+    cp -f "$ROOT/Resources/goldfish-highmem.zImage" "$BUNDLE/goldfish-highmem.zImage"
+fi
 # Pack guest Mach-O helpers inside host-tools.itpack so sideloaders never re-sign or strip guest entitlements;
 # keep armv6.itpack / armv7.itpack alongside it in guest-tools/.
 mkdir -p "$BUNDLE/guest-tools"

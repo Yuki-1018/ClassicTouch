@@ -1,7 +1,7 @@
 "vm_containers" = "Virtuele machines";
 "main_footer" = "Tik op een rij voor details en logboeken, of op ▶ om op te starten. Schakel JIT in voor de start (bijv. StikDebug met universal.js).";
 "no_containers" = "Geen virtuele machines";
-"no_containers_desc" = "Tik op de knop hieronder (of de + rechtsboven) om een apparaat en iOS-versie te kiezen.";
+"no_containers_desc" = "Tik op de knop hieronder (of de + rechtsboven) om een apparaat en OS-versie te kiezen.";
 "create_container" = "Container aanmaken";
 "boot_action" = "Starten";
 "bootrom_ok" = "BootROM: Gereed";
@@ -105,11 +105,11 @@
 "select_ipsw_title" = "Firmware voorbereiden";
 "download_ipsw" = "IPSW downloaden";
 "use_cached_ipsw" = "Reeds gedownloade IPSW gebruiken";
-"import_local_ipsw" = "Kies IPSW uit bestand...";
+"import_local_ipsw" = "Kies firmware uit bestand...";
 "preparing_container" = "Container aanmaken...";
 "downloading_ipsw" = "IPSW downloaden...";
 "firmware_mgmt_title" = "Firmwarebeheer";
-"downloaded_ipsws" = "Gedownloade IPSW-bestanden";
+"downloaded_ipsws" = "Gedownloade firmwarebestanden";
 "prepared_bases" = "Voorbereide basisbestanden";
 "no_firmware" = "Geen gedownloade firmware aanwezig.";
 "in_use_badge" = "In gebruik";
@@ -122,7 +122,7 @@
 "no_serial_log" = "Nog geen serieel logboek beschikbaar.";
 "copy" = "Kopiëren";
 "copied" = "Gekopieerd";
-"delete_ipsw_msg" = "Wilt u dit IPSW-bestand verwijderen?";
+"delete_ipsw_msg" = "Wilt u dit firmwarebestand verwijderen?";
 "delete_base_msg" = "Wilt u deze basiskopie verwijderen?";
 "unused" = "Niet in gebruik";
 "no_bases" = "Geen voorbereide basisbestanden.";
@@ -135,25 +135,25 @@
 "bootrom_required_s5l8720_msg" = "Dit apparaat vereist een 64 KB S5L8720 iBoot-240.4 BootROM (bootrom_240_4).";
 "bootrom_missing_detail_fmt" = "%@\n\nSelecteer de overeenkomstige S5L8900 of S5L8720 BootROM in de app Bestanden of plaats deze in de map Documenten van ClassicTouch.";
 
-"download_catalog_ipsw" = "IPSW downloaden uit catalogus...";
+"download_catalog_ipsw" = "Firmware downloaden uit catalogus...";
 "download_catalog_device_msg" = "Selecteer het gewenste apparaatmodel om te downloaden:";
-"download_catalog_version_msg" = "Selecteer de gewenste iOS-versie om te downloaden:";
+"download_catalog_version_msg" = "Selecteer de gewenste OS-versie om te downloaden:";
 "downloaded_badge" = "Gedownload";
-"redownload_ipsw_title" = "IPSW-bestand bestaat al";
-"redownload_ipsw_msg" = "iOS %@ (%@) is al gedownload. Opnieuw downloaden en verifiëren?";
+"redownload_ipsw_title" = "Firmwarebestand bestaat al";
+"redownload_ipsw_msg" = "%@ (%@) is al gedownload. Opnieuw downloaden en verifiëren?";
 "redownload_action" = "Opnieuw downloaden";
 "download_failed_title" = "Downloaden mislukt";
 "download_failed_msg" = "Fout bij downloaden van de firmware. Controleer uw verbinding.";
 
-"ipsw_notif_done_title" = "IPSW-download voltooid";
+"ipsw_notif_done_title" = "Firmware-download voltooid";
 "ipsw_notif_done_body" = "Download en verificatie van %@ zijn voltooid.";
-"ipsw_notif_fail_title" = "IPSW-download mislukt";
+"ipsw_notif_fail_title" = "Firmware-download mislukt";
 "ipsw_notif_fail_body" = "Fout bij downloaden van %@: %@";
 "ipsw_bg_connecting_detail" = "Verbinden met server…\nDownload gaat op de achtergrond door, zelfs als u de app sluit";
 "ipsw_bg_progress_detail" = "%.1f / %.1f MB (%.1f MB/s)\nDownload op de achtergrond bezig";
 "ipsw_bg_reattached_detail" = "Download op de achtergrond actief…";
 "ipsw_download_complete_title" = "Download voltooid";
-"ipsw_download_complete_msg" = "IPSW-download en verificatie voor %@ zijn voltooid.";
+"ipsw_download_complete_msg" = "Firmware-download en verificatie voor %@ zijn voltooid.";
 
 "menu_install_ipa" = "IPA installeren...";
 "ipa_install_not_ready" = "Wacht tot de virtuele iPhone volledig is opgestart en de USB-verbinding tot stand is gebracht.";
@@ -183,12 +183,12 @@
 "copy_container_id" = "Kopieer container-ID";
 "copied_container_id_fmt" = "Container-ID gekopieerd:\n%@";
 "back_to_device_select" = "Terug naar apparaatselectie";
-"select_local_ipsw" = "Kies lokaal IPSW-bestand...";
+"select_local_ipsw" = "Kies lokaal firmwarebestand...";
 "create_new_vm" = "Nieuwe VM aanmaken";
 "create_first_vm" = "Eerste VM aanmaken";
-"create_container_from_ipsw" = "Container aanmaken van deze IPSW...";
-"delete_ipsw_free_space" = "Verwijder deze IPSW (ruimte vrijmaken)";
-"ipsw_management" = "IPSW-beheer";
+"create_container_from_ipsw" = "Container aanmaken van deze firmware...";
+"delete_ipsw_free_space" = "Verwijder deze firmware (ruimte vrijmaken)";
+"ipsw_management" = "Firmwarebeheer";
 "first_run_note_title" = "Opmerking bij eerste gebruik";
 "first_run_note_msg" = "• Bij het eerste opstarten van een container kan de configuratie soms mislukken. Start in dat geval de app opnieuw of maak de container opnieuw aan.\n\n• Zorg ervoor dat het script «universal.js» in StikDebug is geladen om JIT te activeren.";
 "ok_dont_show_again" = "OK (Niet meer tonen)";
@@ -219,9 +219,9 @@
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1–6.1.6)";
 "device_ipad_1g_desc" = "iPad 1e gen. (iPhone OS 3.2–iOS 5.1.1)";
 "wizard_select_device_title" = "Nieuwe container: Apparaat";
-"wizard_select_device_prompt" = "Selecteer het Apple-apparaat dat u wilt emuleren:";
-"wizard_select_os_title" = "iOS-versie";
-"wizard_select_os_prompt_fmt" = "%@\nSelecteer de iOS-versie om te installeren:";
+"wizard_select_device_prompt" = "Selecteer het apparaat dat u wilt emuleren:";
+"wizard_select_os_title" = "OS-versie";
+"wizard_select_os_prompt_fmt" = "%@\nSelecteer de OS-versie om te installeren:";
 "tag_ready_cydia" = " [Gereed / Cydia]";
 "tag_cydia_ready" = " [Cydia gereed]";
 "tag_ready" = " [Gereed]";
@@ -235,14 +235,14 @@
 "btn_create_cydia_ready" = "Met Cydia aanmaken [Gereed]";
 "btn_create_cydia_jb" = "Met Cydia aanmaken (Jailbreak)";
 "downloading_fmt" = "Downloaden: %@";
-"ipsw_verifying" = "IPSW-bestand verifiëren...";
+"ipsw_verifying" = "Firmwarebestand verifiëren...";
 "ipsw_extracting" = "Firmware uitpakken en ontgrendelen...";
 "ipsw_creating_boot_img" = "Apparaatidentiteit en opstartafbeeldingen maken...";
 "ipsw_building_sys_data" = "Systeem- en gegevenspartities opbouwen...";
 "ipsw_writing_nand" = "NAND-opslagimage wegschrijven...";
 "ipsw_preparing_keybag" = "Beveiligings-Keybag voorbereiden...";
 "ipsw_validating_fs" = "Uiteindelijke controle bestandssysteem...";
-"firmware_err_ipsw_not_found_fmt" = "Fout bij opbouwen firmware (Code: -3)\n\n【Details】\nIPSW-bestand niet gevonden:\n%@";
+"firmware_err_ipsw_not_found_fmt" = "Fout bij opbouwen firmware (Code: -3)\n\n【Details】\nFirmwarebestand niet gevonden:\n%@";
 "storage_build_failed" = "Aanmaken van opslag mislukt";
 "building_device_storage_cydia" = "Apparaatopslag opbouwen (met Cydia)...";
 "building_device_storage" = "Apparaatopslag opbouwen...";
@@ -258,12 +258,12 @@
 "cannot_delete_in_use" = "In gebruik, kan niet worden verwijderd";
 "cannot_delete" = "Kan niet worden verwijderd";
 "ipsw_in_use_details_fmt" = "Deze firmware wordt gebruikt door de volgende containers:\n%@\n\nVerwijder eerst deze containers om het opnieuw te proberen.";
-"parsing_ipsw" = "IPSW-bestand analyseren...";
+"parsing_ipsw" = "Firmwarebestand analyseren...";
 "verifying_checksum" = "Controlesom verifiëren...";
-"ipsw_read_failed" = "Fout bij lezen van IPSW";
-"ipsw_save_failed" = "Fout bij opslaan van IPSW";
-"unsupported_ipsw" = "Niet-ondersteunde IPSW";
-"ipsw_sha1_mismatch" = "SHA1-controlesom van de IPSW komt niet overeen met catalogus.";
+"ipsw_read_failed" = "Fout bij lezen van firmware";
+"ipsw_save_failed" = "Fout bij opslaan van firmware";
+"unsupported_ipsw" = "Niet-ondersteunde firmware";
+"ipsw_sha1_mismatch" = "SHA1-controlesom van de firmware komt niet overeen met catalogus.";
 "another_vm" = "Een andere virtuele machine";
 "already_running" = "Wordt al uitgevoerd";
 "vm_already_running_fmt" = "Virtuele machine «%@» wordt al uitgevoerd.\nEr kan slechts één virtuele machine tegelijk actief zijn.";
@@ -379,7 +379,7 @@
 /* Settings */
 "settings_title" = "Instellingen";
 "settings_firmware_rom_header" = "Firmware- & ROM-beheer";
-"settings_ipsw_management" = "IPSW-beheer";
+"settings_ipsw_management" = "Firmwarebeheer";
 "settings_ipsw_subtitle_fmt" = "%lu firmwarebestanden";
 "settings_bootrom_management" = "BootROM-beheer";
 "settings_bootrom_subtitle_fmt" = "%lu / 2 geïnstalleerd";
@@ -417,3 +417,31 @@
 
 "settings_license_title" = "Licenties en open-sourcemeldingen";
 "settings_license_subtitle" = "GNU General Public License v2 (GPL-2.0)";
+
+/* Android */
+"device_android_arm" = "Android";
+"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"android_variant_aosp" = "AOSP Standaard";
+"android_variant_gapps" = "Google APIs";
+"wizard_name_config_prompt_android" = "Voer de naam van de virtuele machine in (later te wijzigen).\n* Draait op ARMv7 Goldfish met OpenGL ES-hardwareversnelling en 640×1136-scherm.";
+"building_android_storage" = "Android-opslag aanmaken...";
+"extracting_android_images" = "Systeemimages uitpakken & ext4 / SD-opslag formatteren...";
+
+/* Android Per-Container Settings */
+"section_android_config" = "Android VM-configuratie";
+"android_cfg_ram" = "Geheugen (RAM)";
+"android_cfg_ram_hint" = "Kies RAM-grootte voor deze Android-container (512 MB aanbevolen voor 2 GB A9).";
+"recommended" = "Aanbevolen";
+"android_cfg_dpi" = "Schermschaal (DPI)";
+"android_cfg_dpi_hint" = "Pas de Android-UI-dichtheid aan (320 dpi is gelijk aan iPhone 5).";
+"android_cfg_gpu" = "GPU-versnelling";
+"android_cfg_gpu_hint" = "Schakel OpenGL ES-hardwareversnelling in of uit (aanbevolen).";
+"android_cfg_gpu_on" = "OpenGL ES (Aan)";
+"android_cfg_gpu_off" = "Software (Uit)";
+"android_cfg_storage_reset" = "Opslagbeheer";
+"android_cfg_cache_or_data" = "Cache / Gebruikersgegevens";
+"android_cfg_storage_hint" = "Cache wissen of gebruikersgegevens van deze container herstellen.";
+"android_clear_cache_action" = "Cache wissen (cache.img)";
+"android_wipe_userdata_action" = "Gebruikersgegevens wissen (userdata.img)";
+"android_cfg_ram_custom" = "Aangepast (MB)...";
+"android_cfg_ram_custom_hint" = "Voer RAM-grootte in MB in (256–3072 MB). Op 2 GB-apparaten (zoals A9) kan te veel RAM leiden tot sluiten door iOS.";

@@ -81,7 +81,7 @@ static const char *kShaderSource =
     "}\n"
     "fragment float4 fragmentShader(VertexOut in [[stage_in]], texture2d<float> tex [[texture(0)]]) {\n"
     "    constexpr sampler s(mag_filter::linear, min_filter::linear);\n"
-    "    return tex.sample(s, in.uv);\n"
+    "    return float4(tex.sample(s, in.uv).rgb, 1.0);\n"
     "}\n";
 
 @implementation IOSMetalView

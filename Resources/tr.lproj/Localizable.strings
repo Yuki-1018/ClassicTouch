@@ -1,7 +1,7 @@
 "vm_containers" = "Sanal Makineler";
 "main_footer" = "Ayrıntılar ve günlükler için bir satıra, başlatmak için ▶ simgesine dokunun. Başlatmadan önce JIT'i etkinleştirin (örn. StikDebug ile universal.js).";
 "no_containers" = "Sanal Makine Yok";
-"no_containers_desc" = "Bir cihaz ve iOS sürümü seçip oluşturmak için aşağıdaki düğmeye (veya sağ üstteki + simgesine) dokunun.";
+"no_containers_desc" = "Bir cihaz ve işletim sistemi sürümü seçip oluşturmak için aşağıdaki düğmeye (veya sağ üstteki + simgesine) dokunun.";
 "create_container" = "Kapsayıcı Oluştur";
 "boot_action" = "Başlat";
 "bootrom_ok" = "BootROM: Hazır";
@@ -105,11 +105,11 @@
 "select_ipsw_title" = "Yazılımı Hazırla";
 "download_ipsw" = "IPSW İndir";
 "use_cached_ipsw" = "İndirilmiş IPSW'yi Kullan";
-"import_local_ipsw" = "Dosyadan IPSW Seç...";
+"import_local_ipsw" = "Dosyadan Yazılım Seç...";
 "preparing_container" = "Kapsayıcı oluşturuluyor...";
 "downloading_ipsw" = "IPSW indiriliyor...";
 "firmware_mgmt_title" = "Yazılım Yönetimi";
-"downloaded_ipsws" = "İndirilen IPSW Dosyaları";
+"downloaded_ipsws" = "İndirilen Yazılım Dosyaları";
 "prepared_bases" = "Hazırlanan Temel İmajlar";
 "no_firmware" = "İndirilmiş yazılım bulunmuyor.";
 "in_use_badge" = "Kullanımda";
@@ -122,7 +122,7 @@
 "no_serial_log" = "Henüz seri günlük yok.";
 "copy" = "Kopyala";
 "copied" = "Kopyalandı";
-"delete_ipsw_msg" = "Bu IPSW dosyasını silmek istiyor musunuz?";
+"delete_ipsw_msg" = "Bu yazılım dosyasını silmek istiyor musunuz?";
 "delete_base_msg" = "Bu temel imajı silmek istiyor musunuz?";
 "unused" = "Kullanılmıyor";
 "no_bases" = "Hazırlanmış temel imaj yok.";
@@ -135,25 +135,25 @@
 "bootrom_required_s5l8720_msg" = "Bu cihaz için 64 KB S5L8720 iBoot-240.4 BootROM (bootrom_240_4) gereklidir.";
 "bootrom_missing_detail_fmt" = "%@\n\nDosyalar uygulamasından ilgili S5L8900 veya S5L8720 BootROM'u seçin veya ClassicTouch Belgeler klasörüne yerleştirin.";
 
-"download_catalog_ipsw" = "Katalogdan IPSW İndir...";
+"download_catalog_ipsw" = "Katalogdan Yazılım İndir...";
 "download_catalog_device_msg" = "İndirilecek cihaz modelini seçin:";
-"download_catalog_version_msg" = "İndirilecek iOS sürümünü seçin:";
+"download_catalog_version_msg" = "İndirilecek işletim sistemi sürümünü seçin:";
 "downloaded_badge" = "İndirildi";
-"redownload_ipsw_title" = "IPSW Dosyası Zaten Var";
-"redownload_ipsw_msg" = "iOS %@ (%@) zaten indirilmiş. Tekrar indirip doğrulamak istiyor musunuz?";
+"redownload_ipsw_title" = "Yazılım Dosyası Zaten Var";
+"redownload_ipsw_msg" = "%@ (%@) zaten indirilmiş. Tekrar indirip doğrulamak istiyor musunuz?";
 "redownload_action" = "Tekrar İndir";
 "download_failed_title" = "İndirme Başarısız";
 "download_failed_msg" = "Yazılım indirilemedi. Lütfen bağlantınızı kontrol edin.";
 
-"ipsw_notif_done_title" = "IPSW İndirme Tamamlandı";
+"ipsw_notif_done_title" = "Yazılım İndirme Tamamlandı";
 "ipsw_notif_done_body" = "%@ indirme ve doğrulama işlemi tamamlandı.";
-"ipsw_notif_fail_title" = "IPSW İndirme Başarısız";
+"ipsw_notif_fail_title" = "Yazılım İndirme Başarısız";
 "ipsw_notif_fail_body" = "%@ indirilemedi: %@";
 "ipsw_bg_connecting_detail" = "Sunucuya bağlanılıyor…\nUygulamayı kapatsanız bile indirme arka planda devam eder";
 "ipsw_bg_progress_detail" = "%.1f / %.1f MB (%.1f MB/s)\nArka planda indiriliyor";
 "ipsw_bg_reattached_detail" = "Arka planda indirme sürüyor…";
 "ipsw_download_complete_title" = "İndirme Tamamlandı";
-"ipsw_download_complete_msg" = "%@ için IPSW indirme ve doğrulama tamamlandı.";
+"ipsw_download_complete_msg" = "%@ için yazılım indirme ve doğrulama tamamlandı.";
 
 "menu_install_ipa" = "IPA Yükle...";
 "ipa_install_not_ready" = "Lütfen sanal iPhone'un tamamen başlamasını ve USB bağlantısının kurulmasını bekleyin.";
@@ -183,12 +183,12 @@
 "copy_container_id" = "Kapsayıcı Kimliğini Kopyala";
 "copied_container_id_fmt" = "Kapsayıcı kimliği kopyalandı:\n%@";
 "back_to_device_select" = "Cihaz Seçimine Dön";
-"select_local_ipsw" = "Yerel IPSW Dosyası Seç...";
+"select_local_ipsw" = "Yerel Yazılım Dosyası Seç...";
 "create_new_vm" = "Yeni Sanal Makine Oluştur";
 "create_first_vm" = "İlk Sanal Makineyi Oluştur";
-"create_container_from_ipsw" = "Bu IPSW'den Yeni Kapsayıcı Oluştur...";
-"delete_ipsw_free_space" = "Bu IPSW'yi Sil (Alan Aç)";
-"ipsw_management" = "IPSW Yönetimi";
+"create_container_from_ipsw" = "Bu Yazılımdan Yeni Kapsayıcı Oluştur...";
+"delete_ipsw_free_space" = "Bu Yazılımı Sil (Alan Aç)";
+"ipsw_management" = "Yazılım Yönetimi";
 "first_run_note_title" = "İlk Kullanım Notu";
 "first_run_note_msg" = "• Bir kapsayıcının ilk başlatılmasında kurulum bazen başarısız olabilir. Bu durumda uygulamayı yeniden başlatın veya kapsayıcıyı yeniden oluşturun.\n\n• JIT'i etkinleştirmek için StikDebug'da «universal.js» betiğini yüklediğinizden emin olun.";
 "ok_dont_show_again" = "Tamam (Bir daha gösterme)";
@@ -219,9 +219,9 @@
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1–6.1.6)";
 "device_ipad_1g_desc" = "iPad 1. Nesil (iPhone OS 3.2–iOS 5.1.1)";
 "wizard_select_device_title" = "Yeni Kapsayıcı: Cihaz";
-"wizard_select_device_prompt" = "Emüle edilecek Apple cihazını seçin:";
-"wizard_select_os_title" = "iOS Sürümü";
-"wizard_select_os_prompt_fmt" = "%@\nYüklenecek iOS sürümünü seçin:";
+"wizard_select_device_prompt" = "Emüle edilecek cihazı seçin:";
+"wizard_select_os_title" = "İşletim Sistemi Sürümü";
+"wizard_select_os_prompt_fmt" = "%@\nYüklenecek işletim sistemi sürümünü seçin:";
 "tag_ready_cydia" = " [Hazır / Cydia]";
 "tag_cydia_ready" = " [Cydia hazır]";
 "tag_ready" = " [Hazır]";
@@ -235,14 +235,14 @@
 "btn_create_cydia_ready" = "Cydia ile Oluştur [Hazır]";
 "btn_create_cydia_jb" = "Cydia ile Oluştur (Jailbreak)";
 "downloading_fmt" = "İndiriliyor: %@";
-"ipsw_verifying" = "IPSW dosyası doğrulanıyor...";
+"ipsw_verifying" = "Yazılım dosyası doğrulanıyor...";
 "ipsw_extracting" = "Yazılım çıkarılıyor ve şifresi çözülüyor...";
 "ipsw_creating_boot_img" = "Aygıt kimliği ve önyükleme imajları oluşturuluyor...";
 "ipsw_building_sys_data" = "Sistem ve veri bölümleri inşa ediliyor...";
 "ipsw_writing_nand" = "NAND depolama imajı yazılıyor...";
 "ipsw_preparing_keybag" = "Veri koruma Keybag'i hazırlanıyor...";
 "ipsw_validating_fs" = "Dosya sistemi bütünlüğü nihai olarak kontrol ediliyor...";
-"firmware_err_ipsw_not_found_fmt" = "Yazılım oluşturma hatası (Kod: -3)\n\n【Hata Ayrıntısı】\nIPSW dosyası bulunamadı:\n%@";
+"firmware_err_ipsw_not_found_fmt" = "Yazılım oluşturma hatası (Kod: -3)\n\n【Hata Ayrıntısı】\nYazılım dosyası bulunamadı:\n%@";
 "storage_build_failed" = "Depolama Alanı Oluşturulamadı";
 "building_device_storage_cydia" = "Cihaz depolaması oluşturuluyor (Cydia ile)...";
 "building_device_storage" = "Cihaz depolaması oluşturuluyor...";
@@ -258,12 +258,12 @@
 "cannot_delete_in_use" = "Kullanımda, Silinemez";
 "cannot_delete" = "Silinemiyor";
 "ipsw_in_use_details_fmt" = "Bu yazılım şu kapsayıcılar tarafından kullanılıyor:\n%@\n\nTekrar denemek için önce bu kapsayıcıları silin.";
-"parsing_ipsw" = "IPSW dosyası çözümleniyor...";
+"parsing_ipsw" = "Yazılım dosyası çözümleniyor...";
 "verifying_checksum" = "Sağlama toplamı kontrol ediliyor...";
-"ipsw_read_failed" = "IPSW okunamadı";
-"ipsw_save_failed" = "IPSW dosyası kaydedilemedi";
-"unsupported_ipsw" = "Desteklenmeyen IPSW";
-"ipsw_sha1_mismatch" = "IPSW dosyasının SHA1 sağlama toplamı katalogla eşleşmiyor.";
+"ipsw_read_failed" = "Yazılım okunamadı";
+"ipsw_save_failed" = "Yazılım dosyası kaydedilemedi";
+"unsupported_ipsw" = "Desteklenmeyen Yazılım";
+"ipsw_sha1_mismatch" = "Yazılım dosyasının SHA1 sağlama toplamı katalogla eşleşmiyor.";
 "another_vm" = "Başka bir sanal makine";
 "already_running" = "Zaten Çalışıyor";
 "vm_already_running_fmt" = "«%@» sanal makinesi zaten çalışıyor.\nAynı anda yalnızca bir sanal makine çalıştırılabilir.";
@@ -379,7 +379,7 @@
 /* Settings */
 "settings_title" = "Ayarlar";
 "settings_firmware_rom_header" = "Yazılım ve ROM Yönetimi";
-"settings_ipsw_management" = "IPSW Yönetimi";
+"settings_ipsw_management" = "Yazılım Yönetimi";
 "settings_ipsw_subtitle_fmt" = "%lu yazılım dosyası";
 "settings_bootrom_management" = "BootROM Yönetimi";
 "settings_bootrom_subtitle_fmt" = "%lu / 2 yüklendi";
@@ -417,3 +417,31 @@
 
 "settings_license_title" = "Lisanslar ve Açık Kaynak Bildirimleri";
 "settings_license_subtitle" = "GNU General Public License v2 (GPL-2.0)";
+
+/* Android */
+"device_android_arm" = "Android";
+"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"android_variant_aosp" = "AOSP Standart";
+"android_variant_gapps" = "Google APIs";
+"wizard_name_config_prompt_android" = "Sanal makine adını girin (daha sonra değiştirilebilir).\n* Donanım OpenGL ES hızlandırmalı ARMv7 Goldfish ve 640×1136 ekranla çalışır.";
+"building_android_storage" = "Android depolaması oluşturuluyor...";
+"extracting_android_images" = "Sistem imajları çıkarılıyor ve ext4 / SD biçimlendiriliyor...";
+
+/* Android Per-Container Settings */
+"section_android_config" = "Android VM Yapılandırması";
+"android_cfg_ram" = "Bellek (RAM)";
+"android_cfg_ram_hint" = "Bu Android kapsayıcısı için RAM miktarını seçin (A9 cihazlar için 512 MB önerilir).";
+"recommended" = "Önerilen";
+"android_cfg_dpi" = "Ekran Ölçeği (DPI)";
+"android_cfg_dpi_hint" = "Android arayüz yoğunluğunu ayarlayın (320 dpi iPhone 5 ile eşleşir).";
+"android_cfg_gpu" = "GPU Hızlandırma";
+"android_cfg_gpu_hint" = "OpenGL ES donanım hızlandırmasını açıp kapatın.";
+"android_cfg_gpu_on" = "OpenGL ES (Açık)";
+"android_cfg_gpu_off" = "Yazılım (Kapalı)";
+"android_cfg_storage_reset" = "Depolama Bakımı";
+"android_cfg_cache_or_data" = "Önbellek / Kullanıcı Verisi";
+"android_cfg_storage_hint" = "Bu kapsayıcının önbelleğini temizleyin veya kullanıcı verilerini sıfırlayın.";
+"android_clear_cache_action" = "Önbelleği Temizle (cache.img)";
+"android_wipe_userdata_action" = "Kullanıcı Verisini Sil (userdata.img)";
+"android_cfg_ram_custom" = "Özel (MB)...";
+"android_cfg_ram_custom_hint" = "RAM boyutunu MB cinsinden girin (256–3072 MB). A9 gibi 2 GB cihazlarda kullanılabilir belleği aşmak uygulamayı kapatabilir.";

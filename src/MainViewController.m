@@ -43,6 +43,11 @@ extern int lighttouch_firmware_create_with_options(
     int jailbreak,
     firmware_progress_cb progress_cb
 );
+extern int lighttouch_android_prepare(
+    const char *zip_path,
+    const char *out_dir,
+    firmware_progress_cb progress_cb
+);
 extern const char *lighttouch_firmware_last_error(void);
 extern void lighttouch_firmware_free_string(char *s);
 
@@ -63,6 +68,10 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
 @property (nonatomic, copy) NSString *productType;
 @property (nonatomic, copy) NSString *version;
 @property (nonatomic, copy) NSString *build;
+@property (nonatomic, copy) NSString *platform;
+@property (nonatomic, assign) NSInteger ramMB;
+@property (nonatomic, assign) NSInteger lcdDensity;
+@property (nonatomic, assign) NSInteger gpuMode;
 @property (nonatomic, assign) NSTimeInterval createdAt;
 
 - (NSString *)containerPathWithRoot:(NSString *)containersRoot;
@@ -107,15 +116,21 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
     [[NSFileManager defaultManager] createDirectoryAtPath:cDir withIntermediateDirectories:YES attributes:nil error:nil];
     NSString *jsonPath = [cDir stringByAppendingPathComponent:@"container.json"];
 
-    NSDictionary *dict = @{
+    NSMutableDictionary *dict = [@{
         @"id": self.containerId ?: @"",
         @"name": self.name ?: @"",
         @"baseId": self.baseId ?: @"",
         @"productType": self.productType ?: @"",
         @"version": self.version ?: @"",
         @"build": self.build ?: @"",
+        @"platform": self.platform.length > 0 ? self.platform : @"ios",
         @"createdAt": @(self.createdAt)
-    };
+    } mutableCopy];
+    if ([self.platform isEqualToString:@"android"] || [self.baseId hasPrefix:@"android-"]) {
+        if (self.ramMB > 0) dict[@"ramMB"] = @(self.ramMB);
+        if (self.lcdDensity > 0) dict[@"lcdDensity"] = @(self.lcdDensity);
+        if (self.gpuMode != 0) dict[@"gpuMode"] = @(self.gpuMode);
+    }
 
     NSError *err = nil;
     NSData *data = [NSJSONSerialization dataWithJSONObject:dict options:NSJSONWritingPrettyPrinted error:&err];
@@ -141,6 +156,10 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
     c.productType = dict[@"productType"] ?: @"";
     c.version = dict[@"version"] ?: @"";
     c.build = dict[@"build"] ?: @"";
+    c.platform = dict[@"platform"] ?: ([c.baseId hasPrefix:@"android-"] ? @"android" : @"ios");
+    c.ramMB = [dict[@"ramMB"] integerValue];
+    c.lcdDensity = [dict[@"lcdDensity"] integerValue];
+    c.gpuMode = [dict[@"gpuMode"] integerValue];
     c.createdAt = [dict[@"createdAt"] doubleValue];
     return c;
 }
@@ -153,6 +172,15 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
 @property (nonatomic, copy) NSString *productType;
 @property (nonatomic, copy) NSString *version;
 @property (nonatomic, copy) NSString *build;
+@property (nonatomic, copy) NSString *platform;
+@property (nonatomic, copy) NSString *variant;
+@property (nonatomic, copy) NSString *cpu;
+@property (nonatomic, copy) NSString *cmdline;
+@property (nonatomic, assign) int ramMB;
+@property (nonatomic, assign) int apiLevel;
+@property (nonatomic, assign) int lcdWidth;
+@property (nonatomic, assign) int lcdHeight;
+@property (nonatomic, assign) int lcdDensity;
 @property (nonatomic, copy) NSString *url;
 @property (nonatomic, copy) NSString *fallbackUrl;
 @property (nonatomic, copy) NSString *sha1;
@@ -169,6 +197,7 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
 @property (nonatomic, copy) NSString *version;
 @property (nonatomic, copy) NSString *build;
 @property (nonatomic, copy) NSString *productType;
+@property (nonatomic, copy) NSString *platform;
 @property (nonatomic, assign) int64_t fileSizeBytes;
 @end
 
@@ -221,6 +250,7 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
 @interface MainViewController (DetailSupport)
 - (NSString *)humanReadableNameForId:(NSString *)sub;
 - (NSString *)formattedOSVersion:(NSString *)version;
+- (NSString *)formattedOSVersion:(NSString *)version forPlatform:(nullable NSString *)platform;
 - (nullable NSString *)requiredBootromTypeForIdentifier:(NSString *)identifier;
 - (BOOL)hasInstalledBootromForIdentifier:(NSString *)identifier;
 - (nullable NSString *)pathForInstalledBootromType:(NSString *)romType;
@@ -296,8 +326,45 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
     });
 }
 
+- (BOOL)isAndroidContainer {
+    return [self.container.platform isEqualToString:@"android"] ||
+           [self.container.baseId hasPrefix:@"android-"];
+}
+
+- (NSInteger)effectiveAndroidRamMB {
+    return self.container.ramMB >= 256 ? self.container.ramMB : 512;
+}
+
+- (NSInteger)effectiveAndroidLcdDensity {
+    return self.container.lcdDensity >= 160 ? self.container.lcdDensity : 320;
+}
+
+- (BOOL)effectiveAndroidGpuEnabled {
+    return self.container.gpuMode >= 0;
+}
+
+- (void)refreshDiskUsage {
+    VMContainer *container = self.container;
+    NSString *containersRoot = [self.mainVC containersDirectory];
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        int64_t bytes = [container stateDiskUsageWithRoot:containersRoot];
+        double mb = (double)bytes / (1024.0 * 1024.0);
+        NSString *formatted = [NSString stringWithFormat:@"%.1f MB", mb];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) s = weakSelf;
+            if (!s) return;
+            s.cachedDiskUsageText = formatted;
+            if ([s numberOfSectionsInTableView:s.tableView] > 0 && [s.tableView numberOfRowsInSection:0] > 4) {
+                [s.tableView reloadRowsAtIndexPaths:@[[NSIndexPath indexPathForRow:4 inSection:0]]
+                                   withRowAnimation:UITableViewRowAnimationNone];
+            }
+        });
+    });
+}
+
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
-    return 2;
+    return [self isAndroidContainer] ? 3 : 2;
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
@@ -305,11 +372,16 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
         BOOL requiresBootrom = ([self.mainVC requiredBootromTypeForIdentifier:self.container.baseId] != nil);
         return requiresBootrom ? 6 : 5;
     }
+    if ([self isAndroidContainer] && section == 1) {
+        return 4;
+    }
     return 4;
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
-    return section == 0 ? L(@"section_info") : L(@"section_actions");
+    if (section == 0) return L(@"section_info");
+    if ([self isAndroidContainer] && section == 1) return L(@"section_android_config");
+    return L(@"section_actions");
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -328,11 +400,15 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
         } else if (indexPath.row == 2) {
             cell.textLabel.text = L(@"os_version");
             cell.detailTextLabel.text = self.container.version.length > 0
-                ? [NSString stringWithFormat:@"%@ (%@)", [self.mainVC formattedOSVersion:self.container.version], self.container.build ?: @""]
+                ? [NSString stringWithFormat:@"%@ (%@)", [self.mainVC formattedOSVersion:self.container.version forPlatform:self.container.platform], self.container.build ?: @""]
                 : @"-";
         } else if (indexPath.row == 3) {
             cell.textLabel.text = L(@"configuration");
-            cell.detailTextLabel.text = [self.container.baseId hasSuffix:@"-jb"] ? L(@"with_cydia") : L(@"standard");
+            if ([self.container.platform isEqualToString:@"android"]) {
+                cell.detailTextLabel.text = [self.container.baseId containsString:@"gapps"] ? L(@"android_variant_gapps") : L(@"android_variant_aosp");
+            } else {
+                cell.detailTextLabel.text = [self.container.baseId hasSuffix:@"-jb"] ? L(@"with_cydia") : L(@"standard");
+            }
         } else if (indexPath.row == 4) {
             cell.textLabel.text = L(@"storage_used");
             cell.detailTextLabel.text = self.cachedDiskUsageText ?: @"-";
@@ -342,6 +418,33 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
             BOOL ok = [self.mainVC hasInstalledBootromForIdentifier:self.container.baseId];
             cell.detailTextLabel.text = ok ? L(@"installed") : L(@"not_installed");
             cell.detailTextLabel.textColor = ok ? [UIColor systemGreenColor] : [UIColor systemOrangeColor];
+        }
+        return cell;
+    }
+
+    if ([self isAndroidContainer] && indexPath.section == 1) {
+        UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:nil];
+        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+        if (indexPath.row == 0) {
+            cell.textLabel.text = L(@"android_cfg_ram");
+            cell.detailTextLabel.text = [NSString stringWithFormat:@"%ld MB", (long)[self effectiveAndroidRamMB]];
+            cell.imageView.image = [UIImage systemImageNamed:@"memorychip"];
+            cell.imageView.tintColor = [UIColor systemGreenColor];
+        } else if (indexPath.row == 1) {
+            cell.textLabel.text = L(@"android_cfg_dpi");
+            cell.detailTextLabel.text = [NSString stringWithFormat:@"%ld dpi", (long)[self effectiveAndroidLcdDensity]];
+            cell.imageView.image = [UIImage systemImageNamed:@"aspectratio"];
+            cell.imageView.tintColor = [UIColor systemIndigoColor];
+        } else if (indexPath.row == 2) {
+            cell.textLabel.text = L(@"android_cfg_gpu");
+            cell.detailTextLabel.text = [self effectiveAndroidGpuEnabled] ? L(@"android_cfg_gpu_on") : L(@"android_cfg_gpu_off");
+            cell.imageView.image = [UIImage systemImageNamed:@"cpu"];
+            cell.imageView.tintColor = [UIColor systemTealColor];
+        } else {
+            cell.textLabel.text = L(@"android_cfg_storage_reset");
+            cell.detailTextLabel.text = L(@"android_cfg_cache_or_data");
+            cell.imageView.image = [UIImage systemImageNamed:@"externaldrive"];
+            cell.imageView.tintColor = [UIColor systemOrangeColor];
         }
         return cell;
     }
@@ -384,7 +487,117 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
         }
         return;
     }
-    if (indexPath.section != 1) return;
+    NSInteger actionsSection = [self isAndroidContainer] ? 2 : 1;
+    if ([self isAndroidContainer] && indexPath.section == 1) {
+        if (indexPath.row == 0) {
+            UIAlertController *sheet = [UIAlertController alertControllerWithTitle:L(@"android_cfg_ram")
+                                                                           message:L(@"android_cfg_ram_hint")
+                                                                    preferredStyle:UIAlertControllerStyleActionSheet];
+            NSInteger curRam = [self effectiveAndroidRamMB];
+            for (NSNumber *mbNum in @[@256, @384, @512, @768, @1024, @1536, @2048, @3072]) {
+                NSInteger mb = mbNum.integerValue;
+                NSString *tag = (mb == 512) ? [NSString stringWithFormat:@"512 MB (%@)", L(@"recommended")] : [NSString stringWithFormat:@"%ld MB", (long)mb];
+                if (mb == curRam) tag = [NSString stringWithFormat:@"✓ %@", tag];
+                [sheet addAction:[UIAlertAction actionWithTitle:tag style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+                    self.container.ramMB = mb;
+                    [self.container saveMetadataWithRoot:[self.mainVC containersDirectory]];
+                    [self.tableView reloadData];
+                }]];
+            }
+            [sheet addAction:[UIAlertAction actionWithTitle:L(@"android_cfg_ram_custom") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+                UIAlertController *prompt = [UIAlertController alertControllerWithTitle:L(@"android_cfg_ram")
+                                                                                message:L(@"android_cfg_ram_custom_hint")
+                                                                         preferredStyle:UIAlertControllerStyleAlert];
+                [prompt addTextFieldWithConfigurationHandler:^(UITextField *tf) {
+                    tf.keyboardType = UIKeyboardTypeNumberPad;
+                    tf.placeholder = @"1536";
+                    tf.text = [NSString stringWithFormat:@"%ld", (long)curRam];
+                }];
+                [prompt addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
+                [prompt addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:^(UIAlertAction *okAct) {
+                    NSInteger entered = prompt.textFields.firstObject.text.integerValue;
+                    if (entered < 256) entered = 256;
+                    if (entered > 3072) entered = 3072;
+                    self.container.ramMB = entered;
+                    [self.container saveMetadataWithRoot:[self.mainVC containersDirectory]];
+                    [self.tableView reloadData];
+                }]];
+                [self presentViewController:prompt animated:YES completion:nil];
+            }]];
+            [sheet addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
+            sheet.popoverPresentationController.sourceView = self.tableView;
+            sheet.popoverPresentationController.sourceRect = [self.tableView rectForRowAtIndexPath:indexPath];
+            [self presentViewController:sheet animated:YES completion:nil];
+        } else if (indexPath.row == 1) {
+            UIAlertController *sheet = [UIAlertController alertControllerWithTitle:L(@"android_cfg_dpi")
+                                                                           message:L(@"android_cfg_dpi_hint")
+                                                                    preferredStyle:UIAlertControllerStyleActionSheet];
+            NSInteger curDpi = [self effectiveAndroidLcdDensity];
+            for (NSNumber *dpiNum in @[@240, @320, @400]) {
+                NSInteger dpi = dpiNum.integerValue;
+                NSString *tag = (dpi == 320) ? [NSString stringWithFormat:@"320 dpi (%@)", L(@"standard")] : [NSString stringWithFormat:@"%ld dpi", (long)dpi];
+                if (dpi == curDpi) tag = [NSString stringWithFormat:@"✓ %@", tag];
+                [sheet addAction:[UIAlertAction actionWithTitle:tag style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+                    self.container.lcdDensity = dpi;
+                    [self.container saveMetadataWithRoot:[self.mainVC containersDirectory]];
+                    [self.tableView reloadData];
+                }]];
+            }
+            [sheet addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
+            sheet.popoverPresentationController.sourceView = self.tableView;
+            sheet.popoverPresentationController.sourceRect = [self.tableView rectForRowAtIndexPath:indexPath];
+            [self presentViewController:sheet animated:YES completion:nil];
+        } else if (indexPath.row == 2) {
+            UIAlertController *sheet = [UIAlertController alertControllerWithTitle:L(@"android_cfg_gpu")
+                                                                           message:L(@"android_cfg_gpu_hint")
+                                                                    preferredStyle:UIAlertControllerStyleActionSheet];
+            BOOL gpuOn = [self effectiveAndroidGpuEnabled];
+            [sheet addAction:[UIAlertAction actionWithTitle:(gpuOn ? [NSString stringWithFormat:@"✓ %@", L(@"android_cfg_gpu_on")] : L(@"android_cfg_gpu_on"))
+                                                     style:UIAlertActionStyleDefault
+                                                   handler:^(UIAlertAction *action) {
+                self.container.gpuMode = 1;
+                [self.container saveMetadataWithRoot:[self.mainVC containersDirectory]];
+                [self.tableView reloadData];
+            }]];
+            [sheet addAction:[UIAlertAction actionWithTitle:(!gpuOn ? [NSString stringWithFormat:@"✓ %@", L(@"android_cfg_gpu_off")] : L(@"android_cfg_gpu_off"))
+                                                     style:UIAlertActionStyleDefault
+                                                   handler:^(UIAlertAction *action) {
+                self.container.gpuMode = -1;
+                [self.container saveMetadataWithRoot:[self.mainVC containersDirectory]];
+                [self.tableView reloadData];
+            }]];
+            [sheet addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
+            sheet.popoverPresentationController.sourceView = self.tableView;
+            sheet.popoverPresentationController.sourceRect = [self.tableView rectForRowAtIndexPath:indexPath];
+            [self presentViewController:sheet animated:YES completion:nil];
+        } else if (indexPath.row == 3) {
+            UIAlertController *sheet = [UIAlertController alertControllerWithTitle:L(@"android_cfg_storage_reset")
+                                                                           message:L(@"android_cfg_storage_hint")
+                                                                    preferredStyle:UIAlertControllerStyleActionSheet];
+            [sheet addAction:[UIAlertAction actionWithTitle:L(@"android_clear_cache_action")
+                                                     style:UIAlertActionStyleDefault
+                                                   handler:^(UIAlertAction *action) {
+                NSString *statePath = [self.container statePathWithRoot:[self.mainVC containersDirectory]];
+                [[NSFileManager defaultManager] removeItemAtPath:[statePath stringByAppendingPathComponent:@"cache.img"] error:nil];
+                [self refreshDiskUsage];
+            }]];
+            [sheet addAction:[UIAlertAction actionWithTitle:L(@"android_wipe_userdata_action")
+                                                     style:UIAlertActionStyleDestructive
+                                                   handler:^(UIAlertAction *action) {
+                NSString *statePath = [self.container statePathWithRoot:[self.mainVC containersDirectory]];
+                NSFileManager *fm = [NSFileManager defaultManager];
+                [fm removeItemAtPath:[statePath stringByAppendingPathComponent:@"userdata.img"] error:nil];
+                [fm removeItemAtPath:[statePath stringByAppendingPathComponent:@"cache.img"] error:nil];
+                [self refreshDiskUsage];
+            }]];
+            [sheet addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
+            sheet.popoverPresentationController.sourceView = self.tableView;
+            sheet.popoverPresentationController.sourceRect = [self.tableView rectForRowAtIndexPath:indexPath];
+            [self presentViewController:sheet animated:YES completion:nil];
+        }
+        return;
+    }
+    if (indexPath.section != actionsSection) return;
 
     if (indexPath.row == 0) {
         [self.navigationController popViewControllerAnimated:NO];
@@ -415,10 +628,24 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
         if (!logText) {
             logText = [NSString stringWithContentsOfFile:serialPath encoding:NSISOLatin1StringEncoding error:nil];
         }
+        NSString *docDir = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+        NSString *bootLogPath = [docDir stringByAppendingPathComponent:@"last_boot.log"];
+        NSString *bootLogText = [NSString stringWithContentsOfFile:bootLogPath encoding:NSUTF8StringEncoding error:nil];
+        if (!bootLogText) {
+            bootLogText = [NSString stringWithContentsOfFile:bootLogPath encoding:NSISOLatin1StringEncoding error:nil];
+        }
+        if (bootLogText.length > 2500) {
+            bootLogText = [bootLogText substringFromIndex:bootLogText.length - 2500];
+        }
+        if (logText.length > 2500) {
+            logText = [logText substringFromIndex:logText.length - 2500];
+        }
+        if (bootLogText.length > 0) {
+            logText = [NSString stringWithFormat:@"%@\n--- stderr (last_boot.log) ---\n%@",
+                       logText ?: @"", bootLogText];
+        }
         if (logText.length == 0) {
             logText = L(@"no_serial_log");
-        } else if (logText.length > 4000) {
-            logText = [logText substringFromIndex:logText.length - 4000];
         }
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:L(@"view_serial_log")
                                                                        message:logText
@@ -636,7 +863,7 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
         FirmwareFile *f = self.firmwares[indexPath.row];
         NSArray<VMContainer *> *usedBy = [self.mainVC containersUsingEntryId:f.entryId];
         UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:nil];
-        cell.textLabel.text = [NSString stringWithFormat:@"%@ (%@)", [self.mainVC humanReadableNameForId:f.entryId], [self.mainVC formattedOSVersion:f.version]];
+        cell.textLabel.text = [NSString stringWithFormat:@"%@ (%@)", [self.mainVC humanReadableNameForId:f.entryId], [self.mainVC formattedOSVersion:f.version forPlatform:f.platform]];
         cell.textLabel.font = [UIFont systemFontOfSize:16.0 weight:UIFontWeightSemibold];
         double mb = (double)f.fileSizeBytes / (1024.0 * 1024.0);
         cell.detailTextLabel.text = [NSString stringWithFormat:@"%.1f MB • %@", mb, usedBy.count > 0 ? L(@"in_use_badge") : L(@"unused")];
@@ -674,7 +901,8 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
         @{@"title": L(@"device_ipod_2g_desc"), @"type": @"iPod2,1"},
         @{@"title": L(@"device_ipod_3g_desc"), @"type": @"iPod3,1"},
         @{@"title": L(@"device_ipod_4g_desc"), @"type": @"iPod4,1"},
-        @{@"title": L(@"device_ipad_1g_desc"), @"type": @"iPad1,1"}
+        @{@"title": L(@"device_ipad_1g_desc"), @"type": @"iPad1,1"},
+        @{@"title": L(@"device_android_arm_desc"), @"type": @"AndroidARMv7"}
     ];
 
     for (NSDictionary<NSString *, NSString *> *d in devices) {
@@ -690,6 +918,18 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
         deviceSelect.popoverPresentationController.sourceRect = sourceCell ? sourceCell.bounds : self.tableView.bounds;
     }
     [self presentViewController:deviceSelect animated:YES completion:nil];
+}
+
+- (void)dismissToMainAndRun:(void (^)(void))block {
+    MainViewController *mainVC = self.mainVC;
+    UIViewController *rootPresenter = mainVC.navigationController ?: mainVC;
+    if (rootPresenter && rootPresenter.presentedViewController) {
+        [rootPresenter dismissViewControllerAnimated:YES completion:block];
+    } else if (mainVC && mainVC.presentedViewController) {
+        [mainVC dismissViewControllerAnimated:YES completion:block];
+    } else {
+        [self dismissViewControllerAnimated:YES completion:block];
+    }
 }
 
 - (void)presentCatalogDownloadVersionPickerForProductType:(NSString *)prodType deviceTitle:(NSString *)deviceTitle sourceCell:(nullable UITableViewCell *)sourceCell {
@@ -708,22 +948,24 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
         NSString *tag = existing
             ? [NSString stringWithFormat:@" [%@]", L(@"downloaded_badge")]
             : [NSString stringWithFormat:@" (%.0f MB)", (double)ce.bytes / (1024.0 * 1024.0)];
-        NSString *btnTitle = [NSString stringWithFormat:@"%@ (%@)%@", [self.mainVC formattedOSVersion:ce.version], ce.build, tag];
+        NSString *btnTitle = [NSString stringWithFormat:@"%@ (%@)%@", [self.mainVC formattedOSVersion:ce.version forPlatform:ce.platform], ce.build, tag];
         [versionSelect addAction:[UIAlertAction actionWithTitle:btnTitle style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
             if (existing) {
                 UIAlertController *redl = [UIAlertController alertControllerWithTitle:L(@"redownload_ipsw_title")
-                                                                              message:[NSString stringWithFormat:L(@"redownload_ipsw_msg"), ce.version, ce.build]
+                                                                              message:[NSString stringWithFormat:L(@"redownload_ipsw_msg"), [self.mainVC formattedOSVersion:ce.version forPlatform:ce.platform], ce.build]
                                                                        preferredStyle:UIAlertControllerStyleAlert];
                 [redl addAction:[UIAlertAction actionWithTitle:L(@"redownload_action") style:UIAlertActionStyleDestructive handler:^(UIAlertAction *a) {
-                    [self dismissViewControllerAnimated:YES completion:^{
-                        [self.mainVC downloadCatalogIPSWForManagement:ce];
+                    MainViewController *mainVC = self.mainVC;
+                    [self dismissToMainAndRun:^{
+                        [mainVC downloadCatalogIPSWForManagement:ce];
                     }];
                 }]];
                 [redl addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
                 [self presentViewController:redl animated:YES completion:nil];
             } else {
-                [self dismissViewControllerAnimated:YES completion:^{
-                    [self.mainVC downloadCatalogIPSWForManagement:ce];
+                MainViewController *mainVC = self.mainVC;
+                [self dismissToMainAndRun:^{
+                    [mainVC downloadCatalogIPSWForManagement:ce];
                 }];
             }
         }]];
@@ -798,7 +1040,7 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
     FirmwareFile *f = self.firmwares[indexPath.row];
     NSString *cleanName = [self.mainVC humanReadableNameForId:f.entryId];
     UIAlertController *sheet = [UIAlertController alertControllerWithTitle:cleanName
-                                                                   message:[NSString stringWithFormat:@"iOS %@ (%.1f MB)", f.version ?: @"", (double)f.fileSizeBytes / (1024.0 * 1024.0)]
+                                                                   message:[NSString stringWithFormat:@"%@ (%.1f MB)", [self.mainVC formattedOSVersion:f.version ?: @"" forPlatform:f.platform], (double)f.fileSizeBytes / (1024.0 * 1024.0)]
                                                             preferredStyle:UIAlertControllerStyleActionSheet];
     [sheet addAction:[UIAlertAction actionWithTitle:L(@"create_container") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         CatalogEntry *ce = nil;
@@ -814,9 +1056,11 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
             ce.productType = f.productType;
             ce.version = f.version;
             ce.build = f.build;
+            ce.platform = f.platform ?: ([f.entryId hasPrefix:@"android-"] ? @"android" : @"ios");
         }
-        [self dismissViewControllerAnimated:YES completion:^{
-            [self.mainVC promptContainerNameForEntry:ce deviceTitle:cleanName];
+        MainViewController *mainVC = self.mainVC;
+        [self dismissToMainAndRun:^{
+            [mainVC promptContainerNameForEntry:ce deviceTitle:cleanName];
         }];
     }]];
     [sheet addAction:[UIAlertAction actionWithTitle:L(@"delete") style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
@@ -1217,6 +1461,7 @@ static __weak MainViewController *sCurrentMainVC = nil;
         ce.productType = d[@"product_type"];
         ce.version = d[@"version"];
         ce.build = d[@"build"];
+        ce.platform = @"ios";
 
         NSDictionary *src = d[@"source"];
         if ([src isKindOfClass:[NSDictionary class]]) {
@@ -1230,6 +1475,40 @@ static __weak MainViewController *sCurrentMainVC = nil;
             }
         }
         [list addObject:ce];
+    }
+
+    NSString *androidCatalogPath = [[NSBundle mainBundle] pathForResource:@"android-catalog" ofType:@"json"];
+    if (!androidCatalogPath) {
+        androidCatalogPath = [[[NSBundle mainBundle] bundlePath] stringByAppendingPathComponent:@"android-catalog.json"];
+    }
+    NSData *aData = androidCatalogPath ? [NSData dataWithContentsOfFile:androidCatalogPath] : nil;
+    NSDictionary *aJson = aData ? [NSJSONSerialization JSONObjectWithData:aData options:0 error:nil] : nil;
+    NSArray *aEntries = [aJson isKindOfClass:[NSDictionary class]] ? aJson[@"entries"] : nil;
+    if ([aEntries isKindOfClass:[NSArray class]]) {
+        for (NSDictionary *d in aEntries) {
+            if (![d isKindOfClass:[NSDictionary class]]) continue;
+            CatalogEntry *ce = [[CatalogEntry alloc] init];
+            ce.entryId = d[@"id"];
+            ce.board = d[@"board"] ?: @"goldfish";
+            ce.productType = @"AndroidARMv7";
+            ce.version = d[@"version"];
+            ce.variant = d[@"variant"] ?: @"aosp";
+            NSString *codename = d[@"codename"] ?: @"";
+            NSString *varLabel = [ce.variant isEqualToString:@"google_apis"] ? @"Google APIs" : @"AOSP";
+            ce.build = codename.length > 0 ? [NSString stringWithFormat:@"%@ • %@", codename, varLabel] : varLabel;
+            ce.platform = @"android";
+            ce.cpu = d[@"cpu"] ?: @"cortex-a8";
+            ce.cmdline = d[@"cmdline"];
+            ce.ramMB = [d[@"ram_mb"] intValue] > 0 ? [d[@"ram_mb"] intValue] : 512;
+            ce.apiLevel = [d[@"api_level"] intValue];
+            ce.lcdWidth = [d[@"width"] intValue];
+            ce.lcdHeight = [d[@"height"] intValue];
+            ce.lcdDensity = [d[@"dpi"] intValue];
+            ce.url = d[@"url"];
+            ce.sha1 = d[@"sha1"];
+            ce.bytes = [d[@"size"] longLongValue];
+            [list addObject:ce];
+        }
     }
     NSLog(@"[MainViewController] Loaded %lu catalog entries", (unsigned long)list.count);
     return [list copy];
@@ -1364,7 +1643,8 @@ static __weak MainViewController *sCurrentMainVC = nil;
         NSArray *files = [fm contentsOfDirectoryAtPath:dir error:nil];
         for (NSString *f in files) {
             if ([f hasPrefix:@"."]) continue;
-            if (![f.pathExtension.lowercaseString isEqualToString:@"ipsw"]) continue;
+            NSString *ext = f.pathExtension.lowercaseString;
+            if (![ext isEqualToString:@"ipsw"] && ![ext isEqualToString:@"zip"]) continue;
             if ([seenFiles containsObject:f.lowercaseString]) continue;
 
             NSString *full = [dir stringByAppendingPathComponent:f];
@@ -1372,6 +1652,9 @@ static __weak MainViewController *sCurrentMainVC = nil;
             if (!attrs || [attrs[NSFileType] isEqualToString:NSFileTypeDirectory]) continue;
 
             CatalogEntry *matched = [self catalogEntryMatchingIPSWFilename:f];
+            if ([ext isEqualToString:@"zip"] && (!matched || ![matched.platform isEqualToString:@"android"])) {
+                continue;
+            }
             NSString *stem = [f stringByDeletingPathExtension];
             NSString *entryId = matched ? matched.entryId : stem;
             if ([seenEntryIds containsObject:entryId]) continue;
@@ -1384,6 +1667,7 @@ static __weak MainViewController *sCurrentMainVC = nil;
             ff.filePath = full;
             ff.entryId = entryId;
             ff.fileSizeBytes = attrs.fileSize;
+            ff.platform = matched.platform ?: ([entryId hasPrefix:@"android-"] ? @"android" : @"ios");
             if (matched) {
                 ff.version = matched.version;
                 ff.build = matched.build;
@@ -1399,10 +1683,13 @@ static __weak MainViewController *sCurrentMainVC = nil;
     if (entryId.length == 0) return nil;
     NSFileManager *fm = [NSFileManager defaultManager];
     NSArray<NSString *> *searchDirs = [self ipswSearchDirectories];
-    NSString *exactName = [NSString stringWithFormat:@"%@.ipsw", entryId];
+    NSString *exactIpsw = [NSString stringWithFormat:@"%@.ipsw", entryId];
+    NSString *exactZip = [NSString stringWithFormat:@"%@.zip", entryId];
     for (NSString *dir in searchDirs) {
-        NSString *candidate = [dir stringByAppendingPathComponent:exactName];
-        if ([fm fileExistsAtPath:candidate]) return candidate;
+        NSString *candidateIpsw = [dir stringByAppendingPathComponent:exactIpsw];
+        if ([fm fileExistsAtPath:candidateIpsw]) return candidateIpsw;
+        NSString *candidateZip = [dir stringByAppendingPathComponent:exactZip];
+        if ([fm fileExistsAtPath:candidateZip]) return candidateZip;
     }
 
     CatalogEntry *ce = [self catalogEntryWithId:entryId];
@@ -1451,6 +1738,13 @@ static __weak MainViewController *sCurrentMainVC = nil;
 - (BOOL)hasPreparedBaseForEntryId:(NSString *)entryId {
     NSString *base = [[self basesDirectory] stringByAppendingPathComponent:entryId];
     NSFileManager *fm = [NSFileManager defaultManager];
+    if ([entryId hasPrefix:@"android-"] ||
+        [fm fileExistsAtPath:[base stringByAppendingPathComponent:@"kernel-qemu"]]) {
+        return [fm fileExistsAtPath:[base stringByAppendingPathComponent:@"kernel-qemu"]] &&
+               [fm fileExistsAtPath:[base stringByAppendingPathComponent:@"ramdisk.img"]] &&
+               [fm fileExistsAtPath:[base stringByAppendingPathComponent:@"system.img"]] &&
+               [fm fileExistsAtPath:[base stringByAppendingPathComponent:@"userdata.img"]];
+    }
     BOOL hasLock = [fm fileExistsAtPath:[base stringByAppendingPathComponent:@"device.lock.json"]] ||
                    [fm fileExistsAtPath:[base stringByAppendingPathComponent:@"lock.json"]];
     if (!hasLock) return NO;
@@ -1560,7 +1854,14 @@ static __weak MainViewController *sCurrentMainVC = nil;
 #pragma mark - Device & OS Names
 
 - (NSString *)formattedOSVersion:(NSString *)version {
+    return [self formattedOSVersion:version forPlatform:nil];
+}
+
+- (NSString *)formattedOSVersion:(NSString *)version forPlatform:(nullable NSString *)platform {
     if (!version || version.length == 0) return @"";
+    if ([platform isEqualToString:@"android"]) {
+        return [NSString stringWithFormat:@"Android %@", version];
+    }
     if ([version hasPrefix:@"1."] || [version isEqualToString:@"1"] ||
         [version hasPrefix:@"2."] || [version isEqualToString:@"2"] ||
         [version hasPrefix:@"3."] || [version isEqualToString:@"3"]) {
@@ -1570,6 +1871,9 @@ static __weak MainViewController *sCurrentMainVC = nil;
 }
 
 - (NSString *)humanReadableNameForId:(NSString *)sub {
+    if ([sub hasPrefix:@"android-"] || [sub containsString:@"AndroidARMv7"] || [sub containsString:@"goldfish"]) {
+        return L(@"device_android_arm");
+    }
     if ([sub containsString:@"iPad1,1"] || [sub containsString:@"k48ap"]) return L(@"device_ipad_1g");
     if ([sub containsString:@"iPhone1,1"] || [sub containsString:@"m68ap"]) return L(@"device_iphone_2g");
     if ([sub containsString:@"iPhone2,1"] || [sub containsString:@"n88ap"]) return L(@"device_iphone_3gs");
@@ -1583,6 +1887,7 @@ static __weak MainViewController *sCurrentMainVC = nil;
 }
 
 - (NSString *)productTypeForId:(NSString *)sub {
+    if ([sub hasPrefix:@"android-"] || [sub containsString:@"AndroidARMv7"] || [sub containsString:@"goldfish"]) return @"AndroidARMv7";
     if ([sub containsString:@"iPad1,1"] || [sub containsString:@"k48ap"]) return @"iPad1,1";
     if ([sub containsString:@"iPhone1,1"] || [sub containsString:@"m68ap"]) return @"iPhone1,1";
     if ([sub containsString:@"iPhone2,1"] || [sub containsString:@"n88ap"]) return @"iPhone2,1";
@@ -1598,6 +1903,9 @@ static __weak MainViewController *sCurrentMainVC = nil;
 #pragma mark - Step-by-Step Creation Wizard (端末 -> OS -> コンテナ名)
 
 - (BOOL)supportsCydiaForEntry:(CatalogEntry *)entry {
+    if ([entry.platform isEqualToString:@"android"]) {
+        return NO;
+    }
     NSString *pt = entry.productType ?: @"";
     NSString *eid = entry.entryId ?: @"";
     NSInteger major = [[entry.version componentsSeparatedByString:@"."].firstObject integerValue];
@@ -1606,13 +1914,11 @@ static __weak MainViewController *sCurrentMainVC = nil;
     }
     BOOL supportedBoard = ([pt isEqualToString:@"iPhone2,1"] || [eid containsString:@"n88ap"] ||
                            [pt isEqualToString:@"iPhone3,1"] || [eid containsString:@"n90ap"] ||
-                           [pt isEqualToString:@"iPod2,1"] || [eid containsString:@"n72ap"] ||
                            [pt isEqualToString:@"iPod3,1"] || [eid containsString:@"n18ap"] ||
                            [pt isEqualToString:@"iPod4,1"] || [eid containsString:@"n81ap"] ||
                            [pt isEqualToString:@"iPad1,1"] || [eid containsString:@"k48ap"]);
     if (!supportedBoard) return NO;
-    if (([pt isEqualToString:@"iPod2,1"] || [eid containsString:@"n72ap"]) &&
-        ([entry.version hasPrefix:@"2."] || [entry.version isEqualToString:@"3.0"])) {
+    if ([entry.version isEqualToString:@"3.0"] || [entry.version hasPrefix:@"3.0."]) {
         return NO;
     }
     return major >= 3 && major <= 7;
@@ -1643,7 +1949,8 @@ static __weak MainViewController *sCurrentMainVC = nil;
         L(@"device_ipod_2g_desc"): @"iPod2,1",
         L(@"device_ipod_3g_desc"): @"iPod3,1",
         L(@"device_ipod_4g_desc"): @"iPod4,1",
-        L(@"device_ipad_1g_desc"): @"iPad1,1"
+        L(@"device_ipad_1g_desc"): @"iPad1,1",
+        L(@"device_android_arm_desc"): @"AndroidARMv7"
     };
 
     NSArray *deviceOrder = @[
@@ -1655,7 +1962,8 @@ static __weak MainViewController *sCurrentMainVC = nil;
         L(@"device_ipod_2g_desc"),
         L(@"device_ipod_3g_desc"),
         L(@"device_ipod_4g_desc"),
-        L(@"device_ipad_1g_desc")
+        L(@"device_ipad_1g_desc"),
+        L(@"device_android_arm_desc")
     ];
 
     for (NSString *title in deviceOrder) {
@@ -1709,7 +2017,7 @@ static __weak MainViewController *sCurrentMainVC = nil;
             tag = [NSString stringWithFormat:@" (%.0f MB)", (double)ce.bytes / (1024.0 * 1024.0)];
         }
 
-        NSString *btnTitle = [NSString stringWithFormat:@"%@ (%@)%@", [self formattedOSVersion:ce.version], ce.build, tag];
+        NSString *btnTitle = [NSString stringWithFormat:@"%@ (%@)%@", [self formattedOSVersion:ce.version forPlatform:ce.platform], ce.build, tag];
         [versionSelect addAction:[UIAlertAction actionWithTitle:btnTitle style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
             [self promptContainerNameForEntry:ce deviceTitle:deviceTitle];
         }]];
@@ -1728,15 +2036,21 @@ static __weak MainViewController *sCurrentMainVC = nil;
 - (void)promptContainerNameForEntry:(CatalogEntry *)entry deviceTitle:(NSString *)deviceTitle {
     // Step 3: Enter Container Name (UTM-like) & Cydia option
     NSString *cleanDevice = [self humanReadableNameForId:entry.entryId];
-    NSString *defaultName = [NSString stringWithFormat:@"%@ (%@)", cleanDevice, [self formattedOSVersion:entry.version]];
+    NSString *verFmt = [self formattedOSVersion:entry.version forPlatform:entry.platform];
+    NSString *defaultName = [entry.platform isEqualToString:@"android"] && entry.build.length > 0
+        ? [NSString stringWithFormat:@"%@ (%@)", verFmt, [entry.variant isEqualToString:@"google_apis"] ? @"Google APIs" : @"AOSP"]
+        : [NSString stringWithFormat:@"%@ (%@)", cleanDevice, verFmt];
     BOOL canCydia = [self supportsCydiaForEntry:entry];
 
     BOOL isIPhone5 = ([entry.productType isEqualToString:@"iPhone5,2"] || [entry.entryId containsString:@"n42ap"]);
+    BOOL isAndroid = [entry.platform isEqualToString:@"android"];
     NSString *msg = canCydia
         ? L(@"wizard_name_config_prompt_cydia")
-        : (isIPhone5
-            ? L(@"wizard_name_config_prompt_n42")
-            : L(@"wizard_name_config_prompt_default"));
+        : (isAndroid
+            ? L(@"wizard_name_config_prompt_android")
+            : (isIPhone5
+                ? L(@"wizard_name_config_prompt_n42")
+                : L(@"wizard_name_config_prompt_default")));
 
     UIAlertController *namePrompt = [UIAlertController alertControllerWithTitle:L(@"wizard_name_config_title")
                                                                         message:msg
@@ -1845,7 +2159,7 @@ static __weak MainViewController *sCurrentMainVC = nil;
     NSString *cid = metadata[@"containerId"];
     NSString *name = metadata[@"containerName"];
     BOOL installCydia = [metadata[@"installCydia"] boolValue];
-    NSString *displayTitle = metadata[@"displayTitle"] ?: entryId ?: @"IPSW";
+    NSString *displayTitle = metadata[@"displayTitle"] ?: entryId ?: @"Firmware";
     if (!self.isCatalogLoaded && !managementOnly && entryId.length > 0) {
         __weak typeof(self) weakSelf = self;
         [self ensureCatalogLoadedThen:^{
@@ -1939,7 +2253,7 @@ static __weak MainViewController *sCurrentMainVC = nil;
     }
 
     if (downloader.isDownloading) {
-        NSString *title = downloader.displayTitle ?: downloader.downloadId ?: @"IPSW";
+        NSString *title = downloader.displayTitle ?: downloader.downloadId ?: @"Firmware";
         NSString *detail = L(@"ipsw_bg_reattached_detail");
         if (downloader.lastTotalBytesExpected > 0 && downloader.lastTotalBytesWritten > 0) {
             detail = [NSString stringWithFormat:L(@"ipsw_bg_progress_detail"),
@@ -1956,8 +2270,8 @@ static __weak MainViewController *sCurrentMainVC = nil;
 
 - (void)startIPSWDownloadForEntry:(CatalogEntry *)entry metadata:(NSDictionary *)metadata {
     [_haptic impactOccurred];
-    NSString *title = [NSString stringWithFormat:@"%@ (%@)", [self humanReadableNameForId:entry.productType], [self formattedOSVersion:entry.version]];
-    [self showProgress:[NSString stringWithFormat:L(@"downloading_fmt"), [self formattedOSVersion:entry.version]]
+    NSString *title = [NSString stringWithFormat:@"%@ (%@)", [self humanReadableNameForId:entry.productType], [self formattedOSVersion:entry.version forPlatform:entry.platform]];
+    [self showProgress:[NSString stringWithFormat:L(@"downloading_fmt"), [self formattedOSVersion:entry.version forPlatform:entry.platform]]
                 detail:L(@"ipsw_bg_connecting_detail")];
     self.cancelButton.hidden = NO;
 
@@ -1992,7 +2306,7 @@ static __weak MainViewController *sCurrentMainVC = nil;
 }
 
 - (void)downloadAndPrepareEntry:(CatalogEntry *)entry containerId:(NSString *)cid containerName:(NSString *)name installCydia:(BOOL)installCydia {
-    NSString *displayTitle = [NSString stringWithFormat:@"%@ (%@)", [self humanReadableNameForId:entry.productType], [self formattedOSVersion:entry.version]];
+    NSString *displayTitle = [NSString stringWithFormat:@"%@ (%@)", [self humanReadableNameForId:entry.productType], [self formattedOSVersion:entry.version forPlatform:entry.platform]];
     NSDictionary *metadata = @{
         @"entryId": entry.entryId ?: @"",
         @"containerId": cid ?: @"",
@@ -2005,7 +2319,7 @@ static __weak MainViewController *sCurrentMainVC = nil;
 }
 
 - (void)downloadCatalogIPSWForManagement:(CatalogEntry *)entry {
-    NSString *displayTitle = [NSString stringWithFormat:@"%@ (%@)", [self humanReadableNameForId:entry.productType], [self formattedOSVersion:entry.version]];
+    NSString *displayTitle = [NSString stringWithFormat:@"%@ (%@)", [self humanReadableNameForId:entry.productType], [self formattedOSVersion:entry.version forPlatform:entry.platform]];
     NSDictionary *metadata = @{
         @"entryId": entry.entryId ?: @"",
         @"managementOnly": @YES,
@@ -2095,9 +2409,12 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     }
 
     self.isPreparingBase = YES;
-    NSString *baseId = installCydia ? [NSString stringWithFormat:@"%@-jb", entry.entryId] : entry.entryId;
-    NSString *progressTitle = installCydia ? L(@"building_device_storage_cydia") : L(@"building_device_storage");
-    [self showProgress:progressTitle detail:L(@"decrypting_rootfs_nand")];
+    BOOL isAndroid = ([entry.platform isEqualToString:@"android"] || [entry.entryId hasPrefix:@"android-"]);
+    NSString *baseId = (!isAndroid && installCydia) ? [NSString stringWithFormat:@"%@-jb", entry.entryId] : entry.entryId;
+    NSString *progressTitle = isAndroid
+        ? L(@"building_android_storage")
+        : (installCydia ? L(@"building_device_storage_cydia") : L(@"building_device_storage"));
+    [self showProgress:progressTitle detail:isAndroid ? L(@"extracting_android_images") : L(@"decrypting_rootfs_nand")];
     self.cancelButton.hidden = YES;
     self.progressBar.progress = 0.0f;
 
@@ -2118,15 +2435,47 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     }
 
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        int ret = lighttouch_firmware_create_with_options(
-            catalogPath.UTF8String,
-            entry.entryId.UTF8String,
-            ipswURL.path.UTF8String,
-            guestToolsPath.UTF8String,
-            outDir.UTF8String,
-            installCydia ? 1 : 0,
-            firmware_progress_callback
-        );
+        int ret = 0;
+        if (isAndroid) {
+            ret = lighttouch_android_prepare(
+                ipswURL.path.UTF8String,
+                outDir.UTF8String,
+                firmware_progress_callback
+            );
+            if (ret == 0) {
+                int metaW = entry.lcdWidth > 0 ? entry.lcdWidth : 750;
+                int metaH = entry.lcdHeight > 0 ? entry.lcdHeight : 1334;
+                int metaDpi = entry.lcdDensity > 0 ? entry.lcdDensity : 320;
+                NSString *defCmdline = [NSString stringWithFormat:@"qemu=1 androidboot.hardware=goldfish console=ttyS0 android.qemud=1 android.checkjni=0 ndns=1 qemu.gles=1 qemu.sf.lcd_density=%d qemu.hw.mainkeys=0", metaDpi];
+                NSDictionary *meta = @{
+                    @"platform": @"android",
+                    @"entryId": entry.entryId ?: @"",
+                    @"version": entry.version ?: @"",
+                    @"variant": entry.variant ?: @"aosp",
+                    @"api_level": @(entry.apiLevel),
+                    @"ram_mb": @(entry.ramMB > 0 ? entry.ramMB : 512),
+                    @"cpu": entry.cpu.length > 0 ? entry.cpu : @"cortex-a8",
+                    @"width": @(metaW),
+                    @"height": @(metaH),
+                    @"dpi": @(metaDpi),
+                    @"cmdline": entry.cmdline ?: defCmdline
+                };
+                NSData *metaData = [NSJSONSerialization dataWithJSONObject:meta options:NSJSONWritingPrettyPrinted error:nil];
+                if (metaData) {
+                    [metaData writeToFile:[outDir stringByAppendingPathComponent:@"android-metadata.json"] atomically:YES];
+                }
+            }
+        } else {
+            ret = lighttouch_firmware_create_with_options(
+                catalogPath.UTF8String,
+                entry.entryId.UTF8String,
+                ipswURL.path.UTF8String,
+                guestToolsPath.UTF8String,
+                outDir.UTF8String,
+                installCydia ? 1 : 0,
+                firmware_progress_callback
+            );
+        }
 
         dispatch_async(dispatch_get_main_queue(), ^{
             self.isPreparingBase = NO;
@@ -2157,6 +2506,12 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     c.productType = entry.productType ?: [self productTypeForId:baseId];
     c.version = entry.version ?: @"";
     c.build = entry.build ?: @"";
+    c.platform = entry.platform.length > 0 ? entry.platform : ([baseId hasPrefix:@"android-"] ? @"android" : @"ios");
+    if ([c.platform isEqualToString:@"android"]) {
+        c.ramMB = entry.ramMB > 0 ? entry.ramMB : 512;
+        c.lcdDensity = entry.lcdDensity > 0 ? entry.lcdDensity : 320;
+        c.gpuMode = ([entry.cmdline containsString:@"qemu.gles=0"] ? -1 : 1);
+    }
     c.createdAt = [[NSDate date] timeIntervalSince1970];
 
     // Create state directory
@@ -2447,8 +2802,9 @@ static void firmware_progress_callback(int pct, const char *step_name) {
             NSError *copyErr = nil;
             BOOL copied = NO;
             if (matched) {
-                NSString *perm = [firmwaresDir stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.ipsw", matched.entryId]];
-                NSString *tmpPerm = [firmwaresDir stringByAppendingPathComponent:[NSString stringWithFormat:@".importing-%@.ipsw", matched.entryId]];
+                NSString *ext = [matched.platform isEqualToString:@"android"] ? @"zip" : @"ipsw";
+                NSString *perm = [firmwaresDir stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.%@", matched.entryId, ext]];
+                NSString *tmpPerm = [firmwaresDir stringByAppendingPathComponent:[NSString stringWithFormat:@".importing-%@.%@", matched.entryId, ext]];
                 NSFileManager *fm = [NSFileManager defaultManager];
                 [fm removeItemAtPath:tmpPerm error:nil];
                 if ([fm copyItemAtPath:url.path toPath:tmpPerm error:&copyErr]) {
@@ -2703,9 +3059,12 @@ static void firmware_progress_callback(int pct, const char *step_name) {
         NSString *baseDir = [container basePathWithRoot:[self basesDirectory]];
         NSString *stateDir = [container statePathWithRoot:[self containersDirectory]];
         NSFileManager *fm = [NSFileManager defaultManager];
+        BOOL isAndroid = ([container.platform isEqualToString:@"android"] ||
+                          [container.baseId hasPrefix:@"android-"] ||
+                          [fm fileExistsAtPath:[baseDir stringByAppendingPathComponent:@"kernel-qemu"]]);
         BOOL isN42 = [container.baseId hasPrefix:@"n42ap-"];
         BOOL n42AlreadyInit = isN42 && [fm fileExistsAtPath:[stateDir stringByAppendingPathComponent:@".ppn_initialized"]];
-        if (!n42AlreadyInit && ![self isBasePrepV11OrStableReady:baseDir entryId:container.baseId]) {
+        if (!isAndroid && !n42AlreadyInit && ![self isBasePrepV11OrStableReady:baseDir entryId:container.baseId]) {
             BOOL isJb = [container.baseId hasSuffix:@"-jb"];
             NSString *rawEntryId = isJb ? [container.baseId substringToIndex:container.baseId.length - 3] : container.baseId;
             __weak typeof(self) weakSelf = self;
@@ -2806,6 +3165,9 @@ static void firmware_progress_callback(int pct, const char *step_name) {
                                                                           machineName:container.name
                                                                          stateDirPath:state
                                                                           baseDirPath:base];
+    emuVC.androidRamMB = container.ramMB;
+    emuVC.androidLcdDensity = container.lcdDensity;
+    emuVC.androidGpuMode = container.gpuMode;
     __weak typeof(self) weakSelf = self;
     emuVC.onEngineProcessConsumed = ^{
         weakSelf.hasConsumedEngineProcess = YES;
@@ -2981,6 +3343,7 @@ static UIImage *ClassicDeviceIconWithBadge(UIImage *symbol, UIColor *accentColor
     static UIImage *sIphoneBadgeImg = nil;
     static UIImage *sIpadBadgeImg = nil;
     static UIImage *sIpodBadgeImg = nil;
+    static UIImage *sAndroidBadgeImg = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         UIImageSymbolConfiguration *playCfg = [UIImageSymbolConfiguration configurationWithPointSize:14.0 weight:UIImageSymbolWeightBold];
@@ -2989,10 +3352,12 @@ static UIImage *ClassicDeviceIconWithBadge(UIImage *symbol, UIColor *accentColor
         UIImage *rawIphone = [UIImage systemImageNamed:@"iphone" withConfiguration:symCfg];
         UIImage *rawIpad = [UIImage systemImageNamed:@"ipad" withConfiguration:symCfg];
         UIImage *rawIpod = [UIImage systemImageNamed:@"ipodtouch" withConfiguration:symCfg];
+        UIImage *rawAndroid = [UIImage systemImageNamed:@"smartphone" withConfiguration:symCfg] ?: rawIphone;
 
         sIphoneBadgeImg = ClassicDeviceIconWithBadge(rawIphone, [UIColor systemBlueColor]);
         sIpadBadgeImg = ClassicDeviceIconWithBadge(rawIpad, [UIColor systemIndigoColor]);
         sIpodBadgeImg = ClassicDeviceIconWithBadge(rawIpod, [UIColor systemPurpleColor]);
+        sAndroidBadgeImg = ClassicDeviceIconWithBadge(rawAndroid, [UIColor systemGreenColor]);
     });
 
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:cellId];
@@ -3023,12 +3388,13 @@ static UIImage *ClassicDeviceIconWithBadge(UIImage *symbol, UIColor *accentColor
     VMContainer *c = self.containers[indexPath.row];
     cell.textLabel.text = c.name;
 
+    BOOL isAndroid = ([c.platform isEqualToString:@"android"] || [c.baseId hasPrefix:@"android-"]);
     NSString *devClean = [self humanReadableNameForId:c.baseId];
-    NSString *verStr = c.version.length > 0 ? [self formattedOSVersion:c.version] : @"";
+    NSString *verStr = c.version.length > 0 ? [self formattedOSVersion:c.version forPlatform:(isAndroid ? @"android" : c.platform)] : @"";
 
     NSString *romTag = @"";
     BOOL romMissing = NO;
-    if ([self requiredBootromTypeForIdentifier:c.baseId] != nil) {
+    if (!isAndroid && [self requiredBootromTypeForIdentifier:c.baseId] != nil) {
         BOOL hasRom = [self hasInstalledBootromForIdentifier:c.baseId];
         romMissing = !hasRom;
         romTag = hasRom
@@ -3036,9 +3402,10 @@ static UIImage *ClassicDeviceIconWithBadge(UIImage *symbol, UIColor *accentColor
             : [NSString stringWithFormat:@" • %@", L(@"bootrom_missing")];
     }
 
-    NSString *cydiaTag = [c.baseId hasSuffix:@"-jb"] ? @" • Cydia" : @"";
+    NSString *cydiaTag = (!isAndroid && [c.baseId hasSuffix:@"-jb"]) ? @" • Cydia" : @"";
+    NSString *variantTag = (isAndroid && c.build.length > 0) ? [NSString stringWithFormat:@" • %@", c.build] : @"";
     NSString *idTag = c.containerId.length > 0 ? [NSString stringWithFormat:@"\nID: %@", c.containerId] : @"";
-    NSString *detailText = [NSString stringWithFormat:@"%@ • %@%@%@%@", devClean, verStr, cydiaTag, romTag, idTag];
+    NSString *detailText = [NSString stringWithFormat:@"%@ • %@%@%@%@%@", devClean, verStr, variantTag, cydiaTag, romTag, idTag];
     if (romMissing) {
         NSMutableAttributedString *attrDetail = [[NSMutableAttributedString alloc] initWithString:detailText
                                                                                      attributes:@{
@@ -3057,7 +3424,9 @@ static UIImage *ClassicDeviceIconWithBadge(UIImage *symbol, UIColor *accentColor
     }
 
     // Modern cached badge icons based on device type
-    if ([c.name containsString:@"iPad"] || [c.baseId containsString:@"iPad"]) {
+    if (isAndroid) {
+        cell.imageView.image = sAndroidBadgeImg;
+    } else if ([c.name containsString:@"iPad"] || [c.baseId containsString:@"iPad"]) {
         cell.imageView.image = sIpadBadgeImg;
     } else if ([c.name containsString:@"iPod"] || [c.baseId containsString:@"iPod"]) {
         cell.imageView.image = sIpodBadgeImg;

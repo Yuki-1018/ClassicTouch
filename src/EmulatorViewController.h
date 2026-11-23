@@ -24,6 +24,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) NSInteger screenScale;
 @property (nonatomic, assign) BOOL iPadLandscapeRotationEnabled;
 @property (nonatomic, assign) BOOL clipboardSyncEnabled;
+@property (nonatomic, assign) NSInteger androidRamMB;
+@property (nonatomic, assign) NSInteger androidLcdDensity;
+@property (nonatomic, assign) NSInteger androidGpuMode;
 @property (nonatomic, copy, nullable) void (^onEngineProcessConsumed)(void);
 
 - (instancetype)initWithMachineId:(NSString *)machineId

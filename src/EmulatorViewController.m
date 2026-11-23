@@ -11,6 +11,7 @@
 
 #import "EmulatorViewController.h"
 #import "ios_metal_view.h"
+#import "AndroidMetalView.h"
 #import "ios_audio_bridge.h"
 #import "ios_motion_manager.h"
 #import "ios_jit_helper.h"
@@ -18,9 +19,12 @@
 #import "ios_network_proxy.h"
 #import "ios_usb_mux.h"
 #import "ios_ipa_installer.h"
+#import "adb/ADBClient.h"
 #import "ios_guest_tools.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #include <dlfcn.h>
+
+extern int lighttouch_android_ensure_cache(const char *cache_path, const char *system_path);
 #include <pthread.h>
 #include <pthread/qos.h>
 #include <stdbool.h>
@@ -103,6 +107,28 @@ typedef NS_ENUM(NSInteger, ClassicMenuPositionMode) {
     ClassicMenuPositionCustom
 };
 
+@protocol ClassicDisplayView <NSObject>
+@property (nonatomic, weak) id<IOSMetalViewDelegate> touchDelegate;
+@property (nonatomic, copy) void (^onTouchEvent)(int touchId, int phase, float x, float y);
+@property (nonatomic, copy) void (^onZoomChanged)(CGFloat scale, CGPoint offset);
+@property (nonatomic, assign, readonly) double fps;
+@property (nonatomic, assign, readonly) NSUInteger totalFramesRendered;
+@property (nonatomic, assign) NSInteger displayRotationDegrees;
+@property (nonatomic, assign) BOOL zoomModeEnabled;
+@property (nonatomic, assign) CGFloat zoomScale;
+@property (nonatomic, assign) CGPoint panOffset;
+- (CGRect)activeScreenRect;
+- (void)resetZoom;
+- (void)purgeTextureCaches;
+- (void)updateFramePixels:(const void *)bgraPixels width:(int)w height:(int)h stride:(int)stride;
+@end
+
+@interface IOSMetalView (ClassicDisplay) <ClassicDisplayView>
+@end
+
+@interface AndroidMetalView (ClassicDisplay) <ClassicDisplayView>
+@end
+
 @interface EmulatorViewController () <IOSMotionManagerDelegate, UIDocumentPickerDelegate> {
 @public
     pthread_t _emulatorThread;
@@ -119,12 +145,36 @@ typedef NS_ENUM(NSInteger, ClassicMenuPositionMode) {
     lt_runtime *_runtime;
     uint64_t _lastFrameSeq;
 
+    BOOL _isAndroidMode;
+    void *_androidEngineHandle;
+    _Atomic BOOL _androidQemuExited;
+    int _androidTouchSlots[5];
+    FILE *_androidSerialFile;
+    int (*_pfnAndroidMain)(int argc, char **argv);
+    void (*_pfnAndroidConfigureImages)(const char *sys, const char *usr, const char *cac);
+    void (*_pfnAndroidConfigureDisplay)(int width, int height, int dpi);
+    void (*_pfnAndroidAddProp)(const char *name, const char *val);
+    void (*_pfnAndroidSetFrameCb)(void (*cb)(void *, int, int, int, const void *), void *);
+    void (*_pfnAndroidSetDirtyFrameCb)(void (*cb)(void *, int, int, int, int, int, int, int, const void *), void *);
+    void (*_pfnAndroidSetLogCb)(void (*cb)(void *, const char *, size_t), void *);
+    IOSMetalView *_iosMetalView;
+    AndroidMetalView *_androidMetalView;
+    void (*_pfnAndroidTouch)(int slot, int x, int y, int down);
+    void (*_pfnAndroidButton)(int keycode, int down);
+    void (*_pfnAndroidAccel)(float x, float y, float z);
+    int (*_pfnAndroidAudioPull)(int16_t *out, int max_frames, int *rate, int *ch);
+    void (*_pfnAndroidSync)(void);
+    void (*_pfnAndroidQuit)(void);
+
     double _accelX, _accelY, _accelZ;
     double _gyroX, _gyroY, _gyroZ;
     double _lastSentAccelX, _lastSentAccelY, _lastSentAccelZ;
     double _lastSentGyroX, _lastSentGyroY, _lastSentGyroZ;
     BOOL _hasSentMotion;
     uint64_t _lastMotionNs;
+    NSInteger _effectiveMotionOri;
+    uint64_t _gyroPulseUntilNs;
+    double _gyroPulseDirZ;
     BOOL _boardSupportsAccel;
     BOOL _boardSupportsGyro;
     BOOL _homePressActive;
@@ -136,7 +186,7 @@ typedef NS_ENUM(NSInteger, ClassicMenuPositionMode) {
     NSString *_lastSyncedPasteboardString;
 }
 
-@property (nonatomic, strong) IOSMetalView *metalView;
+@property (nonatomic, strong) MTKView<ClassicDisplayView> *metalView;
 @property (nonatomic, strong) UIView *zoomIndicatorBar;
 @property (nonatomic, strong) IOSAudioBridge *audioBridge;
 @property (nonatomic, strong) IOSMotionManager *motionManager;
@@ -145,6 +195,8 @@ typedef NS_ENUM(NSInteger, ClassicMenuPositionMode) {
 @property (nonatomic, strong) UIView *hardwareBar;
 @property (nonatomic, strong) UIVisualEffectView *barBlurView;
 @property (nonatomic, strong) UIButton *homeButton;
+@property (nonatomic, strong) UIButton *backButton;
+@property (nonatomic, strong) UIButton *menuButton;
 @property (nonatomic, strong) UIButton *powerButton;
 @property (nonatomic, strong) UIButton *volUpButton;
 @property (nonatomic, strong) UIButton *volDownButton;
@@ -175,6 +227,7 @@ typedef NS_ENUM(NSInteger, ClassicMenuPositionMode) {
 @property (nonatomic, strong) CADisplayLink *telemetryTimer;
 @property (nonatomic, strong, nullable) NSTimer *clipboardSyncTimer;
 @property (atomic, strong, nullable) IOSUsbMuxBridge *usbBridge;
+@property (atomic, strong, nullable) AEADBClient *androidAdbClient;
 @property (nonatomic, strong, nullable) UIVisualEffectView *ipaProgressCard;
 @property (nonatomic, strong, nullable) UILabel *ipaProgressLabel;
 @property (nonatomic, strong, nullable) UIProgressView *ipaProgressBar;
@@ -320,6 +373,34 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
     return @"@rpath/libqemu-arm.dylib";
 }
 
+- (NSString *)locateAndroidEngineLibrary {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSString *bundleFrameworks = [[NSBundle mainBundle] privateFrameworksPath];
+    if (bundleFrameworks) {
+        NSString *p = [bundleFrameworks stringByAppendingPathComponent:@"libqemu-android.dylib"];
+        if ([fm fileExistsAtPath:p]) return p;
+    }
+    NSString *resPath = [[NSBundle mainBundle] resourcePath];
+    if (resPath) {
+        NSString *p = [resPath stringByAppendingPathComponent:@"Frameworks/libqemu-android.dylib"];
+        if ([fm fileExistsAtPath:p]) return p;
+        p = [resPath stringByAppendingPathComponent:@"libqemu-android.dylib"];
+        if ([fm fileExistsAtPath:p]) return p;
+    }
+    NSString *bundlePath = [[NSBundle mainBundle] bundlePath];
+    if (bundlePath) {
+        NSString *p = [bundlePath stringByAppendingPathComponent:@"Frameworks/libqemu-android.dylib"];
+        if ([fm fileExistsAtPath:p]) return p;
+        p = [bundlePath stringByAppendingPathComponent:@"libqemu-android.dylib"];
+        if ([fm fileExistsAtPath:p]) return p;
+    }
+    NSString *docDir = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+    NSString *docLib = [docDir stringByAppendingPathComponent:@"Frameworks/libqemu-android.dylib"];
+    if ([fm fileExistsAtPath:docLib]) return docLib;
+
+    return @"@rpath/libqemu-android.dylib";
+}
+
 - (BOOL)prefersStatusBarHidden {
     return YES;
 }
@@ -450,7 +531,7 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
 }
 
 - (void)sendHostPasteboardToGuest:(NSString *)text showToast:(BOOL)showToast {
-    if (!text.length) return;
+    if (_isAndroidMode || !text.length) return;
     typedef void (*qemu_ios_ui_paste_fn)(const char *utf8);
     static qemu_ios_ui_paste_fn pasteFn = NULL;
     static dispatch_once_t onceToken;
@@ -519,31 +600,41 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
     if (self.view.window.windowScene) {
         ori = self.view.window.windowScene.interfaceOrientation;
     }
-    __atomic_store_n(&_hostInterfaceOrientation, (NSInteger)ori, __ATOMIC_RELEASE);
+    NSInteger prevOri = __atomic_exchange_n(&_hostInterfaceOrientation, (NSInteger)ori, __ATOMIC_ACQ_REL);
 
     BOOL isPad = (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad);
     BOOL guestLandscape = (self.screenWidth > self.screenHeight);
     BOOL hostLandscape = (self.view.bounds.size.width > self.view.bounds.size.height);
+    BOOL accelCapable = _isAndroidMode || __atomic_load_n(&_boardSupportsAccel, __ATOMIC_ACQUIRE);
 
     NSInteger rot = 0;
     if (guestLandscape) {
         // Landscape-native guest framebuffers (e.g. iPad 1st gen 1024x768)
-        rot = hostLandscape ? 0 : 90;
+        if (isPad && !self.iPadLandscapeRotationEnabled) {
+            rot = 90;
+        } else if (ori == UIInterfaceOrientationLandscapeLeft) {
+            rot = 180;
+        } else if (ori == UIInterfaceOrientationLandscapeRight) {
+            rot = 0;
+        } else if (ori == UIInterfaceOrientationPortraitUpsideDown) {
+            rot = 270;
+        } else {
+            rot = 90;
+        }
     } else {
-        // iPhone / iPod guests:
-        // By default, kept upright (0 deg) even on a Landscape iPad to prevent accidental rotation.
-        // If the user explicitly enabled iPad landscape rotation, rotate to match iPad orientation.
-        if (isPad && self.iPadLandscapeRotationEnabled && hostLandscape) {
-            if (ori == UIInterfaceOrientationLandscapeLeft) {
-                rot = 270;
-            } else {
-                rot = 90;
-            }
+        // Portrait-native framebuffers (iPhone / iPod / Android):
+        // Rotate display only when iPad landscape rotation is active AND the guest board supports rotation.
+        if (isPad && self.iPadLandscapeRotationEnabled && hostLandscape && accelCapable) {
+            rot = (ori == UIInterfaceOrientationLandscapeLeft) ? 90 : 270;
         } else {
             rot = 0;
         }
     }
     self.metalView.displayRotationDegrees = rot;
+    if (prevOri != (NSInteger)ori) {
+        _lastMotionNs = 0;
+        [self forwardMotionSample];
+    }
 }
 
 - (void)setupZoomIndicatorBar {
@@ -631,7 +722,7 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
 }
 
 - (void)pullNotificationCenter {
-    if (!_runtime || !_isEmulating) return;
+    if ((!_runtime && !_isAndroidMode) || !_isEmulating) return;
 
     // Send a smooth edge-swipe gesture downwards from top edge (y=0.005 to y=0.55)
     // using dedicated touch ID 999999 so it never collides with user touches.
@@ -714,8 +805,21 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
     self.view.backgroundColor = [UIColor blackColor];
     [self setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
 
-    // Metal rendering view
-    self.metalView = [[IOSMetalView alloc] initWithFrame:self.view.bounds];
+    _isAndroidMode = [[NSFileManager defaultManager] fileExistsAtPath:[self.baseDirPath stringByAppendingPathComponent:@"kernel-qemu"]];
+    for (int i = 0; i < 5; i++) _androidTouchSlots[i] = -1;
+    if (_isAndroidMode && (_screenWidth <= 0 || _screenHeight <= 0)) {
+        _screenWidth = 750;
+        _screenHeight = 1334;
+    }
+
+    // Metal rendering view (use Android_On_iOS FrameMailbox + MetalDisplay port for Android; keep IOSMetalView untouched for iOS)
+    if (_isAndroidMode) {
+        _androidMetalView = [[AndroidMetalView alloc] initWithFrame:self.view.bounds];
+        self.metalView = _androidMetalView;
+    } else {
+        _iosMetalView = [[IOSMetalView alloc] initWithFrame:self.view.bounds];
+        self.metalView = _iosMetalView;
+    }
     self.metalView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [self.view addSubview:self.metalView];
 
@@ -895,13 +999,15 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
     [displayActions addObject:notifAct];
 
     // 2. コントロールセンターを開く（ホストのホームバー/Dockと競合せず確実に開く）
-    UIAction *ccAct = [UIAction actionWithTitle:L(@"menu_pull_control_center")
-                                          image:[UIImage systemImageNamed:@"slider.horizontal.3"]
-                                     identifier:nil
-                                        handler:^(__kindof UIAction *action) {
-        [weakSelf pullControlCenter];
-    }];
-    [displayActions addObject:ccAct];
+    if (!_isAndroidMode) {
+        UIAction *ccAct = [UIAction actionWithTitle:L(@"menu_pull_control_center")
+                                              image:[UIImage systemImageNamed:@"slider.horizontal.3"]
+                                         identifier:nil
+                                            handler:^(__kindof UIAction *action) {
+            [weakSelf pullControlCenter];
+        }];
+        [displayActions addObject:ccAct];
+    }
 
     // 3. 拡大モード (UTMスタイルのピンチ＆パンズーム)
     BOOL zoomActive = self.metalView.zoomModeEnabled;
@@ -1058,11 +1164,57 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
         [weakSelf installIPATapped:nil];
     }];
 
+    UIAction *androidBackAct = [UIAction actionWithTitle:@"Back"
+                                                   image:[UIImage systemImageNamed:@"chevron.backward"]
+                                              identifier:nil
+                                                 handler:^(__kindof UIAction *action) {
+        __strong typeof(weakSelf) s = weakSelf;
+        if (!s || !s->_pfnAndroidButton) return;
+        s->_pfnAndroidButton(158 /* KEY_BACK */, 1);
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.05 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (s->_pfnAndroidButton) s->_pfnAndroidButton(158 /* KEY_BACK */, 0);
+        });
+    }];
+
+    UIAction *androidHomeAct = [UIAction actionWithTitle:L(@"menu_btn_home")
+                                                   image:[UIImage systemImageNamed:@"circle.inset.filled"]
+                                              identifier:nil
+                                                 handler:^(__kindof UIAction *action) {
+        __strong typeof(weakSelf) s = weakSelf;
+        if (!s || !s->_pfnAndroidButton) return;
+        s->_pfnAndroidButton(102 /* KEY_HOME */, 1);
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.05 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (s->_pfnAndroidButton) s->_pfnAndroidButton(102 /* KEY_HOME */, 0);
+        });
+    }];
+
+    UIAction *androidMenuAct = [UIAction actionWithTitle:@"Menu"
+                                                   image:[UIImage systemImageNamed:@"line.3.horizontal"]
+                                              identifier:nil
+                                                 handler:^(__kindof UIAction *action) {
+        __strong typeof(weakSelf) s = weakSelf;
+        if (!s || !s->_pfnAndroidButton) return;
+        s->_pfnAndroidButton(139 /* KEY_MENU */, 1);
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.05 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (s->_pfnAndroidButton) s->_pfnAndroidButton(139 /* KEY_MENU */, 0);
+        });
+    }];
+
+    UIAction *installApkAct = [UIAction actionWithTitle:L(@"menu_install_apk")
+                                                  image:[UIImage systemImageNamed:@"shippingbox"]
+                                             identifier:nil
+                                                handler:^(__kindof UIAction *action) {
+        __strong typeof(weakSelf) s = weakSelf;
+        if (s) [s installAPKTapped:nil];
+    }];
+
     UIMenu *toolsMenu = [UIMenu menuWithTitle:@""
                                         image:nil
                                    identifier:nil
                                       options:UIMenuOptionsDisplayInline
-                                     children:@[clipSyncAct, pasteToGuestAct, hudAct, installIpaAct]];
+                                     children:_isAndroidMode
+                                        ? @[androidBackAct, androidHomeAct, androidMenuAct, hudAct, installApkAct]
+                                        : @[clipSyncAct, pasteToGuestAct, hudAct, installIpaAct]];
 
     UIAction *restartAct = [UIAction actionWithTitle:L(@"force_restart_title")
                                                image:[UIImage systemImageNamed:@"arrow.clockwise.circle"]
@@ -1083,7 +1235,7 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
                                         image:nil
                                    identifier:nil
                                       options:UIMenuOptionsDisplayInline
-                                     children:@[restartAct, exitAct]];
+                                     children:_isAndroidMode ? @[exitAct] : @[restartAct, exitAct]];
 
     return [UIMenu menuWithTitle:@"" children:@[displayMenu, layoutMenu, toolsMenu, powerMenu]];
 }
@@ -1168,10 +1320,12 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
     self.collapseWidthConstraint = [self.collapseButton.widthAnchor constraintEqualToConstant:24.0];
     self.collapseWidthConstraint.active = YES;
 
-    self.homeButton = [self createCompactHardwareButton:@"circle.inset.filled" title:L(@"menu_btn_home") minWidth:0.0 action:@selector(homeButtonDown:) upAction:@selector(homeButtonUp:)];
+    self.backButton = [self createCompactHardwareButton:@"chevron.backward" title:nil minWidth:28.0 action:@selector(backButtonDown:) upAction:@selector(backButtonUp:)];
+    self.homeButton = [self createCompactHardwareButton:@"circle.inset.filled" title:(_isAndroidMode ? nil : L(@"menu_btn_home")) minWidth:(_isAndroidMode ? 28.0 : 0.0) action:@selector(homeButtonDown:) upAction:@selector(homeButtonUp:)];
     [self.homeButton removeTarget:self action:@selector(homeButtonUp:) forControlEvents:UIControlEventTouchCancel];
     [self.homeButton addTarget:self action:@selector(homeButtonCancel:) forControlEvents:UIControlEventTouchCancel];
-    self.powerButton = [self createCompactHardwareButton:@"power" title:L(@"menu_btn_power") minWidth:0.0 action:@selector(powerButtonDown:) upAction:@selector(powerButtonUp:)];
+    self.menuButton = [self createCompactHardwareButton:@"line.3.horizontal" title:nil minWidth:28.0 action:@selector(menuButtonDown:) upAction:@selector(menuButtonUp:)];
+    self.powerButton = [self createCompactHardwareButton:@"power" title:(_isAndroidMode ? nil : L(@"menu_btn_power")) minWidth:(_isAndroidMode ? 28.0 : 0.0) action:@selector(powerButtonDown:) upAction:@selector(powerButtonUp:)];
     self.volDownButton = [self createCompactHardwareButton:@"speaker.minus.fill" title:nil minWidth:28.0 action:@selector(volDownButtonDown:) upAction:@selector(volDownButtonUp:)];
     self.volUpButton = [self createCompactHardwareButton:@"speaker.plus.fill" title:nil minWidth:28.0 action:@selector(volUpButtonDown:) upAction:@selector(volUpButtonUp:)];
 
@@ -1180,14 +1334,12 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
     self.moreMenuButton.accessibilityLabel = L(@"menu_btn_more");
     [self refreshMoreMenu];
 
-    self.hardwareStack = [[UIStackView alloc] initWithArrangedSubviews:@[
-        self.collapseButton,
-        self.homeButton,
-        self.powerButton,
-        self.volDownButton,
-        self.volUpButton,
-        self.moreMenuButton
-    ]];
+    self.hardwareStack = [[UIStackView alloc] initWithArrangedSubviews:_isAndroidMode
+        ? @[self.collapseButton, self.backButton, self.homeButton, self.menuButton, self.powerButton, self.volDownButton, self.volUpButton, self.moreMenuButton]
+        : @[self.collapseButton, self.homeButton, self.powerButton, self.volDownButton, self.volUpButton, self.moreMenuButton]];
+    self.backButton.hidden = !_isAndroidMode;
+    self.menuButton.hidden = !_isAndroidMode;
+    self.homeButton.hidden = NO;
     self.hardwareStack.translatesAutoresizingMaskIntoConstraints = NO;
     self.hardwareStack.axis = UILayoutConstraintAxisHorizontal;
     self.hardwareStack.distribution = UIStackViewDistributionFill;
@@ -1342,7 +1494,9 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
     CGFloat oldWidth = (self.hardwareBar.bounds.size.width > 0.0) ? self.hardwareBar.bounds.size.width : 32.0;
 
     self.barCollapsed = !self.barCollapsed;
-    NSArray *items = @[self.homeButton, self.powerButton, self.volDownButton, self.volUpButton, self.moreMenuButton];
+    NSArray *items = _isAndroidMode
+        ? @[self.backButton, self.homeButton, self.menuButton, self.powerButton, self.volDownButton, self.volUpButton, self.moreMenuButton]
+        : @[self.homeButton, self.powerButton, self.volDownButton, self.volUpButton, self.moreMenuButton];
     UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:(self.barCollapsed ? 14.0 : 12.0) weight:UIImageSymbolWeightSemibold];
 
     CGFloat targetLeading = oldLeading;
@@ -1550,6 +1704,98 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
     self.ipaInstallCancelRequested = YES;
     self.ipaCancelButton.enabled = NO;
     self.ipaProgressLabel.text = L(@"ipa_cancelling");
+    if (_isAndroidMode && self.androidAdbClient) {
+        [self.androidAdbClient cancelInstall];
+    }
+}
+
+- (void)installAPKTapped:(id)sender {
+    [_haptic impactOccurred];
+    if (self.ipaInstallInFlight) {
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:L(@"menu_install_apk")
+                                                                       message:L(@"apk_install_in_progress")
+                                                                preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
+        [self presentViewController:alert animated:YES completion:nil];
+        return;
+    }
+
+    AEADBClient *adb = self.androidAdbClient;
+    if (!adb || !adb.ready) {
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:L(@"menu_install_apk")
+                                                                       message:L(@"apk_install_not_ready")
+                                                                preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
+        [self presentViewController:alert animated:YES completion:nil];
+        return;
+    }
+
+    NSMutableArray<UTType *> *types = [NSMutableArray array];
+    UTType *apkType = [UTType typeWithFilenameExtension:@"apk"];
+    if (apkType) [types addObject:apkType];
+    [types addObject:UTTypeData];
+
+    UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:types asCopy:YES];
+    picker.delegate = self;
+    picker.allowsMultipleSelection = NO;
+    [self presentViewController:picker animated:YES completion:nil];
+}
+
+- (void)handlePickedAPKURL:(NSURL *)pickedURL {
+    if (![[pickedURL.pathExtension lowercaseString] isEqualToString:@"apk"]) {
+        [[NSFileManager defaultManager] removeItemAtURL:pickedURL error:nil];
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:L(@"apk_install_failed_title")
+                                                                       message:L(@"apk_invalid_extension")
+                                                                preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
+        [self presentViewController:alert animated:YES completion:nil];
+        return;
+    }
+
+    AEADBClient *adb = self.androidAdbClient;
+    if (!adb || !adb.ready) {
+        [[NSFileManager defaultManager] removeItemAtURL:pickedURL error:nil];
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:L(@"apk_install_failed_title")
+                                                                       message:L(@"apk_install_not_ready")
+                                                                preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
+        [self presentViewController:alert animated:YES completion:nil];
+        return;
+    }
+
+    self.ipaInstallInFlight = YES;
+    self.ipaInstallCancelRequested = NO;
+    self.ipaCancelButton.enabled = YES;
+    self.ipaCancelButton.hidden = NO;
+    self.ipaProgressBar.progress = 0.0f;
+    self.ipaProgressLabel.text = L(@"apk_preparing");
+    self.ipaProgressCard.hidden = NO;
+    if (self.hardwareBar) {
+        [self.view bringSubviewToFront:self.hardwareBar];
+    }
+
+    __weak typeof(self) weakSelf = self;
+    [adb installAPKAtURL:pickedURL
+                progress:^(NSString *statusText, float progress) {
+        __strong typeof(weakSelf) s = weakSelf;
+        if (!s) return;
+        s.ipaProgressLabel.text = statusText;
+        s.ipaProgressBar.progress = progress;
+    }
+              completion:^(BOOL success, NSString *message) {
+        __strong typeof(weakSelf) s = weakSelf;
+        [[NSFileManager defaultManager] removeItemAtURL:pickedURL error:nil];
+        if (!s) return;
+        s.ipaInstallInFlight = NO;
+        s.ipaProgressCard.hidden = YES;
+
+        NSString *title = success ? L(@"apk_install_success_title") : L(@"apk_install_failed_title");
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:title
+                                                                       message:message
+                                                                preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
+        [s presentViewController:alert animated:YES completion:nil];
+    }];
 }
 
 - (void)installIPATapped:(id)sender {
@@ -1588,6 +1834,11 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
 - (void)documentPicker:(UIDocumentPickerViewController *)controller didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     NSURL *pickedURL = urls.firstObject;
     if (!pickedURL) return;
+
+    if (_isAndroidMode) {
+        [self handlePickedAPKURL:pickedURL];
+        return;
+    }
 
     if (![[pickedURL.pathExtension lowercaseString] isEqualToString:@"ipa"]) {
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:L(@"ipa_install_failed_title")
@@ -1833,6 +2084,10 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
     _homePressActive = YES;
     _homeLongPressSent = NO;
     _homePressGen++;
+    if (_isAndroidMode && _pfnAndroidButton) {
+        _pfnAndroidButton(102 /* KEY_HOME */, 1);
+        return;
+    }
     if (_runtime) {
         lt_error err = LT_INIT(lt_error);
         lt_runtime_button(_runtime, 0, 1, &err);
@@ -1844,6 +2099,10 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
     _homePressActive = NO;
     _homeLongPressSent = NO;
     _homePressGen++;
+    if (_isAndroidMode && _pfnAndroidButton) {
+        _pfnAndroidButton(102 /* KEY_HOME */, 0);
+        return;
+    }
     if (_runtime) {
         lt_error err = LT_INIT(lt_error);
         lt_runtime_button(_runtime, 0, 0, &err);
@@ -1855,14 +2114,48 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
     _homePressActive = NO;
     _homeLongPressSent = NO;
     _homePressGen++;
+    if (_isAndroidMode && _pfnAndroidButton) {
+        _pfnAndroidButton(102 /* KEY_HOME */, 0);
+        return;
+    }
     if (_runtime) {
         lt_error err = LT_INIT(lt_error);
         lt_runtime_button(_runtime, 0, 0, &err);
     }
 }
 
+- (void)backButtonDown:(id)sender {
+    [_haptic impactOccurred];
+    if (_isAndroidMode && _pfnAndroidButton) {
+        _pfnAndroidButton(158 /* KEY_BACK */, 1);
+    }
+}
+
+- (void)backButtonUp:(id)sender {
+    if (_isAndroidMode && _pfnAndroidButton) {
+        _pfnAndroidButton(158 /* KEY_BACK */, 0);
+    }
+}
+
+- (void)menuButtonDown:(id)sender {
+    [_haptic impactOccurred];
+    if (_isAndroidMode && _pfnAndroidButton) {
+        _pfnAndroidButton(139 /* KEY_MENU */, 1);
+    }
+}
+
+- (void)menuButtonUp:(id)sender {
+    if (_isAndroidMode && _pfnAndroidButton) {
+        _pfnAndroidButton(139 /* KEY_MENU */, 0);
+    }
+}
+
 - (void)powerButtonDown:(id)sender {
     [_haptic impactOccurred];
+    if (_isAndroidMode && _pfnAndroidButton) {
+        _pfnAndroidButton(116 /* KEY_POWER */, 1);
+        return;
+    }
     if (_runtime) {
         lt_error err = LT_INIT(lt_error);
         lt_runtime_button(_runtime, 1, 1, &err);
@@ -1870,6 +2163,10 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
 }
 
 - (void)powerButtonUp:(id)sender {
+    if (_isAndroidMode && _pfnAndroidButton) {
+        _pfnAndroidButton(116 /* KEY_POWER */, 0);
+        return;
+    }
     if (_runtime) {
         lt_error err = LT_INIT(lt_error);
         lt_runtime_button(_runtime, 1, 0, &err);
@@ -1878,6 +2175,10 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
 
 - (void)volUpButtonDown:(id)sender {
     [_haptic impactOccurred];
+    if (_isAndroidMode && _pfnAndroidButton) {
+        _pfnAndroidButton(115 /* KEY_VOLUMEUP */, 1);
+        return;
+    }
     if (_runtime) {
         lt_error err = LT_INIT(lt_error);
         lt_runtime_button(_runtime, 2, 1, &err);
@@ -1885,6 +2186,10 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
 }
 
 - (void)volUpButtonUp:(id)sender {
+    if (_isAndroidMode && _pfnAndroidButton) {
+        _pfnAndroidButton(115 /* KEY_VOLUMEUP */, 0);
+        return;
+    }
     if (_runtime) {
         lt_error err = LT_INIT(lt_error);
         lt_runtime_button(_runtime, 2, 0, &err);
@@ -1893,6 +2198,10 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
 
 - (void)volDownButtonDown:(id)sender {
     [_haptic impactOccurred];
+    if (_isAndroidMode && _pfnAndroidButton) {
+        _pfnAndroidButton(114 /* KEY_VOLUMEDOWN */, 1);
+        return;
+    }
     if (_runtime) {
         lt_error err = LT_INIT(lt_error);
         lt_runtime_button(_runtime, 3, 1, &err);
@@ -1900,6 +2209,10 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
 }
 
 - (void)volDownButtonUp:(id)sender {
+    if (_isAndroidMode && _pfnAndroidButton) {
+        _pfnAndroidButton(114 /* KEY_VOLUMEDOWN */, 0);
+        return;
+    }
     if (_runtime) {
         lt_error err = LT_INIT(lt_error);
         lt_runtime_button(_runtime, 3, 0, &err);
@@ -1909,6 +2222,36 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
 #pragma mark - Touch Dispatch
 
 - (void)handleTouchId:(int)touchId phase:(int)phase x:(float)x y:(float)y {
+    if (_isAndroidMode && _pfnAndroidTouch) {
+        int slot = -1;
+        for (int i = 0; i < 5; i++) {
+            if (_androidTouchSlots[i] == touchId) {
+                slot = i;
+                break;
+            }
+        }
+        if (slot < 0) {
+            for (int i = 0; i < 5; i++) {
+                if (_androidTouchSlots[i] == -1) {
+                    _androidTouchSlots[i] = touchId;
+                    slot = i;
+                    break;
+                }
+            }
+        }
+        if (slot < 0) slot = abs(touchId) % 5;
+
+        int w = (int)(_screenWidth > 0 ? _screenWidth : 640);
+        int h = (int)(_screenHeight > 0 ? _screenHeight : 1136);
+        int px = (int)lroundf(fminf(fmaxf(x, 0.0f), 1.0f) * (float)(w - 1));
+        int py = (int)lroundf(fminf(fmaxf(y, 0.0f), 1.0f) * (float)(h - 1));
+        int down = (phase == 0 || phase == 1) ? 1 : 0;
+        _pfnAndroidTouch(slot, px, py, down);
+        if (!down) {
+            _androidTouchSlots[slot] = -1;
+        }
+        return;
+    }
     if (!_runtime) return;
 
     lt_touch_batch batch = LT_INIT(lt_touch_batch);
@@ -1944,8 +2287,9 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
 }
 
 - (void)forwardMotionSample {
-    if (!__atomic_load_n(&_isEmulating, __ATOMIC_ACQUIRE) || !_runtime) return;
-    if (!__atomic_load_n(&_boardSupportsAccel, __ATOMIC_ACQUIRE)) return;
+    if (!__atomic_load_n(&_isEmulating, __ATOMIC_ACQUIRE)) return;
+    if (!_runtime && !_isAndroidMode) return;
+    if (!_isAndroidMode && !__atomic_load_n(&_boardSupportsAccel, __ATOMIC_ACQUIRE)) return;
 
     struct timespec ts = {0, 0};
     clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -1981,33 +2325,48 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
             ax = -rawAy; ay = rawAx;
             gx = -rawGy; gy = rawGx;
         }
+        _effectiveMotionOri = UIInterfaceOrientationPortrait;
     } else {
         // iPhone、または iPad で横画面回転が有効の場合:
-        // ホスト端末の向きをそのまま仮想マシンに反映する！
+        // ホスト端末の向きを確実に仮想マシンへ反映する（傾斜・平置き・メニュー切替時も含め軸支配を維持）
+        NSInteger targetOri = (NSInteger)hostOri;
+        if (targetOri < UIInterfaceOrientationPortrait || targetOri > UIInterfaceOrientationLandscapeRight) {
+            targetOri = UIInterfaceOrientationPortrait;
+        }
+        if (isPad && _effectiveMotionOri != 0 && _effectiveMotionOri != targetOri) {
+            // CoreMotion sensor fusion on gyro-equipped guests needs an angular velocity sweep when switching stationary orientations
+            _gyroPulseUntilNs = nowNs + 350000000ULL;
+            _gyroPulseDirZ = (targetOri == UIInterfaceOrientationLandscapeLeft) ? 1.0 : -1.0;
+        }
+        _effectiveMotionOri = targetOri;
+
         if (hostOri == UIInterfaceOrientationLandscapeLeft) {
-            // ホストが LandscapeLeft:
-            // 物理センサーの水平加速度が弱い（平置き・微傾斜など）場合でも確実に LandscapeLeft を維持
-            if (fabs(rawAx) < 4.0 && fabs(rawAy) < 4.0) {
+            if (fabs(ax) < 7.5 || fabs(ay) > fabs(ax) * 0.6) {
                 ax = -9.80665;
                 ay = 0.0;
+                if (fabs(az) > 7.5) az = -1.5;
             }
         } else if (hostOri == UIInterfaceOrientationLandscapeRight) {
-            // ホストが LandscapeRight:
-            if (fabs(rawAx) < 4.0 && fabs(rawAy) < 4.0) {
+            if (fabs(ax) < 7.5 || fabs(ay) > fabs(ax) * 0.6) {
                 ax = 9.80665;
                 ay = 0.0;
+                if (fabs(az) > 7.5) az = -1.5;
             }
         } else if (hostOri == UIInterfaceOrientationPortraitUpsideDown) {
-            if (fabs(rawAx) < 4.0 && fabs(rawAy) < 4.0) {
+            if (fabs(ay) < 7.5 || fabs(ax) > fabs(ay) * 0.6) {
                 ax = 0.0;
                 ay = -9.80665;
+                if (fabs(az) > 7.5) az = -1.5;
             }
         } else {
-            // Portrait
-            if (fabs(rawAx) < 4.0 && fabs(rawAy) < 4.0) {
+            if (fabs(ay) < 7.5 || fabs(ax) > fabs(ay) * 0.6) {
                 ax = 0.0;
                 ay = 9.80665;
+                if (fabs(az) > 7.5) az = -1.5;
             }
+        }
+        if (_gyroPulseUntilNs > nowNs && fabs(gz) < 1.0) {
+            gz = _gyroPulseDirZ * 4.5;
         }
     }
 
@@ -2044,6 +2403,11 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
 
     _lastMotionNs = nowNs;
 
+    if (_isAndroidMode && _pfnAndroidAccel) {
+        _pfnAndroidAccel((float)ax, (float)ay, (float)az);
+        return;
+    }
+
     lt_motion mot = LT_INIT(lt_motion);
     mot.timestamp_ns = nowNs;
     mot.kinds = __atomic_load_n(&_boardSupportsGyro, __ATOMIC_ACQUIRE) ? 3u : 1u; // accel (+ gyro if board supports it)
@@ -2074,7 +2438,7 @@ static void s_direct_iosurface_listener(void *opaque, void *iosurface_ref, int w
     BOOL dimsChanged = (vc->_screenWidth != fw || vc->_screenHeight != fh);
     vc->_screenWidth = fw;
     vc->_screenHeight = fh;
-    [vc.metalView updateFrameIOSurface:iosurface_ref width:w height:h];
+    [vc->_iosMetalView updateFrameIOSurface:iosurface_ref width:w height:h];
     if (dimsChanged) {
         __weak typeof(vc) weakSelf = vc;
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -2425,11 +2789,491 @@ static void ClassicApplyCarrierNameIfConfigured(void) {
     }
 }
 
+static void emulator_android_notify_dims_changed(EmulatorViewController *vc, NSInteger fw, NSInteger fh) {
+    __weak typeof(vc) weakSelf = vc;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        __strong typeof(weakSelf) s = weakSelf;
+        if (!s) return;
+        s.screenWidth = fw;
+        s.screenHeight = fh;
+        [s updateMetalDisplayRotation];
+        if (!s.userMovedBarManually && s.menuPositionMode != ClassicMenuPositionCustom) {
+            [s applyPreferredBarPositionAnimated:YES];
+        }
+    });
+}
+
+static void emulator_android_frame_cb(void *opaque, int width, int height,
+                                      int stride_bytes, const void *pixels) {
+    EmulatorViewController *vc = (__bridge EmulatorViewController *)opaque;
+    if (!vc || !pixels || width <= 0 || height <= 0 || stride_bytes <= 0) return;
+
+    NSInteger fw = (NSInteger)width;
+    NSInteger fh = (NSInteger)height;
+    BOOL dimsChanged = (vc->_screenWidth != fw || vc->_screenHeight != fh);
+    vc->_screenWidth = fw;
+    vc->_screenHeight = fh;
+
+    [vc.metalView updateFramePixels:pixels width:width height:height stride:stride_bytes];
+
+    if (dimsChanged) {
+        emulator_android_notify_dims_changed(vc, fw, fh);
+    }
+}
+
+static void emulator_android_dirty_frame_cb(void *opaque, int full_w, int full_h,
+                                            int x, int y, int width, int height,
+                                            int stride_bytes, const void *pixels) {
+    EmulatorViewController *vc = (__bridge EmulatorViewController *)opaque;
+    if (!vc || !pixels || full_w <= 0 || full_h <= 0 || width <= 0 || height <= 0 || stride_bytes <= 0) return;
+
+    NSInteger fw = (NSInteger)full_w;
+    NSInteger fh = (NSInteger)full_h;
+    BOOL dimsChanged = (vc->_screenWidth != fw || vc->_screenHeight != fh);
+    vc->_screenWidth = fw;
+    vc->_screenHeight = fh;
+
+    if (vc->_androidMetalView) {
+        [vc->_androidMetalView updateDirtyPixels:pixels
+                                               x:x
+                                               y:y
+                                           width:width
+                                          height:height
+                                          stride:stride_bytes
+                                       fullWidth:full_w
+                                      fullHeight:full_h];
+    } else {
+        [vc.metalView updateFramePixels:pixels width:full_w height:full_h stride:stride_bytes];
+    }
+
+    if (dimsChanged) {
+        emulator_android_notify_dims_changed(vc, fw, fh);
+    }
+}
+
+static void emulator_android_serial_cb(void *opaque, const char *text, size_t len) {
+    EmulatorViewController *vc = (__bridge EmulatorViewController *)opaque;
+    if (!vc || !text || len == 0) return;
+    FILE *f = vc->_androidSerialFile;
+    if (f) {
+        fwrite(text, 1, len, f);
+        if (memchr(text, '\n', len) != NULL) {
+            fflush(f);
+        }
+    }
+}
+
+typedef struct {
+    int (*main_fn)(int, char **);
+    int argc;
+    char **argv;
+    EmulatorViewController *vc;
+} AndroidQemuRunArgs;
+
+static void *emulator_android_qemu_thread(void *arg) {
+    pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+    AndroidQemuRunArgs *run = (AndroidQemuRunArgs *)arg;
+    EmulatorViewController *vc = run->vc;
+    @autoreleasepool {
+        if (run->main_fn) {
+            run->main_fn(run->argc, run->argv);
+        }
+    }
+    for (int i = 0; i < run->argc; i++) {
+        free(run->argv[i]);
+    }
+    free(run->argv);
+    free(run);
+    __c11_atomic_store(&vc->_androidQemuExited, YES, __ATOMIC_RELEASE);
+    return NULL;
+}
+
+static void *emulator_android_worker(EmulatorViewController *vc) {
+    NSLog(@"[EmulatorVC] Starting Android worker for %@", vc.machineId);
+    __atomic_store_n(&vc->_boardSupportsAccel, YES, __ATOMIC_RELEASE);
+    __atomic_store_n(&vc->_boardSupportsGyro, NO, __ATOMIC_RELEASE);
+    __c11_atomic_init(&vc->_androidQemuExited, NO);
+
+    bool jitTimedOut = false;
+    bool jitReady = ios_jit_is_available_detailed(1200, &jitTimedOut);
+    vc.cachedJitAvailable = jitReady;
+    if (!jitReady) {
+        NSLog(@"[EmulatorVC] JIT unavailable for Android (%d); aborting", (int)jitTimedOut);
+        NSString *jitLostMsg = jitTimedOut ? L(@"jit_stikdebug_timeout_msg") : L(@"jit_disconnected_before_start_msg");
+        emulator_finish_thread_ui(vc, jitLostMsg);
+        return NULL;
+    }
+
+    NSString *enginePath = [vc locateAndroidEngineLibrary];
+    void *handle = dlopen([enginePath UTF8String], RTLD_LOCAL | RTLD_NOW);
+    if (!handle) {
+        const char *dlerr = dlerror();
+        NSString *msg = [NSString stringWithFormat:@"Failed to load libqemu-android.dylib (%s)", dlerr ? dlerr : "unknown error"];
+        NSLog(@"[EmulatorVC] %@", msg);
+        emulator_finish_thread_ui(vc, msg);
+        return NULL;
+    }
+
+    vc->_androidEngineHandle = handle;
+    vc.androidAdbClient = [[AEADBClient alloc] initWithEngineHandle:handle];
+    vc->_pfnAndroidMain = (int (*)(int, char **))dlsym(handle, "qemu_android_main");
+    vc->_pfnAndroidConfigureImages = (void (*)(const char *, const char *, const char *))dlsym(handle, "qemu_android_ui_configure_images");
+    vc->_pfnAndroidConfigureDisplay = (void (*)(int, int, int))dlsym(handle, "qemu_android_ui_configure_display");
+    vc->_pfnAndroidAddProp = (void (*)(const char *, const char *))dlsym(handle, "qemu_android_ui_add_boot_property");
+    vc->_pfnAndroidSetFrameCb = (void (*)(void (*)(void *, int, int, int, const void *), void *))dlsym(handle, "qemu_android_ui_set_frame_callback");
+    vc->_pfnAndroidSetDirtyFrameCb = (void (*)(void (*)(void *, int, int, int, int, int, int, int, const void *), void *))dlsym(handle, "qemu_android_ui_set_dirty_frame_callback");
+    vc->_pfnAndroidSetLogCb = (void (*)(void (*)(void *, const char *, size_t), void *))dlsym(handle, "qemu_android_ui_set_serial_log_callback");
+    vc->_pfnAndroidTouch = (void (*)(int, int, int, int))dlsym(handle, "qemu_android_ui_touch");
+    vc->_pfnAndroidButton = (void (*)(int, int))dlsym(handle, "qemu_android_ui_button");
+    vc->_pfnAndroidAccel = (void (*)(float, float, float))dlsym(handle, "qemu_android_ui_accel");
+    vc->_pfnAndroidAudioPull = (int (*)(int16_t *, int, int *, int *))dlsym(handle, "qemu_android_ui_audio_pull");
+    vc->_pfnAndroidSync = (void (*)(void))dlsym(handle, "qemu_android_ui_sync");
+    vc->_pfnAndroidQuit = (void (*)(void))dlsym(handle, "qemu_android_ui_quit");
+
+    if (!vc->_pfnAndroidMain || !vc->_pfnAndroidConfigureImages ||
+        !vc->_pfnAndroidSetFrameCb || !vc->_pfnAndroidQuit) {
+        NSLog(@"[EmulatorVC] Missing symbols in libqemu-android.dylib");
+        emulator_finish_thread_ui(vc, @"Invalid libqemu-android.dylib symbol table.");
+        return NULL;
+    }
+
+    NSFileManager *fm = [NSFileManager defaultManager];
+    [fm createDirectoryAtPath:vc.stateDirPath withIntermediateDirectories:YES attributes:nil error:nil];
+
+    NSInteger ramMB = 512;
+    NSInteger apiLevel = 0;
+    NSInteger lcdW = 750;
+    NSInteger lcdH = 1334;
+    NSInteger metaDpi = 0;
+    NSInteger dpi = (vc.androidLcdDensity >= 160) ? vc.androidLcdDensity : 320;
+    BOOL gpuEnabled = (vc.androidGpuMode >= 0);
+    NSString *cpuModel = @"cortex-a8";
+    NSString *cmdline = @"qemu=1 console=ttyS0 androidboot.console=ttyS0 androidboot.hardware=goldfish android.qemud=1";
+    NSString *metaPath = [vc.baseDirPath stringByAppendingPathComponent:@"android-metadata.json"];
+    NSData *metaData = [NSData dataWithContentsOfFile:metaPath];
+    NSDictionary *meta = nil;
+    if (metaData) {
+        id parsed = [NSJSONSerialization JSONObjectWithData:metaData options:0 error:nil];
+        if ([parsed isKindOfClass:[NSDictionary class]]) {
+            meta = parsed;
+            NSNumber *ramNum = meta[@"ram_mb"];
+            if ([ramNum isKindOfClass:[NSNumber class]] && ramNum.integerValue >= 256) {
+                ramMB = ramNum.integerValue;
+            }
+            NSNumber *apiNum = meta[@"api_level"];
+            if ([apiNum isKindOfClass:[NSNumber class]] && apiNum.integerValue > 0) {
+                apiLevel = apiNum.integerValue;
+            }
+            NSNumber *wNum = meta[@"width"];
+            NSNumber *hNum = meta[@"height"];
+            if ([wNum isKindOfClass:[NSNumber class]] && wNum.integerValue > 0 &&
+                [hNum isKindOfClass:[NSNumber class]] && hNum.integerValue > 0) {
+                NSInteger mw = wNum.integerValue;
+                NSInteger mh = hNum.integerValue;
+                if ((mw == 640 && mh == 1136) || (mw == 540 && mh == 960)) {
+                    lcdW = 750;
+                    lcdH = 1334;
+                } else {
+                    lcdW = mw;
+                    lcdH = mh;
+                }
+            }
+            NSNumber *dpiNum = meta[@"dpi"];
+            if ([dpiNum isKindOfClass:[NSNumber class]] && dpiNum.integerValue >= 120) {
+                metaDpi = dpiNum.integerValue;
+            }
+            NSString *metaCpu = meta[@"cpu"];
+            if ([metaCpu isKindOfClass:[NSString class]] && metaCpu.length > 0) {
+                cpuModel = metaCpu;
+            }
+            NSString *cmd = meta[@"cmdline"];
+            if ([cmd isKindOfClass:[NSString class]] && cmd.length > 0) {
+                cmdline = cmd;
+            }
+        }
+    }
+    if (apiLevel <= 0) {
+        NSString *ident = [meta[@"entryId"] isKindOfClass:[NSString class]] ? meta[@"entryId"] : nil;
+        if (ident.length == 0) ident = vc.baseDirPath.lastPathComponent;
+        if ([ident hasPrefix:@"android-"]) {
+            NSArray<NSString *> *parts = [ident componentsSeparatedByString:@"-"];
+            if (parts.count >= 2 && parts[1].integerValue > 0) {
+                apiLevel = parts[1].integerValue;
+            }
+        }
+    }
+    if (vc.androidLcdDensity < 160 && metaDpi >= 120) {
+        dpi = metaDpi;
+    }
+    if (vc.androidRamMB >= 256) {
+        ramMB = vc.androidRamMB;
+    }
+    if (apiLevel >= 19 && ramMB < 760 && vc.androidRamMB <= 512) {
+        if ([NSProcessInfo processInfo].physicalMemory >= (3ULL * 1024ULL * 1024ULL * 1024ULL)) {
+            ramMB = 760;
+        }
+    }
+    if (ramMB < 128) ramMB = 128;
+    if (ramMB > 4080) ramMB = 4080; // android51 MMIO starts at 0xff000000
+    // Prepare kernel cmdline; let android51.c append qemu.gles=1/0 from actual GPU readiness.
+    NSMutableArray<NSString *> *cmdTokens = [NSMutableArray array];
+    BOOL hasHardwareProp = NO;
+    BOOL hasBootConsoleProp = NO;
+    for (NSString *tok in [cmdline componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]]) {
+        if (tok.length == 0) continue;
+        if ([tok hasPrefix:@"qemu.gles="] || [tok hasPrefix:@"qemu.sf.lcd_density="] ||
+            [tok hasPrefix:@"qemu.hw.mainkeys="] || [tok hasPrefix:@"android.checkjni="] ||
+            [tok hasPrefix:@"android.qemud="] || [tok hasPrefix:@"ndns="]) {
+            continue;
+        }
+        if ([tok hasPrefix:@"androidboot.hardware="]) {
+            hasHardwareProp = YES;
+        } else if ([tok hasPrefix:@"androidboot.console="]) {
+            hasBootConsoleProp = YES;
+        }
+        [cmdTokens addObject:tok];
+    }
+    if (!hasHardwareProp) {
+        [cmdTokens addObject:@"androidboot.hardware=goldfish"];
+    }
+    if (!hasBootConsoleProp) {
+        [cmdTokens addObject:@"androidboot.console=ttyS0"];
+    }
+    [cmdTokens addObject:@"android.qemud=1"];
+    if (!gpuEnabled) {
+        [cmdTokens addObject:@"qemu.gles=0"];
+    }
+    cmdline = [cmdTokens componentsJoinedByString:@" "];
+
+    NSString *kernelPath = [vc.baseDirPath stringByAppendingPathComponent:@"kernel-qemu"];
+    NSString *ramdiskPath = [vc.baseDirPath stringByAppendingPathComponent:@"ramdisk.img"];
+    NSString *systemPath = [vc.baseDirPath stringByAppendingPathComponent:@"system.img"];
+    if (![fm fileExistsAtPath:kernelPath] || ![fm fileExistsAtPath:ramdiskPath] || ![fm fileExistsAtPath:systemPath]) {
+        emulator_finish_thread_ui(vc, @"Missing Android base firmware images (kernel-qemu / ramdisk.img / system.img).");
+        return NULL;
+    }
+    if (apiLevel >= 14 && ramMB > 760) {
+        NSString *highmemPath = [[NSBundle mainBundle] pathForResource:@"goldfish-highmem" ofType:@"zImage"];
+        if (highmemPath.length == 0 || ![fm fileExistsAtPath:highmemPath]) {
+            NSString *basesRoot = [vc.baseDirPath stringByDeletingLastPathComponent];
+            for (NSString *cand in @[@"android-24-aosp/kernel-qemu", @"android-25-gapps/kernel-qemu"]) {
+                NSString *p = [basesRoot stringByAppendingPathComponent:cand];
+                if ([fm fileExistsAtPath:p]) {
+                    highmemPath = p;
+                    break;
+                }
+            }
+        }
+        if (highmemPath.length > 0 && [fm fileExistsAtPath:highmemPath]) {
+            kernelPath = highmemPath;
+            NSLog(@"[EmulatorVC] Using CONFIG_HIGHMEM Goldfish 3.4.67 kernel for %ld MB RAM: %@", (long)ramMB, kernelPath);
+        } else {
+            NSLog(@"[EmulatorVC] Clamping Android RAM from %ld MB to 760 MB (stock goldfish kernel lowmem limit)", (long)ramMB);
+            ramMB = 760;
+        }
+    }
+
+    // Isolate mutable userdata/cache per container under stateDirPath without clobbering existing images.
+    for (NSString *imgName in @[@"userdata.img", @"cache.img"]) {
+        NSString *dst = [vc.stateDirPath stringByAppendingPathComponent:imgName];
+        if (![fm fileExistsAtPath:dst]) {
+            NSString *src = [vc.baseDirPath stringByAppendingPathComponent:imgName];
+            if ([fm fileExistsAtPath:src]) {
+                NSError *copyErr = nil;
+                if (![fm copyItemAtPath:src toPath:dst error:&copyErr]) {
+                    NSLog(@"[EmulatorVC] Failed copying %@ to state: %@", imgName, copyErr);
+                }
+            }
+        }
+    }
+    NSString *userdataPath = [vc.stateDirPath stringByAppendingPathComponent:@"userdata.img"];
+    NSString *cachePath = [vc.stateDirPath stringByAppendingPathComponent:@"cache.img"];
+    int cacheRc = lighttouch_android_ensure_cache([cachePath UTF8String], [systemPath UTF8String]);
+    if (cacheRc != 0 && ![fm fileExistsAtPath:cachePath]) {
+        int cfd = open([cachePath UTF8String], O_CREAT | O_RDWR, 0644);
+        if (cfd >= 0) {
+            (void)ftruncate(cfd, 64 * 1024 * 1024);
+            close(cfd);
+        }
+    }
+
+    NSString *serialPath = [vc.stateDirPath stringByAppendingPathComponent:@"serial.log"];
+    vc->_androidSerialFile = fopen([serialPath UTF8String], "w");
+
+    vc->_pfnAndroidConfigureImages([systemPath UTF8String],
+                                   [userdataPath UTF8String],
+                                   [cachePath UTF8String]);
+    if (vc->_pfnAndroidConfigureDisplay) {
+        vc->_pfnAndroidConfigureDisplay((int)lcdW, (int)lcdH, (int)dpi);
+    }
+    vc->_screenWidth = lcdW;
+    vc->_screenHeight = lcdH;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [vc updateMetalDisplayRotation];
+        if (!vc.userMovedBarManually && vc.menuPositionMode != ClassicMenuPositionCustom) {
+            [vc applyPreferredBarPositionAnimated:YES];
+        }
+    });
+    if (vc->_pfnAndroidAddProp) {
+        char dpiBuf[16], wBuf[16], hBuf[16];
+        snprintf(dpiBuf, sizeof(dpiBuf), "%ld", (long)dpi);
+        snprintf(wBuf, sizeof(wBuf), "%ld", (long)lcdW);
+        snprintf(hBuf, sizeof(hBuf), "%ld", (long)lcdH);
+        vc->_pfnAndroidAddProp("qemu.sf.lcd_density", dpiBuf);
+        vc->_pfnAndroidAddProp("qemu.sf.lcd_width", wBuf);
+        vc->_pfnAndroidAddProp("qemu.sf.lcd_height", hBuf);
+        vc->_pfnAndroidAddProp("qemu.sf.fake_camera", "none");
+        vc->_pfnAndroidAddProp("qemu.hw.mainkeys", "0");
+        if (gpuEnabled) {
+            vc->_pfnAndroidAddProp("ro.opengles.version", "131072");
+        } else {
+            vc->_pfnAndroidAddProp("qemu.gles", "0");
+        }
+    }
+    if (vc->_pfnAndroidSetDirtyFrameCb) {
+        vc->_pfnAndroidSetDirtyFrameCb(emulator_android_dirty_frame_cb, (__bridge void *)vc);
+    } else {
+        vc->_pfnAndroidSetFrameCb(emulator_android_frame_cb, (__bridge void *)vc);
+    }
+    vc->_pfnAndroidSetLogCb(emulator_android_serial_cb, (__bridge void *)vc);
+
+    NSString * (^escapeDrivePath)(NSString *) = ^NSString *(NSString *path) {
+        return [path stringByReplacingOccurrencesOfString:@"," withString:@",,"];
+    };
+    NSString *machineArg = [NSString stringWithFormat:@"android51,audiodev=audio,width=%ld,height=%ld,density=%ld,gpu=%@",
+                            (long)lcdW, (long)lcdH, (long)dpi, gpuEnabled ? @"on" : @"off"];
+    NSMutableArray<NSString *> *argStrings = [@[
+        @"qemu-system-arm",
+        @"-M", machineArg,
+        @"-cpu", cpuModel,
+        @"-m", [NSString stringWithFormat:@"%ld", (long)ramMB],
+        @"-smp", @"1",
+        @"-accel", @"tcg",
+        @"-nodefaults",
+        @"-no-reboot",
+        @"-display", @"none",
+        @"-serial", @"null",
+        @"-monitor", @"none",
+        @"-audiodev", @"none,id=audio",
+        @"-nic", @"user,model=smc91c111,ipv6=off,net=10.0.2.0/24,host=10.0.2.2,dns=10.0.2.3,dhcpstart=10.0.2.15",
+        @"-kernel", kernelPath,
+        @"-initrd", ramdiskPath,
+        @"-append", cmdline,
+        @"-drive", [NSString stringWithFormat:@"if=none,id=system,format=raw,cache=writeback,file=%@,readonly=on", escapeDrivePath(systemPath)],
+        @"-drive", [NSString stringWithFormat:@"if=none,id=userdata,format=raw,cache=writeback,file=%@,readonly=off", escapeDrivePath(userdataPath)],
+        @"-drive", [NSString stringWithFormat:@"if=none,id=cache,format=raw,cache=writeback,file=%@,readonly=off", escapeDrivePath(cachePath)]
+    ] mutableCopy];
+
+    int argc = (int)argStrings.count;
+    char **argv = calloc((size_t)(argc + 1), sizeof(char *));
+    for (int i = 0; i < argc; i++) {
+        argv[i] = strdup([argStrings[i] UTF8String]);
+    }
+
+    if (vc.onEngineProcessConsumed) {
+        void (^consumedBlock)(void) = vc.onEngineProcessConsumed;
+        dispatch_async(dispatch_get_main_queue(), consumedBlock);
+    }
+
+    AndroidQemuRunArgs *runArgs = malloc(sizeof(AndroidQemuRunArgs));
+    runArgs->main_fn = vc->_pfnAndroidMain;
+    runArgs->argc = argc;
+    runArgs->argv = argv;
+    runArgs->vc = vc;
+
+    pthread_t qemuThread;
+    pthread_attr_t qAttr;
+    pthread_attr_init(&qAttr);
+    pthread_attr_setstacksize(&qAttr, 4 * 1024 * 1024);
+    pthread_attr_set_qos_class_np(&qAttr, QOS_CLASS_USER_INTERACTIVE, 0);
+    int qrc = pthread_create(&qemuThread, &qAttr, emulator_android_qemu_thread, runArgs);
+    pthread_attr_destroy(&qAttr);
+    if (qrc != 0) {
+        for (int i = 0; i < argc; i++) free(argv[i]);
+        free(argv);
+        free(runArgs);
+        if (vc->_androidSerialFile) {
+            fclose(vc->_androidSerialFile);
+            vc->_androidSerialFile = NULL;
+        }
+        emulator_finish_thread_ui(vc, @"Failed to spawn Android QEMU thread.");
+        return NULL;
+    }
+    pthread_detach(qemuThread);
+
+    int16_t pcmBuf[2048];
+    BOOL loggedFirstPCM = NO;
+    uint32_t syncTicks = 0;
+    while (__atomic_load_n(&vc->_isEmulating, __ATOMIC_ACQUIRE) &&
+           !__c11_atomic_load(&vc->_androidQemuExited, __ATOMIC_ACQUIRE)) {
+        BOOL drainedAudio = NO;
+        if (vc->_pfnAndroidAudioPull && vc.audioBridge) {
+            int rate = 44100;
+            int ch = 2;
+            int frames = vc->_pfnAndroidAudioPull(pcmBuf, 1024, &rate, &ch);
+            if (frames > 0) {
+                drainedAudio = YES;
+                if (rate >= 8000 &&
+                    ((int)vc.audioBridge.sampleRate != rate ||
+                     (ch > 0 && (int)vc.audioBridge.channels != ch))) {
+                    [vc.audioBridge startPlaybackWithSampleRate:(double)rate channels:(ch > 0 ? ch : 2)];
+                }
+                if (!loggedFirstPCM) {
+                    loggedFirstPCM = YES;
+                    NSLog(@"[EmulatorVC] First Android audio packet: %d frames @ %d Hz (%d ch)", frames, rate, ch);
+                }
+                [vc.audioBridge pushPCMData:pcmBuf count:(uint32_t)frames];
+            }
+        }
+        if ((++syncTicks % 3000u) == 0u && vc->_pfnAndroidSync) {
+            vc->_pfnAndroidSync();
+        }
+        usleep(drainedAudio ? 3000 : 10000);
+    }
+
+    NSString *unexpectedErrorMsg = nil;
+    if (__c11_atomic_load(&vc->_androidQemuExited, __ATOMIC_ACQUIRE) &&
+        __atomic_load_n(&vc->_isEmulating, __ATOMIC_ACQUIRE) &&
+        !vc->_isStopping) {
+        unexpectedErrorMsg = L(@"vm_unexpected_stop_msg");
+    }
+
+    if (vc->_pfnAndroidQuit) {
+        vc->_pfnAndroidQuit();
+    }
+    for (int i = 0; i < 300; i++) {
+        if (__c11_atomic_load(&vc->_androidQemuExited, __ATOMIC_ACQUIRE) ||
+            __atomic_load_n(&vc->_forceStopRequested, __ATOMIC_ACQUIRE)) {
+            break;
+        }
+        usleep(10000);
+    }
+
+    if (vc->_pfnAndroidSync) {
+        vc->_pfnAndroidSync();
+    }
+
+    vc->_pfnAndroidSetFrameCb(NULL, NULL);
+    vc->_pfnAndroidSetLogCb(NULL, NULL);
+    if (vc->_androidSerialFile) {
+        FILE *f = vc->_androidSerialFile;
+        vc->_androidSerialFile = NULL;
+        fclose(f);
+    }
+
+    emulator_finish_thread_ui(vc, unexpectedErrorMsg);
+    return NULL;
+}
+
 static void *emulator_worker_thread(void *arg) {
     // Keep supervisor slightly below QEMU vCPU USER_INTERACTIVE so A11 dual P-cores prioritize TCG execution.
     pthread_set_qos_class_self_np(QOS_CLASS_USER_INITIATED, 0);
     EmulatorViewController *vc = (__bridge_transfer EmulatorViewController *)arg;
     NSLog(@"[EmulatorVC] Starting emulator worker for %@", vc.machineId);
+
+    if (vc->_isAndroidMode) {
+        return emulator_android_worker(vc);
+    }
 
     // 1. Open Device
     lt_device_config dev_cfg = LT_INIT(lt_device_config);
@@ -2974,12 +3818,14 @@ cleanup:
         NSString *kbRestPath = [self.baseDirPath stringByAppendingPathComponent:@"kboot-restore.bin"];
         NSDictionary *kbAttrs = [[NSFileManager defaultManager] attributesOfItemAtPath:kbRestPath error:nil];
         id restoreDiag = [lockJson isKindOfClass:[NSDictionary class]] ? lockJson[@"restore_diag"] : nil;
+        id actDiag = [lockJson isKindOfClass:[NSDictionary class]] ? lockJson[@"activation"] : nil;
         id kbootRestoreOut = ([lockJson isKindOfClass:[NSDictionary class]] && [lockJson[@"outputs"] isKindOfClass:[NSDictionary class]]) ? lockJson[@"outputs"][@"kboot_restore"] : nil;
-        fprintf(stderr, "[EmulatorVC] Lock prep_v12=%d build=%s kboot-restore=%llu lock_out=%s restore_diag=%s\n",
+        fprintf(stderr, "[EmulatorVC] Lock prep_v12=%d build=%s kboot-restore=%llu lock_out=%s activation=%s restore_diag=%s\n",
                 [lockJson isKindOfClass:[NSDictionary class]] ? [lockJson[@"prep_v12"] boolValue] : 0,
                 [lockJson isKindOfClass:[NSDictionary class]] ? ([lockJson[@"build"] description].UTF8String ?: "") : "",
                 (unsigned long long)[kbAttrs fileSize],
                 kbootRestoreOut ? [[kbootRestoreOut description] stringByReplacingOccurrencesOfString:@"\n" withString:@" "].UTF8String : "null",
+                actDiag ? [[actDiag description] stringByReplacingOccurrencesOfString:@"\n" withString:@" "].UTF8String : "null",
                 restoreDiag ? [[restoreDiag description] stringByReplacingOccurrencesOfString:@"\n" withString:@" "].UTF8String : "null");
     }
 
@@ -3028,6 +3874,9 @@ cleanup:
     });
     if (!__atomic_load_n(&_isEmulating, __ATOMIC_ACQUIRE)) return;
     __atomic_store_n(&_isEmulating, NO, __ATOMIC_RELEASE);
+    if (_isAndroidMode && _pfnAndroidQuit) {
+        _pfnAndroidQuit();
+    }
     NSString *docDir = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
     NSString *flagPath = [docDir stringByAppendingPathComponent:@"boot_in_progress.flag"];
     [[NSFileManager defaultManager] removeItemAtPath:flagPath error:nil];
@@ -3057,6 +3906,9 @@ cleanup:
 - (void)handleAppDidEnterBackground:(NSNotification *)note {
     [self setQemuGlesAllowed:NO];
     self.metalView.paused = YES;
+    if (_isAndroidMode && _pfnAndroidSync && __atomic_load_n(&_isEmulating, __ATOMIC_ACQUIRE)) {
+        _pfnAndroidSync();
+    }
     lt_runtime *rt = __atomic_load_n(&_runtime, __ATOMIC_ACQUIRE);
     if (rt && __atomic_load_n(&_isEmulating, __ATOMIC_ACQUIRE)) {
         lt_error err = LT_INIT(lt_error);

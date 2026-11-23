@@ -1,7 +1,7 @@
 "vm_containers" = "Máquinas virtuales";
 "main_footer" = "Toca una fila para ver detalles y registros, o ▶ para iniciar. Activa JIT antes de comenzar (p. ej. StikDebug con universal.js).";
 "no_containers" = "No hay máquinas virtuales";
-"no_containers_desc" = "Toca el botón de abajo (o el + arriba a la derecha) para elegir un dispositivo y versión de iOS.";
+"no_containers_desc" = "Toca el botón de abajo (o el + arriba a la derecha) para elegir un dispositivo y versión del SO.";
 "create_container" = "Crear contenedor";
 "boot_action" = "Iniciar";
 "bootrom_ok" = "BootROM: Lista";
@@ -105,11 +105,11 @@
 "select_ipsw_title" = "Preparar firmware";
 "download_ipsw" = "Descargar IPSW";
 "use_cached_ipsw" = "Usar IPSW ya descargado";
-"import_local_ipsw" = "Elegir archivo IPSW...";
+"import_local_ipsw" = "Elegir archivo de firmware...";
 "preparing_container" = "Creando contenedor...";
 "downloading_ipsw" = "Descargando IPSW...";
 "firmware_mgmt_title" = "Gestión de firmwares";
-"downloaded_ipsws" = "Archivos IPSW descargados";
+"downloaded_ipsws" = "Archivos de firmware descargados";
 "prepared_bases" = "Bases preparadas";
 "no_firmware" = "No hay firmwares descargados.";
 "in_use_badge" = "En uso";
@@ -122,7 +122,7 @@
 "no_serial_log" = "No hay registro serie disponible.";
 "copy" = "Copiar";
 "copied" = "Copiado";
-"delete_ipsw_msg" = "¿Deseas eliminar este archivo IPSW?";
+"delete_ipsw_msg" = "¿Deseas eliminar este archivo de firmware?";
 "delete_base_msg" = "¿Deseas eliminar esta imagen base?";
 "unused" = "Sin usar";
 "no_bases" = "No hay bases preparadas.";
@@ -135,25 +135,25 @@
 "bootrom_required_s5l8720_msg" = "Este modelo requiere una BootROM S5L8720 iBoot-240.4 de 64 KB (bootrom_240_4).";
 "bootrom_missing_detail_fmt" = "%@\n\nSelecciona la BootROM S5L8900 o S5L8720 en la app Archivos o colócala en la carpeta Documentos de ClassicTouch.";
 
-"download_catalog_ipsw" = "Descargar IPSW desde catálogo...";
+"download_catalog_ipsw" = "Descargar firmware desde catálogo...";
 "download_catalog_device_msg" = "Selecciona el modelo de dispositivo a descargar:";
-"download_catalog_version_msg" = "Selecciona la versión de iOS a descargar:";
+"download_catalog_version_msg" = "Selecciona la versión del SO a descargar:";
 "downloaded_badge" = "Descargado";
-"redownload_ipsw_title" = "Archivo IPSW ya existe";
-"redownload_ipsw_msg" = "iOS %@ (%@) ya está descargado. ¿Deseas descargarlo de nuevo y verificarlo?";
+"redownload_ipsw_title" = "El firmware ya existe";
+"redownload_ipsw_msg" = "%@ (%@) ya está descargado. ¿Deseas descargarlo de nuevo y verificarlo?";
 "redownload_action" = "Volver a descargar";
 "download_failed_title" = "Descarga fallida";
 "download_failed_msg" = "Error al descargar el firmware. Comprueba tu conexión.";
 
-"ipsw_notif_done_title" = "Descarga de IPSW completada";
+"ipsw_notif_done_title" = "Descarga de firmware completada";
 "ipsw_notif_done_body" = "La descarga y verificación de %@ han finalizado.";
-"ipsw_notif_fail_title" = "Error al descargar IPSW";
+"ipsw_notif_fail_title" = "Error al descargar firmware";
 "ipsw_notif_fail_body" = "Error al descargar %@: %@";
 "ipsw_bg_connecting_detail" = "Conectando al servidor…\nLa descarga continuará en segundo plano aunque cierres la app";
 "ipsw_bg_progress_detail" = "%.1f / %.1f MB (%.1f MB/s)\nDescargando en segundo plano";
 "ipsw_bg_reattached_detail" = "Descargando en segundo plano…";
 "ipsw_download_complete_title" = "Descarga completa";
-"ipsw_download_complete_msg" = "Descarga y verificación de IPSW para %@ finalizadas.";
+"ipsw_download_complete_msg" = "Descarga y verificación de firmware para %@ finalizadas.";
 
 "menu_install_ipa" = "Instalar IPA...";
 "ipa_install_not_ready" = "Espera a que el iPhone virtual termine de arrancar y la conexión USB esté lista.";
@@ -183,12 +183,12 @@
 "copy_container_id" = "Copiar ID del contenedor";
 "copied_container_id_fmt" = "ID del contenedor copiado:\n%@";
 "back_to_device_select" = "Volver a selección de dispositivo";
-"select_local_ipsw" = "Elegir archivo IPSW local...";
+"select_local_ipsw" = "Elegir archivo de firmware local...";
 "create_new_vm" = "Crear nueva VM";
 "create_first_vm" = "Crear primera VM";
-"create_container_from_ipsw" = "Crear contenedor desde esta IPSW...";
-"delete_ipsw_free_space" = "Eliminar esta IPSW (liberar espacio)";
-"ipsw_management" = "Gestión de IPSW";
+"create_container_from_ipsw" = "Crear contenedor desde este firmware...";
+"delete_ipsw_free_space" = "Eliminar este firmware (liberar espacio)";
+"ipsw_management" = "Gestión de firmware";
 "first_run_note_title" = "Nota para el primer uso";
 "first_run_note_msg" = "• Durante el primer arranque de un contenedor, la configuración inicial puede fallar ocasionalmente. Reinicia la app o vuelve a crear el contenedor si ocurre.\n\n• Recuerda cargar el script «universal.js» en StikDebug para activar JIT.";
 "ok_dont_show_again" = "OK (No volver a mostrar)";
@@ -219,9 +219,9 @@
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1–6.1.6)";
 "device_ipad_1g_desc" = "iPad 1.ª gen. (iPhone OS 3.2–iOS 5.1.1)";
 "wizard_select_device_title" = "Nuevo contenedor: Dispositivo";
-"wizard_select_device_prompt" = "Elige el dispositivo Apple que deseas emular:";
-"wizard_select_os_title" = "Versión de iOS";
-"wizard_select_os_prompt_fmt" = "%@\nSelecciona la versión de iOS que deseas instalar:";
+"wizard_select_device_prompt" = "Elige el dispositivo que deseas emular:";
+"wizard_select_os_title" = "Versión del SO";
+"wizard_select_os_prompt_fmt" = "%@\nSelecciona la versión del SO que deseas instalar:";
 "tag_ready_cydia" = " [Listo / Cydia]";
 "tag_cydia_ready" = " [Cydia listo]";
 "tag_ready" = " [Listo]";
@@ -235,14 +235,14 @@
 "btn_create_cydia_ready" = "Crear con Cydia [Listo]";
 "btn_create_cydia_jb" = "Crear con Cydia (Jailbreak)";
 "downloading_fmt" = "Descargando: %@";
-"ipsw_verifying" = "Verificando archivo IPSW...";
+"ipsw_verifying" = "Verificando archivo de firmware...";
 "ipsw_extracting" = "Extrayendo y descifrando firmware...";
 "ipsw_creating_boot_img" = "Creando identidades e imágenes de arranque...";
 "ipsw_building_sys_data" = "Construyendo particiones de sistema y datos...";
 "ipsw_writing_nand" = "Escribiendo imagen de almacenamiento NAND...";
 "ipsw_preparing_keybag" = "Preparando Keybag de protección...";
 "ipsw_validating_fs" = "Validando integridad final del sistema de archivos...";
-"firmware_err_ipsw_not_found_fmt" = "Error de creación de firmware (Código: -3)\n\n【Detalles】\nArchivo IPSW no encontrado:\n%@";
+"firmware_err_ipsw_not_found_fmt" = "Error de creación de firmware (Código: -3)\n\n【Detalles】\nArchivo de firmware no encontrado:\n%@";
 "storage_build_failed" = "Fallo al construir almacenamiento";
 "building_device_storage_cydia" = "Construyendo almacenamiento (con Cydia)...";
 "building_device_storage" = "Construyendo almacenamiento del dispositivo...";
@@ -258,12 +258,12 @@
 "cannot_delete_in_use" = "En uso, no se puede eliminar";
 "cannot_delete" = "No se puede eliminar";
 "ipsw_in_use_details_fmt" = "Este firmware está siendo utilizado por los siguientes contenedores:\n%@\n\nElimina esos contenedores antes de intentarlo de nuevo.";
-"parsing_ipsw" = "Analizando archivo IPSW...";
+"parsing_ipsw" = "Analizando archivo de firmware...";
 "verifying_checksum" = "Comprobando suma de verificación...";
-"ipsw_read_failed" = "Error al leer IPSW";
-"ipsw_save_failed" = "Error al guardar IPSW";
-"unsupported_ipsw" = "Archivo IPSW no compatible";
-"ipsw_sha1_mismatch" = "La suma SHA1 del IPSW no coincide con el catálogo.";
+"ipsw_read_failed" = "Error al leer firmware";
+"ipsw_save_failed" = "Error al guardar firmware";
+"unsupported_ipsw" = "Archivo de firmware no compatible";
+"ipsw_sha1_mismatch" = "La suma SHA1 del firmware no coincide con el catálogo.";
 "another_vm" = "Otra máquina virtual";
 "already_running" = "Ya en ejecución";
 "vm_already_running_fmt" = "La máquina virtual «%@» ya se está ejecutando.\nSolo se puede ejecutar una máquina virtual a la vez.";
@@ -379,7 +379,7 @@
 /* Settings */
 "settings_title" = "Ajustes";
 "settings_firmware_rom_header" = "Gestión de firmware y ROM";
-"settings_ipsw_management" = "Gestión de IPSW";
+"settings_ipsw_management" = "Gestión de firmware";
 "settings_ipsw_subtitle_fmt" = "%lu archivos de firmware";
 "settings_bootrom_management" = "Gestión de BootROM";
 "settings_bootrom_subtitle_fmt" = "%lu / 2 instaladas";
@@ -417,3 +417,31 @@
 
 "settings_license_title" = "Licencias y avisos de código abierto";
 "settings_license_subtitle" = "GNU General Public License v2 (GPL-2.0)";
+
+/* Android */
+"device_android_arm" = "Android";
+"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"android_variant_aosp" = "AOSP Estándar";
+"android_variant_gapps" = "Google APIs";
+"wizard_name_config_prompt_android" = "Introduce el nombre de la máquina virtual (puedes cambiarlo después).\n* Funciona con ARMv7 Goldfish, aceleración OpenGL ES y pantalla de 640×1136.";
+"building_android_storage" = "Construyendo almacenamiento de Android...";
+"extracting_android_images" = "Extrayendo imágenes del sistema y formateando ext4 / SD...";
+
+/* Android Per-Container Settings */
+"section_android_config" = "Configuración de VM Android";
+"android_cfg_ram" = "Memoria (RAM)";
+"android_cfg_ram_hint" = "Elige la RAM para este contenedor Android (512 MB recomendado en dispositivos A9).";
+"recommended" = "Recomendado";
+"android_cfg_dpi" = "Escala de pantalla (DPI)";
+"android_cfg_dpi_hint" = "Ajusta la densidad de interfaz (320 dpi coincide con iPhone 5).";
+"android_cfg_gpu" = "Aceleración GPU";
+"android_cfg_gpu_hint" = "Alternar aceleración OpenGL ES por hardware (recomendado).";
+"android_cfg_gpu_on" = "OpenGL ES (Activado)";
+"android_cfg_gpu_off" = "Software (Desactivado)";
+"android_cfg_storage_reset" = "Mantenimiento de almacenamiento";
+"android_cfg_cache_or_data" = "Caché / Datos de usuario";
+"android_cfg_storage_hint" = "Limpiar caché o restablecer la partición de datos de este contenedor.";
+"android_clear_cache_action" = "Limpiar caché (cache.img)";
+"android_wipe_userdata_action" = "Borrar datos de usuario (userdata.img)";
+"android_cfg_ram_custom" = "Personalizado (MB)...";
+"android_cfg_ram_custom_hint" = "Introduce el tamaño de RAM en MB (256–3072 MB). Superar la memoria disponible en dispositivos de 2 GB (como A9) puede cerrar la app.";
