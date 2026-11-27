@@ -1,5 +1,5 @@
 /*
- * Goldfish NAND flash controller (ported from Android_On_iOS).
+ * Goldfish NAND flash controller.
  */
 #include "qemu/osdep.h"
 #include "android51.h"
@@ -13,6 +13,9 @@ typedef struct GFPartition {
     const char *name;
     BlockBackend *blk;
     uint64_t length;
+    uint32_t page_size;
+    uint32_t extra_size;
+    uint32_t erase_size;
     bool readonly;
 } GFPartition;
 
@@ -107,9 +110,9 @@ static uint64_t nand_read(void *opaque, hwaddr offset, unsigned size)
     switch (offset) {
     case 0x10: return (p->readonly ? 1 : 0) | 2;
     case 0x14: return strlen(p->name);
-    case 0x18: return 512;
-    case 0x1c: return 0;
-    case 0x20: return 4096;
+    case 0x18: return p->page_size;
+    case 0x1c: return p->extra_size;
+    case 0x20: return p->erase_size;
     case 0x28: return (uint32_t)p->length;
     case 0x2c: return p->length >> 32;
     default:   return 0;
@@ -161,14 +164,31 @@ void gf_nand_init(Android51State *board)
         BlockBackend *blk = blk_by_name(names[i]);
         if (blk) {
             int64_t length = blk_getlength(blk);
-            if (length <= 0 || length > 8ULL * 1024 * 1024 * 1024 || length % 4096) {
-                error_report("android51: %s must be a 4-KiB aligned raw image <= 8 GiB", names[i]);
+            if (length <= 0 || length > 8ULL * 1024 * 1024 * 1024) {
+                error_report("android51: %s must be <= 8 GiB", names[i]);
                 exit(EXIT_FAILURE);
             }
             bool readonly = (i == 0) || !blk_supports_write_perm(blk);
             blk_set_perm(blk, BLK_PERM_CONSISTENT_READ | (readonly ? 0 : BLK_PERM_WRITE),
                          BLK_PERM_CONSISTENT_READ, &error_fatal);
-            s->partitions[s->count++] = (GFPartition){ names[i], blk, length, readonly };
+            uint8_t sb_magic[2] = { 0, 0 };
+            bool has_ext4 = (length >= 0x43a &&
+                             blk_pread(blk, 0x438, 2, sb_magic, 0) >= 0 &&
+                             sb_magic[0] == 0x53 && sb_magic[1] == 0xef);
+            bool is_yaffs2 = (!has_ext4 && (length % 2112 == 0));
+            if (!is_yaffs2 && (length % 4096 != 0)) {
+                error_report("android51: %s must be a 4-KiB aligned ext4 image or 2112-byte YAFFS2 image <= 8 GiB", names[i]);
+                exit(EXIT_FAILURE);
+            }
+            s->partitions[s->count++] = (GFPartition){
+                .name = names[i],
+                .blk = blk,
+                .length = (uint64_t)length,
+                .page_size = is_yaffs2 ? 2048U : 512U,
+                .extra_size = is_yaffs2 ? 64U : 0U,
+                .erase_size = is_yaffs2 ? (64U * 2112U) : 4096U,
+                .readonly = readonly,
+            };
         }
     }
     gf_map(board, &s->io, "android51.nand", 0xff030000, &nand_ops, s);

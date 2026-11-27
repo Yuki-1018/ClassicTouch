@@ -127,13 +127,13 @@
 "unused" = "Nieużywany";
 "no_bases" = "Brak przygotowanych obrazów bazowych.";
 
-"bootrom_footer_soc" = "iPhone 2G / iPod touch 1G wymagają BootROMu S5L8900 (64 KB), a iPod touch 2G wymaga S5L8720 (iBoot-240.4).\niPhone 3GS/4, iPod touch 3G/4G oraz iPad uruchamiają się bezpośrednio bez BootROMu.";
+"bootrom_footer_soc" = "BootROM S5L8900 64 KB jest wymagany tylko dla iPhone 2G / iPod touch 1G (iPhone OS 1.x).\niPhone 3GS/4/5, iPod touch 3G/4G oraz iPad nie wymagają BootROM.";
 "bootrom_invalid_title" = "Nieprawidłowy BootROM";
-"bootrom_invalid_msg" = "Wybrany plik nie został rozpoznany jako prawidłowy 64 KB BootROM S5L8900 lub S5L8720.";
+"bootrom_invalid_msg" = "Wybrany plik nie został zweryfikowany jako poprawny BootROM S5L8900 64 KB.";
 "bootrom_imported_soc_msg" = "Zweryfikowano %@ i pomyślnie zarejestrowano „%@” (%llu bajtów).";
 "bootrom_required_s5l8900_msg" = "To urządzenie wymaga 64 KB BootROMu S5L8900 (bootrom_s5l8900).";
 "bootrom_required_s5l8720_msg" = "To urządzenie wymaga 64 KB BootROMu S5L8720 iBoot-240.4 (bootrom_240_4).";
-"bootrom_missing_detail_fmt" = "%@\n\nWybierz odpowiedni BootROM S5L8900 lub S5L8720 w aplikacji Pliki lub umieść go w folderze Dokumenty aplikacji ClassicTouch.";
+"bootrom_missing_detail_fmt" = "%@\n\nZaimportuj BootROM S5L8900 z aplikacji Pliki lub umieść go w folderze Dokumenty.";
 
 "download_catalog_ipsw" = "Pobierz oprogramowanie z katalogu...";
 "download_catalog_device_msg" = "Wybierz model urządzenia do pobrania:";
@@ -209,11 +209,11 @@
 "device_ipod_2g" = "iPod touch (2. generacja)";
 "device_ipod_3g" = "iPod touch (3. generacja)";
 "device_ipod_4g" = "iPod touch (4. generacja)";
-"device_iphone_2g_desc" = "iPhone 2G (iPhone OS 1.0–3.1.3 / OS 1.x wymaga BootROMu)";
+"device_iphone_2g_desc" = "iPhone 2G (iPhone OS 1.0 - 1.1.4 / Wym. BootROM)";
 "device_iphone_3gs_desc" = "iPhone 3GS (iPhone OS 3.0–iOS 6.1.6)";
 "device_iphone_4_desc" = "iPhone 4 (iOS 4.0–7.1.2)";
 "device_iphone_5_desc" = "iPhone 5 (iOS 6.0–10.3.4)";
-"device_ipod_1g_desc" = "iPod touch 1G (iPhone OS 1.1–3.1.3 / OS 1.x wymaga BootROMu)";
+"device_ipod_1g_desc" = "iPod touch 1G (iPhone OS 1.1 - 1.1.5 / Wym. BootROM)";
 "device_ipod_2g_desc" = "iPod touch 2G (iPhone OS 2.1.1–iOS 4.2.1 / wymaga BootROMu)";
 "device_ipod_3g_desc" = "iPod touch 3G (iPhone OS 3.1.1–iOS 5.1.1)";
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1–6.1.6)";
@@ -269,7 +269,7 @@
 "vm_already_running_fmt" = "Maszyna wirtualna „%@” jest już uruchomiona.\nTylko jedna maszyna wirtualna może działać jednocześnie.";
 "base_rebuild_required" = "Wymagana odbudowa obrazu bazowego";
 "base_rebuild_msg" = "Aby zastosować poprawki rozruchu (OpenGLES, piaskownica i inicjalizacja iPhone 5), usuń i utwórz ten kontener ponownie.";
-"how_to_use_footer" = "Krótki przewodnik\n1. Wybierz model i wersję iOS poniżej\n2. Włącz JIT w StikDebug (universal.js) przed uruchomieniem\n3. Naciśnij ▶ obok utworzonego urządzenia\n※ Tylko iPhone 2G / iPod 1G i 2G wymagają BootROMu w Ustawieniach (ikona zębatki)";
+"how_to_use_footer" = "Pierwsze kroki:\n1. Wybierz urządzenie i system przyciskiem poniżej\n2. Włącz JIT w StikDebug (universal.js) przed uruchomieniem\n3. Naciśnij ▶ na utworzonym urządzeniu\n* BootROM S5L8900 w Ustawieniach wymagany tylko dla iPhone 2G / iPod 1G";
 "rename_container_title" = "Zmień nazwę kontenera";
 "enter_new_name_prompt" = "Wprowadź nową nazwę:";
 "delete_container_confirm_title" = "Usuwanie kontenera";
@@ -382,8 +382,8 @@
 "settings_ipsw_management" = "Zarządzanie oprogramowaniem";
 "settings_ipsw_subtitle_fmt" = "%lu plików oprogramowania";
 "settings_bootrom_management" = "Zarządzanie BootROM";
-"settings_bootrom_subtitle_fmt" = "%lu / 2 zainstalowane";
-"settings_bootrom_subtitle_none" = "Nie zainstalowano (S5L8900 / S5L8720)";
+"settings_bootrom_subtitle_fmt" = "Zainstalowano %lu z 1";
+"settings_bootrom_subtitle_none" = "Nie zainstalowano (S5L8900)";
 "settings_system_header" = "System i środowisko uruchomieniowe";
 "settings_jit_title" = "Kompilator JIT";
 "settings_jit_active" = "Włączony (Aktywny)";
@@ -420,7 +420,7 @@
 
 /* Android */
 "device_android_arm" = "Android";
-"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"device_android_arm_desc" = "Android (4.4 - 7.1 ARM)";
 "android_variant_aosp" = "AOSP Standard";
 "android_variant_gapps" = "Google APIs";
 "wizard_name_config_prompt_android" = "Wpisz nazwę maszyny wirtualnej (możesz zmienić ją później).\n* Działa na ARMv7 Goldfish z akceleracją OpenGL ES i ekranem 640×1136.";
@@ -445,3 +445,68 @@
 "android_wipe_userdata_action" = "Wymaż dane użytkownika (userdata.img)";
 "android_cfg_ram_custom" = "Własny rozmiar (MB)...";
 "android_cfg_ram_custom_hint" = "Podaj rozmiar RAM w MB (256–3072 MB). Na urządzeniach 2 GB (np. A9) przekroczenie pamięci może zamknąć aplikację.";
+"device_firefoxos_arm" = "Firefox OS";
+"device_firefoxos_arm_desc" = "Firefox OS (1.4 - 2.6 B2G)";
+"device_winrt_arm" = "Windows RT";
+"device_winrt_arm_desc" = "Windows RT 8.0 / 8.1 (ARM32)";
+"winrt_variant_arm32" = "Windows RT (ARM32)";
+"section_winrt_config" = "Ustawienia Windows RT";
+"winrt_cfg_ram" = "Pamięć (RAM)";
+"winrt_cfg_ram_hint" = "Przydziel RAM (512–2048 MB). Przekroczenie dostępnej pamięci może zamknąć aplikację w iOS.";
+"winrt_cfg_disk" = "Dysk wirtualny (karta SD)";
+"winrt_cfg_disk_hint" = "Zaimportuj obraz VHD/VHDX/IMG/QCOW2 lub utwórz pusty wirtualny dysk SD.";
+"winrt_cfg_iso" = "Obraz instalatora / USB";
+"winrt_cfg_iso_hint" = "Podłącz obraz ISO lub VHD/VHDX/IMG WinPE do napędu USB.";
+"winrt_cfg_none" = "Brak";
+"winrt_cfg_boot_order" = "Kolejność rozruchu";
+"winrt_boot_usb_first" = "Najpierw USB / ISO";
+"winrt_boot_sd_first" = "Najpierw dysk SD";
+"winrt_cfg_rtc" = "Zegar systemowy (RTC)";
+"winrt_cfg_rtc_hint" = "Instalatory Windows RT 8.0/8.1 często wymagają dat z lat 2013–2014 z powodu certyfikatów.";
+"winrt_rtc_today" = "Aktualny czas (UTC)";
+"winrt_rtc_custom" = "Własna data...";
+"winrt_rtc_custom_hint" = "Podaj datę jako YYYY-MM-DD (np. 2013-07-15).";
+"winrt_cfg_net" = "Sieć (USB RNDIS)";
+"winrt_cfg_audio" = "Audio USB";
+"winrt_enabled" = "Włączone";
+"winrt_disabled" = "Wyłączone";
+"winrt_import_disk_action" = "Importuj obraz dysku...";
+"winrt_create_blank_disk_fmt" = "Utwórz pusty dysk (%ld GB)";
+"winrt_attach_iso_action" = "Podłącz obraz ISO / USB...";
+"winrt_eject_iso_action" = "Wysuń podłączony obraz";
+"winrt_importing_media" = "Kopiowanie obrazu do VM...";
+"winrt_invalid_image_ext" = "Nieobsługiwany format. Wybierz .iso, .vhd, .vhdx, .img, .raw lub .qcow2.";
+"wizard_name_config_prompt_winrt" = "Podaj nazwę maszyny wirtualnej (możesz ją zmienić później).\n• Po utworzeniu podłącz obraz ISO lub VHD Windows RT ARM32 w Ustawieniach kontenera.";
+"winrt_container_created_msg_fmt" = "Utworzono „%@”. Przed uruchomieniem podłącz ISO instalatora lub VHD/VHDX Windows RT.";
+"winrt_configure_media" = "Konfiguruj nośniki...";
+"winrt_send_cad" = "Wyślij Ctrl + Alt + Del";
+"winrt_reset_usb" = "Resetuj wejście USB";
+"winrt_usb_reset_toast" = "Ponownie podłączono klawiaturę i mysz USB";
+"winrt_quick_keys" = "Szybkie klawisze";
+"winrt_missing_media_error" = "Brak dysku startowego lub ISO. Otwórz Ustawienia kontenera, aby zaimportować VHD/ISO.";
+"winrt_input_mode_touch" = "Tryb dotykowy";
+"winrt_input_mode_mouse" = "Tryb myszy";
+"winrt_mode_touch_toast" = "Wejście: Bezpośredni dotyk";
+"winrt_mode_mouse_toast" = "Wejście: Gładzik myszy (Przeciągnij=Ruch, Stuknij=Klik, Przytrzymaj=Prawy)";
+"winrt_sticky_mods_section" = "Klawisze modyfikujące";
+"winrt_sticky_clear" = "Zwolnij modyfikatory";
+"winrt_special_nav_menu" = "Nawigacja i edycja";
+"winrt_fn_keys_menu" = "Klawisze funkcyjne (F1–F12)";
+"winrt_right_click_action" = "Prawy przycisk myszy";
+"menu_install_apk" = "Zainstaluj APK...";
+"apk_install_not_ready" = "Poczekaj na uruchomienie Androida i połączenie ADB.";
+"apk_install_in_progress" = "Trwa już instalacja innego pakietu.";
+"apk_invalid_extension" = "Wybierz plik .apk.";
+"apk_preparing" = "Przygotowywanie APK...";
+"apk_connecting_adb" = "Łączenie z ADB (zaakceptuj monit na Androidzie, jeśli się pojawi)...";
+"apk_pushing" = "Przesyłanie APK...";
+"apk_pushing_pct_fmt" = "Przesyłanie APK... %d%%";
+"apk_installing" = "Instalowanie APK na Androidzie...";
+"apk_install_success_title" = "Instalacja APK zakończona";
+"apk_install_success_msg_fmt" = "Zainstalowano %@.";
+"apk_install_failed_title" = "Błąd instalacji APK";
+
+/* Windows RT Diagnostics */
+"winrt_iso_no_eltorito_title" = "No UEFI El Torito Boot Record Found";
+"winrt_iso_no_eltorito_msg" = "This ISO does not contain an ISO-9660 El Torito (\"CD001\") boot record (it appears to be UDF-only or non-bootable). Because the ARM32 UEFI firmware has no UDF driver, booting from it will stop at the UEFI Shell with BLK0 only.\n\nPlease use an El Torito ARM32 UEFI ISO (such as Windows RT 8.1 Update 3 9600.17053 / 9600.17328) or a bootable FAT32 .vhd/.img USB disk image.";
+

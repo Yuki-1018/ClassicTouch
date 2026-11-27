@@ -1,5 +1,5 @@
 /*
- * Goldfish output-only audio device (ported from Android_On_iOS to QEMU 10.2 audio_be_*).
+ * Goldfish output-only audio device (adapted for QEMU 10.2 audio_be_*).
  */
 #include "qemu/osdep.h"
 #include "android51.h"

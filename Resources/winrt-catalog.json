@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "platform": "winrt",
+  "entries": [
+    {
+      "id": "winrt-8.1",
+      "platform": "winrt",
+      "product_type": "WinRTARMv7",
+      "board": "virt",
+      "version": "8.1",
+      "codename": "Windows RT 8.1 (ARM32)",
+      "cpu": "cortex-a15",
+      "ram_mb": 2048,
+      "disk_gb": 32,
+      "width": 1024,
+      "height": 768,
+      "rtc_date": "2013-07-15"
+    },
+    {
+      "id": "winrt-8.0",
+      "platform": "winrt",
+      "product_type": "WinRTARMv7",
+      "board": "virt",
+      "version": "8.0",
+      "codename": "Windows RT 8.0 (ARM32)",
+      "cpu": "cortex-a15",
+      "ram_mb": 2048,
+      "disk_gb": 32,
+      "width": 1024,
+      "height": 768,
+      "rtc_date": "2013-07-15"
+    },
+    {
+      "id": "winrt-10-15035",
+      "platform": "winrt",
+      "product_type": "WinRTARMv7",
+      "board": "virt",
+      "version": "10 (15035)",
+      "codename": "Windows 10 ARM (Build 15035)",
+      "cpu": "cortex-a15",
+      "ram_mb": 2048,
+      "disk_gb": 32,
+      "width": 1024,
+      "height": 768,
+      "rtc_date": "2017-03-01"
+    }
+  ]
+}

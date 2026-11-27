@@ -88,6 +88,9 @@
 #include "hw/mem/nvdimm.h"
 #include "hw/acpi/generic_event_device.h"
 #include "hw/uefi/var-service-api.h"
+#include "hw/sd/sdhci.h"
+#include "hw/sd/sd.h"
+#include "system/blockdev.h"
 #include "hw/virtio/virtio-md-pci.h"
 #include "hw/virtio/virtio-iommu.h"
 #include "hw/char/pl011.h"
@@ -196,6 +199,10 @@ static const MemMapEntry base_memmap[] = {
     [VIRT_PVTIME] =             { 0x090a0000, 0x00010000 },
     [VIRT_SECURE_GPIO] =        { 0x090b0000, 0x00001000 },
     [VIRT_ACPI_PCIHP] =         { 0x090c0000, ACPI_PCIHP_SIZE },
+    [VIRT_EHCI] =               { 0x090c0000, 0x00010000 },
+    [VIRT_SDHCI] =              { 0x090d0000, 0x00010000 },
+    [VIRT_OHCI] =               { 0x090e0000, 0x00010000 },
+    [VIRT_EHCI2] =              { 0x090f0000, 0x00010000 },
     [VIRT_MMIO] =               { 0x0a000000, 0x00000200 },
     /* ...repeating for a total of NUM_VIRTIO_TRANSPORTS, each of that size */
     [VIRT_PLATFORM_BUS] =       { 0x0c000000, 0x02000000 },
@@ -247,6 +254,10 @@ static const int a15irqmap[] = {
     [VIRT_GPIO] = 7,
     [VIRT_UART1] = 8,
     [VIRT_ACPI_GED] = 9,
+    [VIRT_EHCI] = 11,
+    [VIRT_SDHCI] = 12,
+    [VIRT_OHCI] = 13,
+    [VIRT_EHCI2] = 14,
     [VIRT_MMIO] = 16, /* ...to 16 + NUM_VIRTIO_TRANSPORTS - 1 */
     [VIRT_GIC_V2M] = 48, /* ...to 48 + NUM_GICV2M_SPIS - 1 */
     [VIRT_SMMU] = 74,    /* ...to 74 + NUM_SMMU_IRQS - 1 */
@@ -722,7 +733,7 @@ static inline DeviceState *create_acpi_ged(VirtMachineState *vms)
     acpi_pcihp = object_property_get_bool(OBJECT(dev),
                                           ACPI_PM_PROP_ACPI_PCIHP_BRIDGE, NULL);
 
-    if (acpi_pcihp) {
+    if (acpi_pcihp && !vms->winrt) {
         int pcihp_region_index;
 
         pcihp_region_index = sysbus_mmio_map_name(sbdev, ACPI_PCIHP_REGION_NAME,
@@ -1726,6 +1737,68 @@ static void create_cxl_host_reg_region(VirtMachineState *vms)
     vms->highmem_cxl = true;
 }
 
+static void create_ehci_at(const VirtMachineState *vms, hwaddr base, int irq)
+{
+    DeviceState *dev = qdev_new("platform-ehci-usb");
+    SysBusDevice *sbdev;
+
+    /* Give TCG headroom before tearing down unvisited async QHs (default 128 = 512 ms). */
+    qdev_prop_set_uint32(dev, "maxframes", 512);
+    sbdev = SYS_BUS_DEVICE(dev);
+    sysbus_realize_and_unref(sbdev, &error_fatal);
+    sysbus_mmio_map(sbdev, 0, base);
+    sysbus_connect_irq(sbdev, 0, qdev_get_gpio_in(vms->gic, irq));
+}
+
+static void create_ehci(const VirtMachineState *vms)
+{
+    create_ehci_at(vms, vms->memmap[VIRT_EHCI].base, vms->irqmap[VIRT_EHCI]);
+}
+
+static void create_ehci2(const VirtMachineState *vms)
+{
+    create_ehci_at(vms, vms->memmap[VIRT_EHCI2].base, vms->irqmap[VIRT_EHCI2]);
+}
+
+static void create_ohci(const VirtMachineState *vms)
+{
+    hwaddr base = vms->memmap[VIRT_OHCI].base;
+    int irq = vms->irqmap[VIRT_OHCI];
+    DeviceState *dev = qdev_new("sysbus-ohci");
+    SysBusDevice *sbdev;
+
+    qdev_prop_set_uint32(dev, "num-ports", 3);
+    sbdev = SYS_BUS_DEVICE(dev);
+    sysbus_realize_and_unref(sbdev, &error_fatal);
+    sysbus_mmio_map(sbdev, 0, base);
+    sysbus_connect_irq(sbdev, 0, qdev_get_gpio_in(vms->gic, irq));
+}
+
+static void create_sdhci(const VirtMachineState *vms)
+{
+    hwaddr base = vms->memmap[VIRT_SDHCI].base;
+    int irq = vms->irqmap[VIRT_SDHCI];
+    DeviceState *dev;
+    SysBusDevice *sbdev;
+    DriveInfo *di;
+
+    dev = qdev_new(TYPE_SYSBUS_SDHCI);
+    qdev_prop_set_uint64(dev, "capareg", VIRT_SDHCI_CAPABILITIES);
+    sbdev = SYS_BUS_DEVICE(dev);
+    sysbus_realize_and_unref(sbdev, &error_fatal);
+    sysbus_mmio_map(sbdev, 0, base);
+    sysbus_connect_irq(sbdev, 0, qdev_get_gpio_in(vms->gic, irq));
+
+    di = drive_get(IF_SD, 0, 0);
+    if (di) {
+        BlockBackend *blk = blk_by_legacy_dinfo(di);
+        DeviceState *carddev = qdev_new(TYPE_SD_CARD);
+        qdev_prop_set_drive_err(carddev, "drive", blk, &error_fatal);
+        qdev_realize_and_unref(carddev, qdev_get_child_bus(dev, "sd-bus"),
+                               &error_fatal);
+    }
+}
+
 static void create_platform_bus(VirtMachineState *vms)
 {
     DeviceState *dev;
@@ -2415,7 +2488,7 @@ static void machvirt_init(MachineState *machine)
 
         aarch64 &= object_property_get_bool(cpuobj, "aarch64", NULL);
 
-        if (!vms->secure) {
+        if (!vms->secure && !vms->winrt) {
             object_property_set_bool(cpuobj, "has_el3", false, NULL);
         }
 
@@ -2500,7 +2573,7 @@ static void machvirt_init(MachineState *machine)
 
     /* Now we've created the CPUs we can see if they have the hypvirt timer */
     vms->ns_el2_virt_timer_irq = ns_el2_virt_timer_present() &&
-        !vmc->no_ns_el2_virt_timer_irq;
+        !vmc->no_ns_el2_virt_timer_irq && !vms->winrt;
 
     fdt_add_timer_nodes(vms);
     fdt_add_cpu_nodes(vms);
@@ -2590,6 +2663,13 @@ static void machvirt_init(MachineState *machine)
      */
     create_virtio_devices(vms);
 
+    if (vms->winrt) {
+        create_ehci(vms);
+        create_ohci(vms);
+        create_ehci2(vms);
+        create_sdhci(vms);
+    }
+
     vms->fw_cfg = create_fw_cfg(vms, &address_space_memory);
     rom_set_fw(vms->fw_cfg);
 
@@ -2660,6 +2740,20 @@ static void virt_set_highmem(Object *obj, bool value, Error **errp)
     VirtMachineState *vms = VIRT_MACHINE(obj);
 
     vms->highmem = value;
+}
+
+static bool virt_get_winrt(Object *obj, Error **errp)
+{
+    VirtMachineState *vms = VIRT_MACHINE(obj);
+
+    return vms->winrt;
+}
+
+static void virt_set_winrt(Object *obj, bool value, Error **errp)
+{
+    VirtMachineState *vms = VIRT_MACHINE(obj);
+
+    vms->winrt = value;
 }
 
 static bool virt_get_compact_highmem(Object *obj, Error **errp)
@@ -3526,6 +3620,12 @@ static void virt_machine_class_init(ObjectClass *oc, const void *data)
     object_class_property_set_description(oc, "highmem",
                                           "Set on/off to enable/disable using "
                                           "physical address space above 32 bits");
+
+    object_class_property_add_bool(oc, "winrt", virt_get_winrt,
+                                   virt_set_winrt);
+    object_class_property_set_description(oc, "winrt",
+                                          "Set on/off to configure platform "
+                                          "devices for Windows RT (ARMv7)");
 
     object_class_property_add_bool(oc, "compact-highmem",
                                    virt_get_compact_highmem,

@@ -1,5 +1,5 @@
 //
-// AndroidMetalView - Ported from Android_On_iOS Display/{MetalDisplay.mm,FrameMailbox,Shaders.metal}.
+// AndroidMetalView - Goldfish MetalDisplay + FrameMailbox renderer.
 // Uses persistent FrameMailbox dirty-rect coalescing, serial Metal upload/encode queue,
 // single in-flight frame semaphore, and guest pixel-budget drawable scaling.
 //
@@ -403,31 +403,25 @@ shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherG
     if (w > fullW - x) w = fullW - x;
     if (h > fullH - y) h = fullH - y;
 
-    BOOL dimChanged = NO;
-    {
-        std::lock_guard<std::mutex> lock(_mailboxMutex);
-        if (!_mailbox || _mailbox->width() != (uint32_t)fullW || _mailbox->height() != (uint32_t)fullH || !_textures[0]) {
-            dimChanged = YES;
-        }
-    }
-    if (dimChanged) {
-        [self ensureBackingSizeWidth:(uint32_t)fullW height:(uint32_t)fullH];
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self updateDrawableBudget];
-        });
-    }
-
     bool ok = false;
     {
-        std::lock_guard<std::mutex> lock(_mailboxMutex);
+        std::unique_lock<std::mutex> lock(_mailboxMutex);
+        if (!_mailbox || _mailbox->width() != (uint32_t)fullW || _mailbox->height() != (uint32_t)fullH || !_textures[0]) {
+            lock.unlock();
+            [self ensureBackingSizeWidth:(uint32_t)fullW height:(uint32_t)fullH];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self updateDrawableBudget];
+            });
+            lock.lock();
+        }
         if (_mailbox) {
             ok = _mailbox->update(static_cast<const uint8_t *>(bgraPixels),
                                   (size_t)stride,
                                   {(uint32_t)x, (uint32_t)y, (uint32_t)w, (uint32_t)h});
         }
-    }
-    if (ok) {
-        _dirty.store(true, std::memory_order_release);
+        if (ok) {
+            _dirty.store(true, std::memory_order_release);
+        }
     }
 }
 
@@ -500,12 +494,11 @@ struct UploadCapture {
           drawable:(id<CAMetalDrawable>)drawable
           uniforms:(QuadUniforms)uniforms
              force:(BOOL)force {
-    _dirty.store(false, std::memory_order_release);
-
     bool updated = false;
     id<MTLTexture> tex = nil;
     {
         std::lock_guard<std::mutex> lock(_mailboxMutex);
+        _dirty.store(false, std::memory_order_release);
         if (_mailbox && _textures[0]) {
             int slot = _writeSlot;
             UploadCapture cap{self, slot, _textures[slot]};

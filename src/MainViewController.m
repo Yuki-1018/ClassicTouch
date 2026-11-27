@@ -16,13 +16,67 @@
 #import "ios_jit_helper.h"
 #import "ios_bootrom_helper.h"
 #import "ios_guest_tools.h"
+#import "ios_winrt_media_probe.h"
+#import "ios_winrt_qcow2.h"
+#include <sys/stat.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <QuartzCore/QuartzCore.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <time.h>
+#include <unistd.h>
 
 #define L(key) NSLocalizedString((key), nil)
+
+static void ClassicWinRTQcow2ProgressTrampoline(double frac, void *ctx) {
+    UIAlertController *prog = (__bridge UIAlertController *)ctx;
+    if (!prog) return;
+    int pct = (int)llround(frac * 100.0);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        prog.message = [NSString stringWithFormat:@"未使用領域を削減しています（%d%%）", pct];
+    });
+}
+
+static BOOL ClassicCreateWinRTQcow2DiskImage(NSString *path, uint64_t sizeBytes, NSError **outError) {
+    int rc = winrt_qcow2_create_blank([path fileSystemRepresentation], sizeBytes);
+    if (rc != 0) {
+        if (outError) {
+            *outError = [NSError errorWithDomain:NSPOSIXErrorDomain code:-rc userInfo:@{
+                NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Failed creating QCOW2 disk (%s)", strerror(-rc)]
+            }];
+        }
+        return NO;
+    }
+    return YES;
+}
+
+static BOOL ClassicCreateSparseDiskImage(NSString *path, uint64_t sizeBytes, NSError **outError) {
+    if (path.length == 0 || sizeBytes < (1ULL << 20)) {
+        if (outError) {
+            *outError = [NSError errorWithDomain:@"ClassicTouch" code:1 userInfo:@{NSLocalizedDescriptionKey: @"Invalid disk path or size"}];
+        }
+        return NO;
+    }
+    int fd = open([path fileSystemRepresentation], O_CREAT | O_TRUNC | O_RDWR, 0644);
+    if (fd < 0) {
+        if (outError) {
+            *outError = [NSError errorWithDomain:NSPOSIXErrorDomain code:errno userInfo:nil];
+        }
+        return NO;
+    }
+    if (ftruncate(fd, (off_t)sizeBytes) != 0) {
+        int savedErr = errno;
+        close(fd);
+        unlink([path fileSystemRepresentation]);
+        if (outError) {
+            *outError = [NSError errorWithDomain:NSPOSIXErrorDomain code:savedErr userInfo:nil];
+        }
+        return NO;
+    }
+    close(fd);
+    return YES;
+}
 
 // Firmwarekit C FFI declarations
 typedef void (*firmware_progress_cb)(int percent, const char *step_name);
@@ -48,6 +102,27 @@ extern int lighttouch_android_prepare(
     const char *out_dir,
     firmware_progress_cb progress_cb
 );
+extern int lighttouch_android_prepare_custom(
+    const char *zip_path,
+    const char *base_zip_path,
+    const char *out_dir,
+    firmware_progress_cb progress_cb
+);
+extern char *lighttouch_ipsw_inspect(const char *ipsw_path);
+extern char *lighttouch_android_inspect_zip(const char *zip_path);
+extern int lighttouch_firefoxos_prepare(
+    const char *gonk_zip_path,
+    const char *b2g_tar_gz_path,
+    const char *gaia_zip_path,
+    const char *out_dir,
+    firmware_progress_cb progress_cb
+);
+extern int lighttouch_extract_zip_image(const char *zip_path, const char *out_path);
+extern int lighttouch_prepare_ubuntutouch_virt(const char *rootfs_tar_gz,
+                                               const char *overlay_debs_dir,
+                                               const char *ut_version,
+                                               const char *out_dir,
+                                               firmware_progress_cb progress_cb);
 extern const char *lighttouch_firmware_last_error(void);
 extern void lighttouch_firmware_free_string(char *s);
 
@@ -72,6 +147,12 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
 @property (nonatomic, assign) NSInteger ramMB;
 @property (nonatomic, assign) NSInteger lcdDensity;
 @property (nonatomic, assign) NSInteger gpuMode;
+@property (nonatomic, copy, nullable) NSString *winrtDiskPath;
+@property (nonatomic, copy, nullable) NSString *winrtIsoPath;
+@property (nonatomic, assign) BOOL winrtBootFromIso;
+@property (nonatomic, copy, nullable) NSString *winrtRtcDate;
+@property (nonatomic, assign) BOOL winrtEnableNet;
+@property (nonatomic, assign) BOOL winrtEnableAudio;
 @property (nonatomic, assign) NSTimeInterval createdAt;
 
 - (NSString *)containerPathWithRoot:(NSString *)containersRoot;
@@ -126,10 +207,21 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
         @"platform": self.platform.length > 0 ? self.platform : @"ios",
         @"createdAt": @(self.createdAt)
     } mutableCopy];
-    if ([self.platform isEqualToString:@"android"] || [self.baseId hasPrefix:@"android-"]) {
+    if ([self.platform isEqualToString:@"android"] || [self.baseId hasPrefix:@"android-"] ||
+        [self.platform isEqualToString:@"firefoxos"] || [self.baseId hasPrefix:@"fxos-"]) {
         if (self.ramMB > 0) dict[@"ramMB"] = @(self.ramMB);
         if (self.lcdDensity > 0) dict[@"lcdDensity"] = @(self.lcdDensity);
         if (self.gpuMode != 0) dict[@"gpuMode"] = @(self.gpuMode);
+    } else if ([self.platform isEqualToString:@"winrt"] || [self.baseId hasPrefix:@"winrt-"] ||
+               [self.platform isEqualToString:@"chromeos"] || [self.baseId hasPrefix:@"chromeos-"] ||
+               [self.platform isEqualToString:@"ubuntutouch"] || [self.baseId hasPrefix:@"ut-virt-"]) {
+        if (self.ramMB > 0) dict[@"ramMB"] = @(self.ramMB);
+        if (self.winrtDiskPath.length > 0) dict[@"winrtDiskPath"] = self.winrtDiskPath;
+        if (self.winrtIsoPath.length > 0) dict[@"winrtIsoPath"] = self.winrtIsoPath;
+        dict[@"winrtBootFromIso"] = @(self.winrtBootFromIso);
+        if (self.winrtRtcDate.length > 0) dict[@"winrtRtcDate"] = self.winrtRtcDate;
+        dict[@"winrtEnableNet"] = @(self.winrtEnableNet);
+        dict[@"winrtEnableAudio"] = @(self.winrtEnableAudio);
     }
 
     NSError *err = nil;
@@ -156,10 +248,16 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
     c.productType = dict[@"productType"] ?: @"";
     c.version = dict[@"version"] ?: @"";
     c.build = dict[@"build"] ?: @"";
-    c.platform = dict[@"platform"] ?: ([c.baseId hasPrefix:@"android-"] ? @"android" : @"ios");
+    c.platform = dict[@"platform"] ?: ([c.baseId hasPrefix:@"winrt-"] ? @"winrt" : ([c.baseId hasPrefix:@"chromeos-"] ? @"chromeos" : ([c.baseId hasPrefix:@"ut-virt-"] ? @"ubuntutouch" : ([c.baseId hasPrefix:@"fxos-"] ? @"firefoxos" : ([c.baseId hasPrefix:@"android-"] ? @"android" : @"ios")))));
     c.ramMB = [dict[@"ramMB"] integerValue];
     c.lcdDensity = [dict[@"lcdDensity"] integerValue];
     c.gpuMode = [dict[@"gpuMode"] integerValue];
+    c.winrtDiskPath = [dict[@"winrtDiskPath"] isKindOfClass:[NSString class]] ? dict[@"winrtDiskPath"] : nil;
+    c.winrtIsoPath = [dict[@"winrtIsoPath"] isKindOfClass:[NSString class]] ? dict[@"winrtIsoPath"] : nil;
+    c.winrtBootFromIso = [dict[@"winrtBootFromIso"] boolValue];
+    c.winrtRtcDate = [dict[@"winrtRtcDate"] isKindOfClass:[NSString class]] ? dict[@"winrtRtcDate"] : @"2013-07-15";
+    c.winrtEnableNet = dict[@"winrtEnableNet"] ? [dict[@"winrtEnableNet"] boolValue] : YES;
+    c.winrtEnableAudio = dict[@"winrtEnableAudio"] ? [dict[@"winrtEnableAudio"] boolValue] : YES;
     c.createdAt = [dict[@"createdAt"] doubleValue];
     return c;
 }
@@ -177,14 +275,27 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
 @property (nonatomic, copy) NSString *cpu;
 @property (nonatomic, copy) NSString *cmdline;
 @property (nonatomic, assign) int ramMB;
+@property (nonatomic, assign) int smp;
 @property (nonatomic, assign) int apiLevel;
 @property (nonatomic, assign) int lcdWidth;
 @property (nonatomic, assign) int lcdHeight;
 @property (nonatomic, assign) int lcdDensity;
+@property (nonatomic, assign) int64_t rtcEpoch;
+@property (nonatomic, assign) int diskGB;
+@property (nonatomic, copy) NSString *rtcDate;
 @property (nonatomic, copy) NSString *url;
 @property (nonatomic, copy) NSString *fallbackUrl;
 @property (nonatomic, copy) NSString *sha1;
 @property (nonatomic, assign) int64_t bytes;
+@property (nonatomic, assign) int64_t b2gBytes;
+@property (nonatomic, copy) NSString *gaiaUrl;
+@property (nonatomic, copy) NSString *gaiaSha1;
+@property (nonatomic, assign) int64_t gaiaBytes;
+@property (nonatomic, copy) NSString *gonkUrl;
+@property (nonatomic, copy) NSString *gonkSha1;
+@property (nonatomic, assign) int64_t gonkBytes;
+@property (nonatomic, copy, nullable) NSArray<NSString *> *overlayUrls;
+@property (nonatomic, assign) int64_t overlayBytes;
 @end
 
 @implementation CatalogEntry
@@ -235,6 +346,7 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
 @property (nonatomic, assign) BOOL hasConsumedEngineProcess;
 @property (nonatomic, assign) BOOL isCheckingJit;
 @property (nonatomic, assign) BOOL isPreparingBase;
+@property (nonatomic, assign) BOOL isDownloadingOverlays;
 @property (nonatomic, assign) NSUInteger progressToken;
 @property (nonatomic, strong) dispatch_queue_t startupQueue;
 @property (nonatomic, assign) BOOL hasCompletedInitialLoad;
@@ -261,6 +373,12 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
 - (NSString *)firmwaresDirectory;
 - (NSString *)legacyIPSWDirectory;
 - (nullable NSString *)findExistingIPSWForEntryId:(NSString *)entryId;
+- (nullable CatalogEntry *)catalogEntryWithId:(NSString *)entryId;
+- (void)downloadChromeOSImageForContainer:(VMContainer *)container
+                                    entry:(CatalogEntry *)entry
+                       fromViewController:(UIViewController *)presenter
+                               completion:(void (^ _Nullable)(BOOL ok))completion;
+- (int64_t)remainingDownloadBytesForEntry:(CatalogEntry *)ce;
 - (BOOL)hasPreparedBaseForEntryId:(NSString *)entryId;
 - (void)bootContainer:(VMContainer *)container;
 - (void)confirmDeleteContainer:(VMContainer *)container indexPath:(NSIndexPath *)indexPath;
@@ -277,11 +395,13 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
 @property (nonatomic, strong) NSArray<CatalogEntry *> *catalogEntries;
 @end
 
-@interface ContainerDetailViewController : UITableViewController
+@interface ContainerDetailViewController : UITableViewController <UIDocumentPickerDelegate>
 @property (nonatomic, strong) VMContainer *container;
 @property (nonatomic, weak) MainViewController *mainVC;
 @property (nonatomic, assign) NSInteger containerIndex;
 @property (nonatomic, copy) NSString *cachedDiskUsageText;
+@property (nonatomic, assign) NSInteger winrtPickingMode;
+@property (nonatomic, strong, nullable) UIView *importBusyView;
 @end
 
 @implementation ContainerDetailViewController
@@ -326,17 +446,61 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
     });
 }
 
+- (BOOL)isWinRTContainer {
+    return [self.container.platform isEqualToString:@"winrt"] ||
+           [self.container.baseId hasPrefix:@"winrt-"];
+}
+
+- (BOOL)isChromeOSContainer {
+    return [self.container.platform isEqualToString:@"chromeos"] ||
+           [self.container.baseId hasPrefix:@"chromeos-"];
+}
+
+- (BOOL)isUbuntuTouchVirtContainer {
+    return [self.container.platform isEqualToString:@"ubuntutouch"] ||
+           [self.container.baseId hasPrefix:@"ut-virt-"];
+}
+
+- (BOOL)isVirtHardwareContainer {
+    return [self isWinRTContainer] || [self isChromeOSContainer] || [self isUbuntuTouchVirtContainer];
+}
+
+- (NSInteger)effectiveWinRTRamMB {
+    if (self.container.ramMB >= 512) return self.container.ramMB;
+    return ([self isChromeOSContainer] || [self isUbuntuTouchVirtContainer]) ? 1536 : 2048;
+}
+
+- (NSString *)effectiveWinRTRtcDate {
+    return self.container.winrtRtcDate.length > 0 ? self.container.winrtRtcDate : @"2013-07-15";
+}
+
+- (NSString *)resolvedStatePath:(nullable NSString *)pathOrName {
+    if (pathOrName.length == 0) return @"";
+    if ([pathOrName isAbsolutePath]) return pathOrName;
+    NSString *statePath = [self.container statePathWithRoot:[self.mainVC containersDirectory]];
+    return [statePath stringByAppendingPathComponent:pathOrName];
+}
+
+- (NSString *)resolvedWinRTPath:(nullable NSString *)pathOrName {
+    return [self resolvedStatePath:pathOrName];
+}
+
 - (BOOL)isAndroidContainer {
+    if ([self isVirtHardwareContainer]) return NO;
     return [self.container.platform isEqualToString:@"android"] ||
-           [self.container.baseId hasPrefix:@"android-"];
+           [self.container.baseId hasPrefix:@"android-"] ||
+           [self.container.platform isEqualToString:@"firefoxos"] ||
+           [self.container.baseId hasPrefix:@"fxos-"];
 }
 
 - (NSInteger)effectiveAndroidRamMB {
-    return self.container.ramMB >= 256 ? self.container.ramMB : 512;
+    if (self.container.ramMB >= 256) return self.container.ramMB;
+    return 512;
 }
 
 - (NSInteger)effectiveAndroidLcdDensity {
-    return self.container.lcdDensity >= 160 ? self.container.lcdDensity : 320;
+    if (self.container.lcdDensity >= 160) return self.container.lcdDensity;
+    return 320;
 }
 
 - (BOOL)effectiveAndroidGpuEnabled {
@@ -364,13 +528,22 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
 }
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
-    return [self isAndroidContainer] ? 3 : 2;
+    return ([self isAndroidContainer] || [self isVirtHardwareContainer]) ? 3 : 2;
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     if (section == 0) {
         BOOL requiresBootrom = ([self.mainVC requiredBootromTypeForIdentifier:self.container.baseId] != nil);
         return requiresBootrom ? 6 : 5;
+    }
+    if ([self isWinRTContainer] && section == 1) {
+        return 7;
+    }
+    if ([self isChromeOSContainer] && section == 1) {
+        return 5;
+    }
+    if ([self isUbuntuTouchVirtContainer] && section == 1) {
+        return 4;
     }
     if ([self isAndroidContainer] && section == 1) {
         return 4;
@@ -380,8 +553,214 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
     if (section == 0) return L(@"section_info");
+    if ([self isWinRTContainer] && section == 1) return L(@"section_winrt_config");
+    if ([self isChromeOSContainer] && section == 1) return L(@"section_chromeos_config");
+    if ([self isUbuntuTouchVirtContainer] && section == 1) return L(@"section_ubuntutouch_config");
     if ([self isAndroidContainer] && section == 1) return L(@"section_android_config");
     return L(@"section_actions");
+}
+
+- (UITableViewCell *)configureVirtDiskStatusCell:(UITableViewCell *)cell title:(NSString *)title path:(nullable NSString *)relPath {
+    cell.textLabel.text = title;
+    NSString *diskFull = [self resolvedWinRTPath:relPath];
+    if (diskFull.length > 0 && [[NSFileManager defaultManager] fileExistsAtPath:diskFull]) {
+        struct stat st;
+        unsigned long long physBytes = 0;
+        unsigned long long logicalBytes = 0;
+        if (stat([diskFull fileSystemRepresentation], &st) == 0) {
+            logicalBytes = (unsigned long long)st.st_size;
+            physBytes = (unsigned long long)st.st_blocks * 512ULL;
+            if (physBytes == 0 && logicalBytes > 0) physBytes = logicalBytes;
+        }
+        uint64_t qcowVirt = 0;
+        if (winrt_qcow2_read_virtual_size([diskFull fileSystemRepresentation], &qcowVirt) && qcowVirt > 0) {
+            cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ (%.1f / %.0f GB)",
+                diskFull.lastPathComponent,
+                (double)logicalBytes / (1024.0 * 1024.0 * 1024.0),
+                (double)qcowVirt / (1024.0 * 1024.0 * 1024.0)];
+        } else {
+            cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ (実 %.1f / %.0f GB)",
+                diskFull.lastPathComponent,
+                (double)physBytes / (1024.0 * 1024.0 * 1024.0),
+                (double)logicalBytes / (1024.0 * 1024.0 * 1024.0)];
+        }
+    } else {
+        cell.detailTextLabel.text = L(@"winrt_cfg_none");
+    }
+    cell.imageView.image = [UIImage systemImageNamed:@"internaldrive"];
+    cell.imageView.tintColor = [UIColor systemBlueColor];
+    return cell;
+}
+
+- (void)presentVirtRamPickerWithRecommended:(NSInteger)recMB indexPath:(NSIndexPath *)indexPath {
+    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:L(@"winrt_cfg_ram")
+                                                                   message:L(@"winrt_cfg_ram_hint")
+                                                            preferredStyle:UIAlertControllerStyleActionSheet];
+    NSInteger curRam = [self effectiveWinRTRamMB];
+    for (NSNumber *mbNum in @[@512, @768, @1024, @1536, @2048]) {
+        NSInteger mb = mbNum.integerValue;
+        NSString *tag = (mb == recMB)
+            ? [NSString stringWithFormat:@"%ld MB (%@)", (long)mb, L(@"recommended")]
+            : [NSString stringWithFormat:@"%ld MB", (long)mb];
+        if (mb == curRam) tag = [NSString stringWithFormat:@"✓ %@", tag];
+        [sheet addAction:[UIAlertAction actionWithTitle:tag style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            self.container.ramMB = mb;
+            [self.container saveMetadataWithRoot:[self.mainVC containersDirectory]];
+            [self.tableView reloadData];
+        }]];
+    }
+    [sheet addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
+    sheet.popoverPresentationController.sourceView = self.tableView;
+    sheet.popoverPresentationController.sourceRect = [self.tableView rectForRowAtIndexPath:indexPath];
+    [self presentViewController:sheet animated:YES completion:nil];
+}
+
+- (void)presentVirtQcow2DiskSheetWithTitle:(NSString *)title
+                               defaultName:(NSString *)defaultName
+                                     sizes:(NSArray<NSNumber *> *)sizes
+                       allowConvertFromRaw:(BOOL)allowConvert
+                                 indexPath:(NSIndexPath *)indexPath {
+    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:title
+                                                                   message:L(@"winrt_cfg_disk_hint")
+                                                            preferredStyle:UIAlertControllerStyleActionSheet];
+    NSString *curDiskFull = [self resolvedWinRTPath:self.container.winrtDiskPath];
+    NSString *curExt = curDiskFull.pathExtension.lowercaseString;
+    if (allowConvert && curDiskFull.length > 0 &&
+        [[NSFileManager defaultManager] fileExistsAtPath:curDiskFull] &&
+        ([curExt isEqualToString:@"img"] || [curExt isEqualToString:@"raw"])) {
+        [sheet addAction:[UIAlertAction actionWithTitle:@"既存の IMG を QCOW2 に変換して省容量化"
+                                                 style:UIAlertActionStyleDefault
+                                               handler:^(UIAlertAction *action) {
+            NSString *statePath = [self.container statePathWithRoot:[self.mainVC containersDirectory]];
+            NSString *dstName = defaultName;
+            NSString *dstPath = [statePath stringByAppendingPathComponent:dstName];
+            NSString *tmpPath = [statePath stringByAppendingPathComponent:[defaultName stringByAppendingString:@".tmp"]];
+            UIAlertController *prog = [UIAlertController alertControllerWithTitle:@"QCOW2 に変換中…"
+                                                                          message:@"未使用領域を削減しています（0%）"
+                                                                   preferredStyle:UIAlertControllerStyleAlert];
+            [self presentViewController:prog animated:YES completion:nil];
+            dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                int rc = winrt_qcow2_convert_from_raw(
+                    [curDiskFull fileSystemRepresentation],
+                    [tmpPath fileSystemRepresentation],
+                    ClassicWinRTQcow2ProgressTrampoline,
+                    (__bridge void *)prog
+                );
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [prog dismissViewControllerAnimated:YES completion:^{
+                        if (rc == 0) {
+                            NSFileManager *fm = [NSFileManager defaultManager];
+                            [fm removeItemAtPath:dstPath error:nil];
+                            NSError *mvErr = nil;
+                            if ([fm moveItemAtPath:tmpPath toPath:dstPath error:&mvErr]) {
+                                if (![curDiskFull isEqualToString:dstPath]) {
+                                    [fm removeItemAtPath:curDiskFull error:nil];
+                                }
+                                self.container.winrtDiskPath = dstName;
+                                [self.container saveMetadataWithRoot:[self.mainVC containersDirectory]];
+                                [self.tableView reloadData];
+                                [self refreshDiskUsage];
+                            }
+                        } else {
+                            UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:@"変換エラー"
+                                                                                            message:[NSString stringWithFormat:@"QCOW2 変換に失敗しました (%s)", strerror(-rc)]
+                                                                                     preferredStyle:UIAlertControllerStyleAlert];
+                            [errAlert addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
+                            [self presentViewController:errAlert animated:YES completion:nil];
+                        }
+                    }];
+                });
+            });
+        }]];
+    }
+    [sheet addAction:[UIAlertAction actionWithTitle:L(@"winrt_import_disk_action")
+                                             style:UIAlertActionStyleDefault
+                                           handler:^(UIAlertAction *action) {
+        self.winrtPickingMode = 1;
+        UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeData, UTTypeItem] asCopy:YES];
+        picker.delegate = self;
+        picker.allowsMultipleSelection = NO;
+        [self presentViewController:picker animated:YES completion:nil];
+    }]];
+    for (NSNumber *gbNum in sizes) {
+        NSInteger gb = gbNum.integerValue;
+        [sheet addAction:[UIAlertAction actionWithTitle:[NSString stringWithFormat:L(@"winrt_create_blank_disk_fmt"), (long)gb]
+                                                 style:UIAlertActionStyleDefault
+                                               handler:^(UIAlertAction *action) {
+            NSString *statePath = [self.container statePathWithRoot:[self.mainVC containersDirectory]];
+            [[NSFileManager defaultManager] createDirectoryAtPath:statePath withIntermediateDirectories:YES attributes:nil error:nil];
+            NSString *oldDisk = [self resolvedWinRTPath:self.container.winrtDiskPath];
+            NSString *oldIso = [self resolvedWinRTPath:self.container.winrtIsoPath];
+            NSString *newPath = [statePath stringByAppendingPathComponent:defaultName];
+            NSError *err = nil;
+            if (ClassicCreateWinRTQcow2DiskImage(newPath, (uint64_t)gb * 1024ULL * 1024ULL * 1024ULL, &err)) {
+                if (oldDisk.length > 0 && ![oldDisk isEqualToString:newPath] && ![oldDisk isEqualToString:oldIso]) {
+                    [[NSFileManager defaultManager] removeItemAtPath:oldDisk error:nil];
+                }
+                self.container.winrtDiskPath = defaultName;
+                [self.container saveMetadataWithRoot:[self.mainVC containersDirectory]];
+                [self.tableView reloadData];
+                [self refreshDiskUsage];
+            }
+        }]];
+    }
+    [sheet addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
+    sheet.popoverPresentationController.sourceView = self.tableView;
+    sheet.popoverPresentationController.sourceRect = [self.tableView rectForRowAtIndexPath:indexPath];
+    [self presentViewController:sheet animated:YES completion:nil];
+}
+
+- (void)presentWinRTOrChromeOSImageSheetWithTitle:(NSString *)title
+                                     allowDownload:(BOOL)allowDownload
+                                         indexPath:(NSIndexPath *)indexPath {
+    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:title
+                                                                   message:L(@"winrt_cfg_iso_hint")
+                                                            preferredStyle:UIAlertControllerStyleActionSheet];
+    if (allowDownload) {
+        CatalogEntry *matchedCros = [self.mainVC catalogEntryWithId:self.container.baseId];
+        if (matchedCros.url.length > 0) {
+            NSString *dlTitle = [NSString stringWithFormat:@"公式イメージをダウンロード (%@)", matchedCros.version ?: @"Chrome OS"];
+            [sheet addAction:[UIAlertAction actionWithTitle:dlTitle
+                                                     style:UIAlertActionStyleDefault
+                                                   handler:^(UIAlertAction *action) {
+                [self.mainVC downloadChromeOSImageForContainer:self.container entry:matchedCros fromViewController:self completion:^(BOOL ok) {
+                    if (ok) {
+                        [self.tableView reloadData];
+                        [self refreshDiskUsage];
+                    }
+                }];
+            }]];
+        }
+    }
+    [sheet addAction:[UIAlertAction actionWithTitle:L(@"winrt_attach_iso_action")
+                                             style:UIAlertActionStyleDefault
+                                           handler:^(UIAlertAction *action) {
+        self.winrtPickingMode = 2;
+        UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeData, UTTypeItem] asCopy:YES];
+        picker.delegate = self;
+        picker.allowsMultipleSelection = NO;
+        [self presentViewController:picker animated:YES completion:nil];
+    }]];
+    NSString *isoFull = [self resolvedWinRTPath:self.container.winrtIsoPath];
+    if (isoFull.length > 0) {
+        [sheet addAction:[UIAlertAction actionWithTitle:L(@"winrt_eject_iso_action")
+                                                 style:UIAlertActionStyleDestructive
+                                               handler:^(UIAlertAction *action) {
+            NSString *diskFull = [self resolvedWinRTPath:self.container.winrtDiskPath];
+            NSString *statePath = [self.container statePathWithRoot:[self.mainVC containersDirectory]];
+            if ([isoFull hasPrefix:statePath] && ![isoFull isEqualToString:diskFull]) {
+                [[NSFileManager defaultManager] removeItemAtPath:isoFull error:nil];
+            }
+            self.container.winrtIsoPath = nil;
+            [self.container saveMetadataWithRoot:[self.mainVC containersDirectory]];
+            [self.tableView reloadData];
+            [self refreshDiskUsage];
+        }]];
+    }
+    [sheet addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
+    sheet.popoverPresentationController.sourceView = self.tableView;
+    sheet.popoverPresentationController.sourceRect = [self.tableView rectForRowAtIndexPath:indexPath];
+    [self presentViewController:sheet animated:YES completion:nil];
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -404,7 +783,15 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
                 : @"-";
         } else if (indexPath.row == 3) {
             cell.textLabel.text = L(@"configuration");
-            if ([self.container.platform isEqualToString:@"android"]) {
+            if ([self isWinRTContainer]) {
+                cell.detailTextLabel.text = L(@"winrt_variant_arm32");
+            } else if ([self isChromeOSContainer]) {
+                cell.detailTextLabel.text = @"ARMv7 Virt (OSMesa Desktop)";
+            } else if ([self isUbuntuTouchVirtContainer]) {
+                cell.detailTextLabel.text = @"ARMv7 Virt (Mir + QtUbuntu)";
+            } else if ([self.container.platform isEqualToString:@"firefoxos"] || [self.container.baseId hasPrefix:@"fxos-"]) {
+                cell.detailTextLabel.text = @"Boot to Gecko (B2G)";
+            } else if ([self.container.platform isEqualToString:@"android"]) {
                 cell.detailTextLabel.text = [self.container.baseId containsString:@"gapps"] ? L(@"android_variant_gapps") : L(@"android_variant_aosp");
             } else {
                 cell.detailTextLabel.text = [self.container.baseId hasSuffix:@"-jb"] ? L(@"with_cydia") : L(@"standard");
@@ -413,11 +800,105 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
             cell.textLabel.text = L(@"storage_used");
             cell.detailTextLabel.text = self.cachedDiskUsageText ?: @"-";
         } else {
-            NSString *romType = [self.mainVC requiredBootromTypeForIdentifier:self.container.baseId];
-            cell.textLabel.text = [romType isEqualToString:@"s5l8720"] ? L(@"bootrom_type_s5l8720") : L(@"bootrom_type_s5l8900");
+            cell.textLabel.text = L(@"bootrom_type_s5l8900");
             BOOL ok = [self.mainVC hasInstalledBootromForIdentifier:self.container.baseId];
             cell.detailTextLabel.text = ok ? L(@"installed") : L(@"not_installed");
             cell.detailTextLabel.textColor = ok ? [UIColor systemGreenColor] : [UIColor systemOrangeColor];
+        }
+        return cell;
+    }
+
+    if ([self isVirtHardwareContainer] && indexPath.section == 1) {
+        UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:nil];
+        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+        if ([self isWinRTContainer]) {
+            if (indexPath.row == 0) {
+                cell.textLabel.text = L(@"winrt_cfg_ram");
+                cell.detailTextLabel.text = [NSString stringWithFormat:@"%ld MB", (long)[self effectiveWinRTRamMB]];
+                cell.imageView.image = [UIImage systemImageNamed:@"memorychip"];
+                cell.imageView.tintColor = [UIColor systemGreenColor];
+            } else if (indexPath.row == 1) {
+                return [self configureVirtDiskStatusCell:cell title:L(@"winrt_cfg_disk") path:self.container.winrtDiskPath];
+            } else if (indexPath.row == 2) {
+                cell.textLabel.text = L(@"winrt_cfg_iso");
+                NSString *isoFull = [self resolvedWinRTPath:self.container.winrtIsoPath];
+                cell.detailTextLabel.text = (isoFull.length > 0 && [[NSFileManager defaultManager] fileExistsAtPath:isoFull])
+                    ? isoFull.lastPathComponent : L(@"winrt_cfg_none");
+                cell.imageView.image = [UIImage systemImageNamed:@"opticaldisc"];
+                cell.imageView.tintColor = [UIColor systemPurpleColor];
+            } else if (indexPath.row == 3) {
+                cell.textLabel.text = L(@"winrt_cfg_boot_order");
+                cell.detailTextLabel.text = self.container.winrtBootFromIso ? L(@"winrt_boot_usb_first") : L(@"winrt_boot_sd_first");
+                cell.accessoryType = UITableViewCellAccessoryNone;
+                cell.imageView.image = [UIImage systemImageNamed:@"arrow.triangle.2.circlepath"];
+                cell.imageView.tintColor = [UIColor systemOrangeColor];
+            } else if (indexPath.row == 4) {
+                cell.textLabel.text = L(@"winrt_cfg_rtc");
+                cell.detailTextLabel.text = [self effectiveWinRTRtcDate];
+                cell.imageView.image = [UIImage systemImageNamed:@"calendar.badge.clock"];
+                cell.imageView.tintColor = [UIColor systemIndigoColor];
+            } else if (indexPath.row == 5) {
+                cell.textLabel.text = L(@"winrt_cfg_net");
+                cell.detailTextLabel.text = self.container.winrtEnableNet ? L(@"winrt_enabled") : L(@"winrt_disabled");
+                cell.accessoryType = UITableViewCellAccessoryNone;
+                cell.imageView.image = [UIImage systemImageNamed:@"network"];
+                cell.imageView.tintColor = [UIColor systemTealColor];
+            } else {
+                cell.textLabel.text = L(@"winrt_cfg_audio");
+                cell.detailTextLabel.text = self.container.winrtEnableAudio ? L(@"winrt_enabled") : L(@"winrt_disabled");
+                cell.accessoryType = UITableViewCellAccessoryNone;
+                cell.imageView.image = [UIImage systemImageNamed:@"speaker.wave.2"];
+                cell.imageView.tintColor = [UIColor systemPinkColor];
+            }
+        } else if ([self isChromeOSContainer]) {
+            if (indexPath.row == 0) {
+                cell.textLabel.text = L(@"winrt_cfg_ram");
+                cell.detailTextLabel.text = [NSString stringWithFormat:@"%ld MB", (long)[self effectiveWinRTRamMB]];
+                cell.imageView.image = [UIImage systemImageNamed:@"memorychip"];
+                cell.imageView.tintColor = [UIColor systemGreenColor];
+            } else if (indexPath.row == 1) {
+                return [self configureVirtDiskStatusCell:cell title:L(@"chromeos_cfg_stateful") path:self.container.winrtDiskPath];
+            } else if (indexPath.row == 2) {
+                cell.textLabel.text = L(@"chromeos_cfg_image");
+                NSString *isoFull = [self resolvedWinRTPath:self.container.winrtIsoPath];
+                cell.detailTextLabel.text = (isoFull.length > 0 && [[NSFileManager defaultManager] fileExistsAtPath:isoFull])
+                    ? isoFull.lastPathComponent : L(@"winrt_cfg_none");
+                cell.imageView.image = [UIImage systemImageNamed:@"opticaldisc"];
+                cell.imageView.tintColor = [UIColor systemPurpleColor];
+            } else if (indexPath.row == 3) {
+                cell.textLabel.text = L(@"winrt_cfg_net");
+                cell.detailTextLabel.text = self.container.winrtEnableNet ? L(@"winrt_enabled") : L(@"winrt_disabled");
+                cell.accessoryType = UITableViewCellAccessoryNone;
+                cell.imageView.image = [UIImage systemImageNamed:@"network"];
+                cell.imageView.tintColor = [UIColor systemTealColor];
+            } else {
+                cell.textLabel.text = L(@"winrt_cfg_audio");
+                cell.detailTextLabel.text = self.container.winrtEnableAudio ? L(@"winrt_enabled") : L(@"winrt_disabled");
+                cell.accessoryType = UITableViewCellAccessoryNone;
+                cell.imageView.image = [UIImage systemImageNamed:@"speaker.wave.2"];
+                cell.imageView.tintColor = [UIColor systemPinkColor];
+            }
+        } else {
+            if (indexPath.row == 0) {
+                cell.textLabel.text = L(@"winrt_cfg_ram");
+                cell.detailTextLabel.text = [NSString stringWithFormat:@"%ld MB", (long)[self effectiveWinRTRamMB]];
+                cell.imageView.image = [UIImage systemImageNamed:@"memorychip"];
+                cell.imageView.tintColor = [UIColor systemGreenColor];
+            } else if (indexPath.row == 1) {
+                return [self configureVirtDiskStatusCell:cell title:L(@"ubuntutouch_cfg_userdata") path:self.container.winrtDiskPath];
+            } else if (indexPath.row == 2) {
+                cell.textLabel.text = L(@"winrt_cfg_net");
+                cell.detailTextLabel.text = self.container.winrtEnableNet ? L(@"winrt_enabled") : L(@"winrt_disabled");
+                cell.accessoryType = UITableViewCellAccessoryNone;
+                cell.imageView.image = [UIImage systemImageNamed:@"network"];
+                cell.imageView.tintColor = [UIColor systemTealColor];
+            } else {
+                cell.textLabel.text = L(@"winrt_cfg_audio");
+                cell.detailTextLabel.text = self.container.winrtEnableAudio ? L(@"winrt_enabled") : L(@"winrt_disabled");
+                cell.accessoryType = UITableViewCellAccessoryNone;
+                cell.imageView.image = [UIImage systemImageNamed:@"speaker.wave.2"];
+                cell.imageView.tintColor = [UIColor systemPinkColor];
+            }
         }
         return cell;
     }
@@ -487,16 +968,134 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
         }
         return;
     }
-    NSInteger actionsSection = [self isAndroidContainer] ? 2 : 1;
+    NSInteger actionsSection = ([self isAndroidContainer] || [self isVirtHardwareContainer]) ? 2 : 1;
+    if ([self isVirtHardwareContainer] && indexPath.section == 1) {
+        if ([self isWinRTContainer]) {
+            if (indexPath.row == 0) {
+                [self presentVirtRamPickerWithRecommended:2048 indexPath:indexPath];
+            } else if (indexPath.row == 1) {
+                [self presentVirtQcow2DiskSheetWithTitle:L(@"winrt_cfg_disk")
+                                             defaultName:@"sdcard.qcow2"
+                                                   sizes:@[@32, @48, @64, @128]
+                                     allowConvertFromRaw:YES
+                                               indexPath:indexPath];
+            } else if (indexPath.row == 2) {
+                [self presentWinRTOrChromeOSImageSheetWithTitle:L(@"winrt_cfg_iso")
+                                                  allowDownload:NO
+                                                      indexPath:indexPath];
+            } else if (indexPath.row == 3) {
+                self.container.winrtBootFromIso = !self.container.winrtBootFromIso;
+                [self.container saveMetadataWithRoot:[self.mainVC containersDirectory]];
+                [self.tableView reloadRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
+            } else if (indexPath.row == 4) {
+                UIAlertController *sheet = [UIAlertController alertControllerWithTitle:L(@"winrt_cfg_rtc")
+                                                                               message:L(@"winrt_cfg_rtc_hint")
+                                                                        preferredStyle:UIAlertControllerStyleActionSheet];
+                NSDateFormatter *df = [[NSDateFormatter alloc] init];
+                df.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+                df.dateFormat = @"yyyy-MM-dd";
+                NSString *todayStr = [df stringFromDate:[NSDate date]];
+                NSString *curDate = [self effectiveWinRTRtcDate];
+                NSArray<NSArray<NSString *> *> *presets = @[
+                    @[@"2013-07-15", [NSString stringWithFormat:@"2013-07-15 (Windows RT 8.0 / 8.1)"]],
+                    @[@"2017-03-01", [NSString stringWithFormat:@"2017-03-01 (Windows 10 Build 15035)"]],
+                    @[todayStr, [NSString stringWithFormat:@"%@ (%@)", todayStr, L(@"winrt_rtc_today")]]
+                ];
+                for (NSArray<NSString *> *p in presets) {
+                    NSString *val = p[0];
+                    NSString *title = [val isEqualToString:curDate] ? [NSString stringWithFormat:@"✓ %@", p[1]] : p[1];
+                    [sheet addAction:[UIAlertAction actionWithTitle:title style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+                        self.container.winrtRtcDate = val;
+                        [self.container saveMetadataWithRoot:[self.mainVC containersDirectory]];
+                        [self.tableView reloadData];
+                    }]];
+                }
+                [sheet addAction:[UIAlertAction actionWithTitle:L(@"winrt_rtc_custom") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+                    UIAlertController *prompt = [UIAlertController alertControllerWithTitle:L(@"winrt_cfg_rtc")
+                                                                                    message:L(@"winrt_rtc_custom_hint")
+                                                                             preferredStyle:UIAlertControllerStyleAlert];
+                    [prompt addTextFieldWithConfigurationHandler:^(UITextField *tf) {
+                        tf.placeholder = @"YYYY-MM-DD";
+                        tf.text = curDate;
+                    }];
+                    [prompt addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
+                    [prompt addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:^(UIAlertAction *okAct) {
+                        NSString *entered = [prompt.textFields.firstObject.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+                        if (entered.length == 10) {
+                            self.container.winrtRtcDate = entered;
+                            [self.container saveMetadataWithRoot:[self.mainVC containersDirectory]];
+                            [self.tableView reloadData];
+                        }
+                    }]];
+                    [self presentViewController:prompt animated:YES completion:nil];
+                }]];
+                [sheet addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
+                sheet.popoverPresentationController.sourceView = self.tableView;
+                sheet.popoverPresentationController.sourceRect = [self.tableView rectForRowAtIndexPath:indexPath];
+                [self presentViewController:sheet animated:YES completion:nil];
+            } else if (indexPath.row == 5) {
+                self.container.winrtEnableNet = !self.container.winrtEnableNet;
+                [self.container saveMetadataWithRoot:[self.mainVC containersDirectory]];
+                [self.tableView reloadRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
+            } else {
+                self.container.winrtEnableAudio = !self.container.winrtEnableAudio;
+                [self.container saveMetadataWithRoot:[self.mainVC containersDirectory]];
+                [self.tableView reloadRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
+            }
+        } else if ([self isChromeOSContainer]) {
+            if (indexPath.row == 0) {
+                [self presentVirtRamPickerWithRecommended:1536 indexPath:indexPath];
+            } else if (indexPath.row == 1) {
+                [self presentVirtQcow2DiskSheetWithTitle:L(@"chromeos_cfg_stateful")
+                                             defaultName:@"sdcard.qcow2"
+                                                   sizes:@[@16, @32, @48, @64, @128]
+                                     allowConvertFromRaw:NO
+                                               indexPath:indexPath];
+            } else if (indexPath.row == 2) {
+                [self presentWinRTOrChromeOSImageSheetWithTitle:L(@"chromeos_cfg_image")
+                                                  allowDownload:YES
+                                                      indexPath:indexPath];
+            } else if (indexPath.row == 3) {
+                self.container.winrtEnableNet = !self.container.winrtEnableNet;
+                [self.container saveMetadataWithRoot:[self.mainVC containersDirectory]];
+                [self.tableView reloadRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
+            } else {
+                self.container.winrtEnableAudio = !self.container.winrtEnableAudio;
+                [self.container saveMetadataWithRoot:[self.mainVC containersDirectory]];
+                [self.tableView reloadRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
+            }
+        } else {
+            if (indexPath.row == 0) {
+                [self presentVirtRamPickerWithRecommended:1536 indexPath:indexPath];
+            } else if (indexPath.row == 1) {
+                [self presentVirtQcow2DiskSheetWithTitle:L(@"ubuntutouch_cfg_userdata")
+                                             defaultName:@"userdata.qcow2"
+                                                   sizes:@[@8, @16, @32, @64]
+                                     allowConvertFromRaw:NO
+                                               indexPath:indexPath];
+            } else if (indexPath.row == 2) {
+                self.container.winrtEnableNet = !self.container.winrtEnableNet;
+                [self.container saveMetadataWithRoot:[self.mainVC containersDirectory]];
+                [self.tableView reloadRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
+            } else {
+                self.container.winrtEnableAudio = !self.container.winrtEnableAudio;
+                [self.container saveMetadataWithRoot:[self.mainVC containersDirectory]];
+                [self.tableView reloadRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
+            }
+        }
+        return;
+    }
+
     if ([self isAndroidContainer] && indexPath.section == 1) {
         if (indexPath.row == 0) {
             UIAlertController *sheet = [UIAlertController alertControllerWithTitle:L(@"android_cfg_ram")
                                                                            message:L(@"android_cfg_ram_hint")
                                                                     preferredStyle:UIAlertControllerStyleActionSheet];
             NSInteger curRam = [self effectiveAndroidRamMB];
+            NSInteger recRam = 512;
             for (NSNumber *mbNum in @[@256, @384, @512, @768, @1024, @1536, @2048, @3072]) {
                 NSInteger mb = mbNum.integerValue;
-                NSString *tag = (mb == 512) ? [NSString stringWithFormat:@"512 MB (%@)", L(@"recommended")] : [NSString stringWithFormat:@"%ld MB", (long)mb];
+                NSString *tag = (mb == recRam) ? [NSString stringWithFormat:@"%ld MB (%@)", (long)mb, L(@"recommended")] : [NSString stringWithFormat:@"%ld MB", (long)mb];
                 if (mb == curRam) tag = [NSString stringWithFormat:@"✓ %@", tag];
                 [sheet addAction:[UIAlertAction actionWithTitle:tag style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
                     self.container.ramMB = mb;
@@ -533,9 +1132,10 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
                                                                            message:L(@"android_cfg_dpi_hint")
                                                                     preferredStyle:UIAlertControllerStyleActionSheet];
             NSInteger curDpi = [self effectiveAndroidLcdDensity];
+            NSInteger stdDpi = 320;
             for (NSNumber *dpiNum in @[@240, @320, @400]) {
                 NSInteger dpi = dpiNum.integerValue;
-                NSString *tag = (dpi == 320) ? [NSString stringWithFormat:@"320 dpi (%@)", L(@"standard")] : [NSString stringWithFormat:@"%ld dpi", (long)dpi];
+                NSString *tag = (dpi == stdDpi) ? [NSString stringWithFormat:@"%ld dpi (%@)", (long)dpi, L(@"standard")] : [NSString stringWithFormat:@"%ld dpi", (long)dpi];
                 if (dpi == curDpi) tag = [NSString stringWithFormat:@"✓ %@", tag];
                 [sheet addAction:[UIAlertAction actionWithTitle:tag style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
                     self.container.lcdDensity = dpi;
@@ -664,6 +1264,141 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
     }
 }
 
+- (void)showImportBusy:(BOOL)busy title:(nullable NSString *)title {
+    if (busy) {
+        if (self.importBusyView) [self.importBusyView removeFromSuperview];
+        UIView *host = self.navigationController.view ?: self.view;
+        UIView *overlay = [[UIView alloc] initWithFrame:host.bounds];
+        overlay.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        overlay.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.55];
+        UIActivityIndicatorView *spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleLarge];
+        spinner.color = [UIColor whiteColor];
+        spinner.translatesAutoresizingMaskIntoConstraints = NO;
+        [spinner startAnimating];
+        UILabel *lbl = [[UILabel alloc] init];
+        lbl.translatesAutoresizingMaskIntoConstraints = NO;
+        lbl.text = title ?: L(@"winrt_importing_media");
+        lbl.textColor = [UIColor whiteColor];
+        lbl.font = [UIFont systemFontOfSize:15.0 weight:UIFontWeightMedium];
+        lbl.textAlignment = NSTextAlignmentCenter;
+        [overlay addSubview:spinner];
+        [overlay addSubview:lbl];
+        [NSLayoutConstraint activateConstraints:@[
+            [spinner.centerXAnchor constraintEqualToAnchor:overlay.centerXAnchor],
+            [spinner.centerYAnchor constraintEqualToAnchor:overlay.centerYAnchor constant:-14],
+            [lbl.topAnchor constraintEqualToAnchor:spinner.bottomAnchor constant:12],
+            [lbl.centerXAnchor constraintEqualToAnchor:overlay.centerXAnchor],
+            [lbl.leadingAnchor constraintGreaterThanOrEqualToAnchor:overlay.leadingAnchor constant:24],
+            [lbl.trailingAnchor constraintLessThanOrEqualToAnchor:overlay.trailingAnchor constant:-24]
+        ]];
+        [host addSubview:overlay];
+        self.importBusyView = overlay;
+        self.navigationController.navigationBar.userInteractionEnabled = NO;
+    } else {
+        [self.importBusyView removeFromSuperview];
+        self.importBusyView = nil;
+        self.navigationController.navigationBar.userInteractionEnabled = YES;
+    }
+}
+
+- (void)documentPickerWasCancelled:(UIDocumentPickerViewController *)controller {
+    self.winrtPickingMode = 0;
+}
+
+- (void)documentPicker:(UIDocumentPickerViewController *)controller didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
+    NSInteger mode = self.winrtPickingMode;
+    self.winrtPickingMode = 0;
+    NSURL *pickedURL = urls.firstObject;
+    if (!pickedURL) return;
+
+    if (mode == 0) return;
+
+    NSString *ext = pickedURL.pathExtension.lowercaseString ?: @"";
+    NSSet<NSString *> *validExts = (mode == 1)
+        ? [NSSet setWithArray:@[@"vhd", @"vhdx", @"img", @"raw", @"qcow2"]]
+        : [NSSet setWithArray:@[@"iso", @"vhd", @"vhdx", @"img", @"raw"]];
+    if (![validExts containsObject:ext]) {
+        [[NSFileManager defaultManager] removeItemAtURL:pickedURL error:nil];
+        UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:L(@"error")
+                                                                          message:L(@"winrt_invalid_image_ext")
+                                                                   preferredStyle:UIAlertControllerStyleAlert];
+        [errAlert addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleCancel handler:nil]];
+        [self presentViewController:errAlert animated:YES completion:nil];
+        return;
+    }
+
+    NSString *statePath = [self.container statePathWithRoot:[self.mainVC containersDirectory]];
+    NSString *otherFull = [self resolvedWinRTPath:(mode == 1 ? self.container.winrtIsoPath : self.container.winrtDiskPath)];
+    NSString *oldFull = [self resolvedWinRTPath:(mode == 1 ? self.container.winrtDiskPath : self.container.winrtIsoPath)];
+    NSString *fileName = pickedURL.lastPathComponent ?: (mode == 1 ? @"disk.img" : @"install.iso");
+    NSString *destPath = [statePath stringByAppendingPathComponent:fileName];
+    if ([destPath isEqualToString:otherFull]) {
+        fileName = [(mode == 1 ? @"disk_" : @"usb_") stringByAppendingString:fileName];
+        destPath = [statePath stringByAppendingPathComponent:fileName];
+    }
+
+    [self showImportBusy:YES title:L(@"winrt_importing_media")];
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        BOOL scoped = [pickedURL startAccessingSecurityScopedResource];
+        NSFileManager *fm = [NSFileManager defaultManager];
+        [fm createDirectoryAtPath:statePath withIntermediateDirectories:YES attributes:nil error:nil];
+        if ([fm fileExistsAtPath:destPath]) {
+            [fm removeItemAtPath:destPath error:nil];
+        }
+        NSError *copyErr = nil;
+        NSURL *destURL = [NSURL fileURLWithPath:destPath];
+        BOOL ok = [fm moveItemAtURL:pickedURL toURL:destURL error:&copyErr];
+        if (!ok) {
+            copyErr = nil;
+            ok = [fm copyItemAtURL:pickedURL toURL:destURL error:&copyErr];
+        }
+        if (scoped) {
+            [pickedURL stopAccessingSecurityScopedResource];
+        }
+        BOOL showNoElToritoWarn = NO;
+        if (ok && mode == 2 && [ext isEqualToString:@"iso"]) {
+            ClassicWinRTMediaInfo probe = ClassicProbeWinRTMedia(destPath);
+            if (probe.exists && !probe.hasElTorito) {
+                showNoElToritoWarn = YES;
+            }
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) s = weakSelf;
+            if (!s) return;
+            [s showImportBusy:NO title:nil];
+            if (!ok) {
+                UIAlertController *fail = [UIAlertController alertControllerWithTitle:L(@"error")
+                                                                              message:copyErr.localizedDescription ?: @"Import failed"
+                                                                       preferredStyle:UIAlertControllerStyleAlert];
+                [fail addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleCancel handler:nil]];
+                [s presentViewController:fail animated:YES completion:nil];
+                return;
+            }
+            if (oldFull.length > 0 && [oldFull hasPrefix:statePath] &&
+                ![oldFull isEqualToString:destPath] && ![oldFull isEqualToString:otherFull]) {
+                [fm removeItemAtPath:oldFull error:nil];
+            }
+            if (mode == 1) {
+                s.container.winrtDiskPath = fileName;
+            } else {
+                s.container.winrtIsoPath = fileName;
+                s.container.winrtBootFromIso = YES;
+            }
+            [s.container saveMetadataWithRoot:[s.mainVC containersDirectory]];
+            [s.tableView reloadData];
+            [s refreshDiskUsage];
+            if (showNoElToritoWarn) {
+                UIAlertController *warn = [UIAlertController alertControllerWithTitle:L(@"winrt_iso_no_eltorito_title")
+                                                                              message:L(@"winrt_iso_no_eltorito_msg")
+                                                                       preferredStyle:UIAlertControllerStyleAlert];
+                [warn addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
+                [s presentViewController:warn animated:YES completion:nil];
+            }
+        });
+    });
+}
+
 @end
 
 @interface BootromViewController : UITableViewController <UIDocumentPickerDelegate>
@@ -703,7 +1438,7 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     BOOL installed = [self.mainVC hasInstalledBootrom];
-    if (section == 0) return 2;
+    if (section == 0) return 1;
     return installed ? 2 : 1;
 }
 
@@ -719,9 +1454,8 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
     if (indexPath.section == 0) {
         UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:nil];
         cell.selectionStyle = UITableViewCellSelectionStyleNone;
-        NSString *romType = (indexPath.row == 0) ? @"s5l8900" : @"s5l8720";
-        NSString *path = [self.mainVC pathForInstalledBootromType:romType];
-        cell.textLabel.text = (indexPath.row == 0) ? L(@"bootrom_s5l8900_desc") : L(@"bootrom_s5l8720_desc");
+        NSString *path = [self.mainVC pathForInstalledBootromType:@"s5l8900"];
+        cell.textLabel.text = L(@"bootrom_s5l8900_desc");
         if (path) {
             unsigned long long sz = [[[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil] fileSize];
             cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ (%llu KB)", path.lastPathComponent, sz / 1024];
@@ -898,11 +1632,12 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
         @{@"title": L(@"device_iphone_4_desc"), @"type": @"iPhone3,1"},
         @{@"title": L(@"device_iphone_5_desc"), @"type": @"iPhone5,2"},
         @{@"title": L(@"device_ipod_1g_desc"), @"type": @"iPod1,1"},
-        @{@"title": L(@"device_ipod_2g_desc"), @"type": @"iPod2,1"},
         @{@"title": L(@"device_ipod_3g_desc"), @"type": @"iPod3,1"},
         @{@"title": L(@"device_ipod_4g_desc"), @"type": @"iPod4,1"},
         @{@"title": L(@"device_ipad_1g_desc"), @"type": @"iPad1,1"},
-        @{@"title": L(@"device_android_arm_desc"), @"type": @"AndroidARMv7"}
+        @{@"title": L(@"device_android_arm_desc"), @"type": @"AndroidARMv7"},
+        @{@"title": L(@"device_firefoxos_arm_desc"), @"type": @"FirefoxOSARMv7"},
+        @{@"title": L(@"device_ubuntutouch_virt_desc"), @"type": @"UbuntuTouchVirtARMv7"}
     ];
 
     for (NSDictionary<NSString *, NSString *> *d in devices) {
@@ -935,7 +1670,7 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
 - (void)presentCatalogDownloadVersionPickerForProductType:(NSString *)prodType deviceTitle:(NSString *)deviceTitle sourceCell:(nullable UITableViewCell *)sourceCell {
     NSMutableArray<CatalogEntry *> *filtered = [NSMutableArray array];
     for (CatalogEntry *ce in self.mainVC.catalogEntries) {
-        if ([ce.productType isEqualToString:prodType]) {
+        if ([ce.productType isEqualToString:prodType] && ce.url.length > 0) {
             [filtered addObject:ce];
         }
     }
@@ -945,9 +1680,10 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
                                                                     preferredStyle:UIAlertControllerStyleActionSheet];
     for (CatalogEntry *ce in filtered) {
         NSString *existing = [self.mainVC findExistingIPSWForEntryId:ce.entryId];
+        int64_t dlBytes = [self.mainVC remainingDownloadBytesForEntry:ce];
         NSString *tag = existing
             ? [NSString stringWithFormat:@" [%@]", L(@"downloaded_badge")]
-            : [NSString stringWithFormat:@" (%.0f MB)", (double)ce.bytes / (1024.0 * 1024.0)];
+            : [NSString stringWithFormat:@" (%.0f MB)", (double)dlBytes / (1024.0 * 1024.0)];
         NSString *btnTitle = [NSString stringWithFormat:@"%@ (%@)%@", [self.mainVC formattedOSVersion:ce.version forPlatform:ce.platform], ce.build, tag];
         [versionSelect addAction:[UIAlertAction actionWithTitle:btnTitle style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
             if (existing) {
@@ -956,6 +1692,13 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
                                                                        preferredStyle:UIAlertControllerStyleAlert];
                 [redl addAction:[UIAlertAction actionWithTitle:L(@"redownload_action") style:UIAlertActionStyleDestructive handler:^(UIAlertAction *a) {
                     MainViewController *mainVC = self.mainVC;
+                    if ([ce.platform isEqualToString:@"firefoxos"]) {
+                        NSFileManager *fm = [NSFileManager defaultManager];
+                        NSString *tarName = [NSString stringWithFormat:@"%@.tar.gz", ce.entryId];
+                        NSString *gaiaName = [NSString stringWithFormat:@"%@-gaia.zip", ce.entryId];
+                        [fm removeItemAtPath:[[mainVC firmwaresDirectory] stringByAppendingPathComponent:tarName] error:nil];
+                        [fm removeItemAtPath:[[mainVC firmwaresDirectory] stringByAppendingPathComponent:gaiaName] error:nil];
+                    }
                     [self dismissToMainAndRun:^{
                         [mainVC downloadCatalogIPSWForManagement:ce];
                     }];
@@ -1012,6 +1755,15 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
             [fm removeItemAtPath:[[self.mainVC firmwaresDirectory] stringByAppendingPathComponent:f.fileName] error:nil];
             [fm removeItemAtPath:[[self.mainVC legacyIPSWDirectory] stringByAppendingPathComponent:f.fileName] error:nil];
         }
+        if ([f.entryId hasPrefix:@"fxos-"]) {
+            NSString *gaiaName = [NSString stringWithFormat:@"%@-gaia.zip", f.entryId];
+            [fm removeItemAtPath:[[self.mainVC firmwaresDirectory] stringByAppendingPathComponent:gaiaName] error:nil];
+            [fm removeItemAtPath:[[self.mainVC legacyIPSWDirectory] stringByAppendingPathComponent:gaiaName] error:nil];
+        } else if ([f.entryId hasPrefix:@"custom-"]) {
+            NSString *customMeta = [NSString stringWithFormat:@"%@.custom.json", f.entryId];
+            [fm removeItemAtPath:[[self.mainVC firmwaresDirectory] stringByAppendingPathComponent:customMeta] error:nil];
+            [fm removeItemAtPath:[[self.mainVC legacyIPSWDirectory] stringByAppendingPathComponent:customMeta] error:nil];
+        }
         [self reloadFirmwares];
     }]];
     [confirm addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
@@ -1026,7 +1778,9 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
         } else {
             NSArray *types = @[
                 [UTType typeWithFilenameExtension:@"ipsw"] ?: UTTypeData,
-                [UTType typeWithFilenameExtension:@"zip"] ?: UTTypeData
+                [UTType typeWithFilenameExtension:@"zip"] ?: UTTypeData,
+                [UTType typeWithFilenameExtension:@"img"] ?: UTTypeData,
+                [UTType typeWithFilenameExtension:@"gz"] ?: (UTTypeGZIP ?: UTTypeData)
             ];
             UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:types asCopy:YES];
             picker.delegate = self;
@@ -1056,7 +1810,7 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
             ce.productType = f.productType;
             ce.version = f.version;
             ce.build = f.build;
-            ce.platform = f.platform ?: ([f.entryId hasPrefix:@"android-"] ? @"android" : @"ios");
+            ce.platform = f.platform ?: ([f.entryId hasPrefix:@"chromeos-"] ? @"chromeos" : ([f.entryId hasPrefix:@"ut-virt-"] ? @"ubuntutouch" : ([f.entryId hasPrefix:@"fxos-"] ? @"firefoxos" : ([f.entryId hasPrefix:@"android-"] ? @"android" : @"ios"))));
         }
         MainViewController *mainVC = self.mainVC;
         [self dismissToMainAndRun:^{
@@ -1463,6 +2217,11 @@ static __weak MainViewController *sCurrentMainVC = nil;
         ce.build = d[@"build"];
         ce.platform = @"ios";
 
+        NSDictionary *recipe = d[@"recipe"];
+        if ([recipe isKindOfClass:[NSDictionary class]]) {
+            ce.rtcEpoch = [recipe[@"rtc_epoch"] longLongValue];
+        }
+
         NSDictionary *src = d[@"source"];
         if ([src isKindOfClass:[NSDictionary class]]) {
             ce.url = src[@"url"];
@@ -1510,6 +2269,141 @@ static __weak MainViewController *sCurrentMainVC = nil;
             [list addObject:ce];
         }
     }
+
+    NSString *fxosCatalogPath = [[NSBundle mainBundle] pathForResource:@"firefoxos-catalog" ofType:@"json"];
+    if (!fxosCatalogPath) {
+        fxosCatalogPath = [[[NSBundle mainBundle] bundlePath] stringByAppendingPathComponent:@"firefoxos-catalog.json"];
+    }
+    NSData *fData = fxosCatalogPath ? [NSData dataWithContentsOfFile:fxosCatalogPath] : nil;
+    NSDictionary *fJson = fData ? [NSJSONSerialization JSONObjectWithData:fData options:0 error:nil] : nil;
+    NSArray *fEntries = [fJson isKindOfClass:[NSDictionary class]] ? fJson[@"entries"] : nil;
+    if ([fEntries isKindOfClass:[NSArray class]]) {
+        for (NSDictionary *d in fEntries) {
+            if (![d isKindOfClass:[NSDictionary class]]) continue;
+            CatalogEntry *ce = [[CatalogEntry alloc] init];
+            ce.entryId = d[@"id"];
+            ce.board = d[@"board"] ?: @"goldfish";
+            ce.productType = @"FirefoxOSARMv7";
+            ce.version = d[@"version"];
+            ce.variant = d[@"variant"] ?: @"b2g";
+            ce.build = d[@"codename"] ?: @"B2G";
+            ce.platform = @"firefoxos";
+            ce.cpu = d[@"cpu"] ?: @"cortex-a8";
+            ce.cmdline = d[@"cmdline"];
+            ce.ramMB = [d[@"ram_mb"] intValue] > 0 ? [d[@"ram_mb"] intValue] : 768;
+            ce.apiLevel = [d[@"api_level"] intValue] > 0 ? [d[@"api_level"] intValue] : 19;
+            ce.lcdWidth = [d[@"width"] intValue];
+            ce.lcdHeight = [d[@"height"] intValue];
+            ce.lcdDensity = [d[@"dpi"] intValue];
+            ce.url = d[@"url"];
+            ce.sha1 = d[@"sha1"];
+            ce.b2gBytes = [d[@"size"] longLongValue];
+            ce.gaiaUrl = d[@"gaia_url"];
+            ce.gaiaSha1 = d[@"gaia_sha1"];
+            ce.gaiaBytes = [d[@"gaia_size"] longLongValue];
+            ce.gonkUrl = d[@"gonk_url"];
+            ce.gonkSha1 = d[@"gonk_sha1"];
+            ce.gonkBytes = [d[@"gonk_size"] longLongValue];
+            ce.bytes = ce.b2gBytes + ce.gaiaBytes;
+            [list addObject:ce];
+        }
+    }
+
+    NSString *winrtCatalogPath = [[NSBundle mainBundle] pathForResource:@"winrt-catalog" ofType:@"json"];
+    if (!winrtCatalogPath) {
+        winrtCatalogPath = [[[NSBundle mainBundle] bundlePath] stringByAppendingPathComponent:@"winrt-catalog.json"];
+    }
+    NSData *wData = winrtCatalogPath ? [NSData dataWithContentsOfFile:winrtCatalogPath] : nil;
+    NSDictionary *wJson = wData ? [NSJSONSerialization JSONObjectWithData:wData options:0 error:nil] : nil;
+    NSArray *wEntries = [wJson isKindOfClass:[NSDictionary class]] ? wJson[@"entries"] : nil;
+    if ([wEntries isKindOfClass:[NSArray class]]) {
+        for (NSDictionary *d in wEntries) {
+            if (![d isKindOfClass:[NSDictionary class]]) continue;
+            CatalogEntry *ce = [[CatalogEntry alloc] init];
+            ce.entryId = d[@"id"];
+            ce.board = d[@"board"] ?: @"virt";
+            ce.productType = d[@"product_type"] ?: @"WinRTARMv7";
+            ce.version = d[@"version"] ?: @"8.1";
+            ce.build = d[@"codename"] ?: @"ARM32 UEFI";
+            ce.platform = @"winrt";
+            ce.cpu = d[@"cpu"] ?: @"cortex-a15";
+            ce.ramMB = [d[@"ram_mb"] intValue] > 0 ? [d[@"ram_mb"] intValue] : 1024;
+            ce.diskGB = [d[@"disk_gb"] intValue] >= 32 ? [d[@"disk_gb"] intValue] : 32;
+            ce.lcdWidth = [d[@"width"] intValue] > 0 ? [d[@"width"] intValue] : 1024;
+            ce.lcdHeight = [d[@"height"] intValue] > 0 ? [d[@"height"] intValue] : 768;
+            ce.rtcDate = [d[@"rtc_date"] isKindOfClass:[NSString class]] ? d[@"rtc_date"] : @"2013-07-15";
+            [list addObject:ce];
+        }
+    }
+
+    NSString *chromeosCatalogPath = [[NSBundle mainBundle] pathForResource:@"chromeos-catalog" ofType:@"json"];
+    if (!chromeosCatalogPath) {
+        chromeosCatalogPath = [[[NSBundle mainBundle] bundlePath] stringByAppendingPathComponent:@"chromeos-catalog.json"];
+    }
+    NSData *chromeosData = chromeosCatalogPath ? [NSData dataWithContentsOfFile:chromeosCatalogPath] : nil;
+    NSDictionary *chromeosRoot = chromeosData ? [NSJSONSerialization JSONObjectWithData:chromeosData options:0 error:nil] : nil;
+    NSArray *chromeosEntries = [chromeosRoot isKindOfClass:[NSDictionary class]] ? chromeosRoot[@"entries"] : nil;
+    if ([chromeosEntries isKindOfClass:[NSArray class]]) {
+        for (NSDictionary *d in chromeosEntries) {
+            if (![d isKindOfClass:[NSDictionary class]]) continue;
+            CatalogEntry *ce = [[CatalogEntry alloc] init];
+            ce.entryId = d[@"id"];
+            ce.board = d[@"board"] ?: @"virt";
+            ce.productType = d[@"product_type"] ?: @"ChromeOSARMv7";
+            ce.version = d[@"version"] ?: @"R40";
+            ce.build = d[@"codename"] ?: @"Chrome OS R40 (ARM32)";
+            ce.platform = @"chromeos";
+            ce.cpu = d[@"cpu"] ?: @"cortex-a15";
+            ce.ramMB = [d[@"ram_mb"] intValue] > 0 ? [d[@"ram_mb"] intValue] : 1536;
+            ce.diskGB = [d[@"disk_gb"] intValue] >= 16 ? [d[@"disk_gb"] intValue] : 16;
+            ce.lcdWidth = [d[@"width"] intValue] > 0 ? [d[@"width"] intValue] : 1024;
+            ce.lcdHeight = [d[@"height"] intValue] > 0 ? [d[@"height"] intValue] : 768;
+            ce.rtcDate = [d[@"rtc_date"] isKindOfClass:[NSString class]] ? d[@"rtc_date"] : @"today";
+            ce.url = [d[@"url"] isKindOfClass:[NSString class]] ? d[@"url"] : nil;
+            ce.bytes = [d[@"bytes"] longLongValue];
+            [list addObject:ce];
+        }
+    }
+
+    NSString *utCatalogPath = [[NSBundle mainBundle] pathForResource:@"ubuntutouch-catalog" ofType:@"json"];
+    if (!utCatalogPath) {
+        utCatalogPath = [[[NSBundle mainBundle] bundlePath] stringByAppendingPathComponent:@"ubuntutouch-catalog.json"];
+    }
+    NSData *utData = utCatalogPath ? [NSData dataWithContentsOfFile:utCatalogPath] : nil;
+    NSDictionary *utRoot = utData ? [NSJSONSerialization JSONObjectWithData:utData options:0 error:nil] : nil;
+    NSArray *utEntries = [utRoot isKindOfClass:[NSDictionary class]] ? utRoot[@"entries"] : nil;
+    if ([utEntries isKindOfClass:[NSArray class]]) {
+        for (NSDictionary *d in utEntries) {
+            if (![d isKindOfClass:[NSDictionary class]]) continue;
+            CatalogEntry *ce = [[CatalogEntry alloc] init];
+            ce.entryId = d[@"id"];
+            ce.board = d[@"board"] ?: @"virt";
+            ce.productType = d[@"product_type"] ?: @"UbuntuTouchVirtARMv7";
+            ce.version = d[@"version"] ?: @"15.04";
+            ce.build = d[@"codename"] ?: @"Ubuntu Touch (Virt)";
+            ce.platform = @"ubuntutouch";
+            ce.cpu = d[@"cpu"] ?: @"cortex-a15";
+            ce.ramMB = [d[@"ram_mb"] intValue] > 0 ? [d[@"ram_mb"] intValue] : 1536;
+            ce.diskGB = [d[@"disk_gb"] intValue] >= 8 ? [d[@"disk_gb"] intValue] : 16;
+            ce.lcdWidth = [d[@"width"] intValue] > 0 ? [d[@"width"] intValue] : 544;
+            ce.lcdHeight = [d[@"height"] intValue] > 0 ? [d[@"height"] intValue] : 960;
+            ce.rtcDate = @"today";
+            ce.url = [d[@"url"] isKindOfClass:[NSString class]] ? d[@"url"] : nil;
+            ce.bytes = [d[@"bytes"] longLongValue];
+            ce.overlayBytes = [d[@"overlay_bytes"] longLongValue];
+            if ([d[@"overlay_urls"] isKindOfClass:[NSArray class]]) {
+                NSMutableArray<NSString *> *urls = [NSMutableArray array];
+                for (id item in (NSArray *)d[@"overlay_urls"]) {
+                    if ([item isKindOfClass:[NSString class]] && ((NSString *)item).length > 0) {
+                        [urls addObject:item];
+                    }
+                }
+                ce.overlayUrls = urls;
+            }
+            [list addObject:ce];
+        }
+    }
+
     NSLog(@"[MainViewController] Loaded %lu catalog entries", (unsigned long)list.count);
     return [list copy];
 }
@@ -1605,8 +2499,10 @@ static __weak MainViewController *sCurrentMainVC = nil;
 
 - (nullable CatalogEntry *)catalogEntryMatchingIPSWFilename:(NSString *)fileName {
     if (fileName.length == 0) return nil;
-    NSString *stem = [fileName stringByDeletingPathExtension];
     NSString *lowerFile = fileName.lowercaseString;
+    NSString *stem = [lowerFile hasSuffix:@".tar.gz"]
+        ? [fileName substringToIndex:fileName.length - 7]
+        : [fileName stringByDeletingPathExtension];
     NSString *lowerStem = stem.lowercaseString;
 
     for (CatalogEntry *ce in self.catalogEntries) {
@@ -1631,6 +2527,76 @@ static __weak MainViewController *sCurrentMainVC = nil;
     return nil;
 }
 
+- (nullable NSString *)findExistingGonkBaseZip {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    for (NSString *dir in [self ipswSearchDirectories]) {
+        for (NSString *name in @[@"android-19-aosp.zip", @"armeabi-v7a-19_r05.zip"]) {
+            NSString *candidate = [dir stringByAppendingPathComponent:name];
+            if ([fm fileExistsAtPath:candidate]) return candidate;
+        }
+    }
+    return nil;
+}
+
+- (nullable NSString *)findExistingGaiaZipForEntryId:(NSString *)entryId {
+    if (entryId.length == 0) return nil;
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSString *gaiaName = [NSString stringWithFormat:@"%@-gaia.zip", entryId];
+    for (NSString *dir in [self ipswSearchDirectories]) {
+        NSString *candidate = [dir stringByAppendingPathComponent:gaiaName];
+        if ([fm fileExistsAtPath:candidate]) return candidate;
+    }
+    return nil;
+}
+
+- (nullable NSString *)findExistingB2GTarForEntryId:(NSString *)entryId {
+    if (entryId.length == 0) return nil;
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSString *tarName = [NSString stringWithFormat:@"%@.tar.gz", entryId];
+    for (NSString *dir in [self ipswSearchDirectories]) {
+        NSString *candidate = [dir stringByAppendingPathComponent:tarName];
+        if ([fm fileExistsAtPath:candidate]) return candidate;
+    }
+    CatalogEntry *ce = [self catalogEntryWithId:entryId];
+    NSString *urlName = ce.url.lastPathComponent;
+    if (urlName.length > 0) {
+        for (NSString *dir in [self ipswSearchDirectories]) {
+            NSString *candidate = [dir stringByAppendingPathComponent:urlName];
+            if ([fm fileExistsAtPath:candidate]) return candidate;
+        }
+    }
+    return nil;
+}
+
+- (int64_t)remainingDownloadBytesForEntry:(CatalogEntry *)ce {
+    if ([ce.platform isEqualToString:@"firefoxos"]) {
+        int64_t total = 0;
+        if (![self findExistingGonkBaseZip]) total += ce.gonkBytes;
+        if (![self findExistingGaiaZipForEntryId:ce.entryId]) total += ce.gaiaBytes;
+        if (![self findExistingB2GTarForEntryId:ce.entryId]) total += (ce.b2gBytes > 0 ? ce.b2gBytes : ce.bytes);
+        return total > 0 ? total : ce.bytes;
+    }
+    if ([ce.platform isEqualToString:@"ubuntutouch"]) {
+        int64_t total = [self findExistingIPSWForEntryId:ce.entryId] ? 0 : ce.bytes;
+        NSFileManager *fm = [NSFileManager defaultManager];
+        NSString *overlaysDir = [[[self firmwaresDirectory] stringByAppendingPathComponent:@"ut-overlays"] stringByAppendingPathComponent:(ce.entryId ?: @"ut")];
+        BOOL allOverlaysReady = (ce.overlayUrls.count > 0);
+        for (NSString *urlStr in ce.overlayUrls) {
+            NSString *p = [overlaysDir stringByAppendingPathComponent:[NSURL URLWithString:urlStr].lastPathComponent ?: @""];
+            NSDictionary *attrs = [fm attributesOfItemAtPath:p error:nil];
+            if (!attrs || [attrs fileSize] == 0) {
+                allOverlaysReady = NO;
+                break;
+            }
+        }
+        if (!allOverlaysReady) {
+            total += ce.overlayBytes;
+        }
+        return total > 0 ? total : (ce.bytes + ce.overlayBytes);
+    }
+    return ce.bytes;
+}
+
 - (NSArray<FirmwareFile *> *)scanDownloadedFirmwares {
     NSMutableArray<FirmwareFile *> *res = [NSMutableArray array];
     NSFileManager *fm = [NSFileManager defaultManager];
@@ -1643,19 +2609,32 @@ static __weak MainViewController *sCurrentMainVC = nil;
         NSArray *files = [fm contentsOfDirectoryAtPath:dir error:nil];
         for (NSString *f in files) {
             if ([f hasPrefix:@"."]) continue;
-            NSString *ext = f.pathExtension.lowercaseString;
-            if (![ext isEqualToString:@"ipsw"] && ![ext isEqualToString:@"zip"]) continue;
+            BOOL isTarGz = [f.lowercaseString hasSuffix:@".tar.gz"];
+            NSString *ext = isTarGz ? @"tar.gz" : f.pathExtension.lowercaseString;
+            if (![ext isEqualToString:@"ipsw"] && ![ext isEqualToString:@"zip"] && !isTarGz) continue;
             if ([seenFiles containsObject:f.lowercaseString]) continue;
 
             NSString *full = [dir stringByAppendingPathComponent:f];
             NSDictionary *attrs = [fm attributesOfItemAtPath:full error:nil];
             if (!attrs || [attrs[NSFileType] isEqualToString:NSFileTypeDirectory]) continue;
 
+            NSString *stem = isTarGz ? [f substringToIndex:f.length - 7] : [f stringByDeletingPathExtension];
             CatalogEntry *matched = [self catalogEntryMatchingIPSWFilename:f];
+            if (!matched) {
+                matched = [self loadCustomCatalogEntryForId:stem];
+            }
             if ([ext isEqualToString:@"zip"] && (!matched || ![matched.platform isEqualToString:@"android"])) {
                 continue;
             }
-            NSString *stem = [f stringByDeletingPathExtension];
+            if (isTarGz) {
+                if (!matched || (![matched.platform isEqualToString:@"firefoxos"] && ![matched.platform isEqualToString:@"ubuntutouch"])) {
+                    continue;
+                }
+                if ([matched.platform isEqualToString:@"firefoxos"] &&
+                    (![self findExistingGonkBaseZip] || ![self findExistingGaiaZipForEntryId:matched.entryId])) {
+                    continue;
+                }
+            }
             NSString *entryId = matched ? matched.entryId : stem;
             if ([seenEntryIds containsObject:entryId]) continue;
 
@@ -1666,8 +2645,8 @@ static __weak MainViewController *sCurrentMainVC = nil;
             ff.fileName = f;
             ff.filePath = full;
             ff.entryId = entryId;
-            ff.fileSizeBytes = attrs.fileSize;
-            ff.platform = matched.platform ?: ([entryId hasPrefix:@"android-"] ? @"android" : @"ios");
+            ff.fileSizeBytes = (isTarGz && matched.bytes > 0) ? matched.bytes : attrs.fileSize;
+            ff.platform = matched.platform ?: ([entryId hasPrefix:@"chromeos-"] ? @"chromeos" : ([entryId hasPrefix:@"ut-virt-"] ? @"ubuntutouch" : ([entryId hasPrefix:@"fxos-"] ? @"firefoxos" : ([entryId hasPrefix:@"android-"] ? @"android" : @"ios"))));
             if (matched) {
                 ff.version = matched.version;
                 ff.build = matched.build;
@@ -1681,15 +2660,27 @@ static __weak MainViewController *sCurrentMainVC = nil;
 
 - (nullable NSString *)findExistingIPSWForEntryId:(NSString *)entryId {
     if (entryId.length == 0) return nil;
+    if ([entryId hasPrefix:@"fxos-"]) {
+        NSString *gonk = [self findExistingGonkBaseZip];
+        NSString *gaia = [self findExistingGaiaZipForEntryId:entryId];
+        NSString *b2g = [self findExistingB2GTarForEntryId:entryId];
+        if (gonk && gaia && b2g) {
+            return b2g;
+        }
+        return nil;
+    }
     NSFileManager *fm = [NSFileManager defaultManager];
     NSArray<NSString *> *searchDirs = [self ipswSearchDirectories];
     NSString *exactIpsw = [NSString stringWithFormat:@"%@.ipsw", entryId];
     NSString *exactZip = [NSString stringWithFormat:@"%@.zip", entryId];
+    NSString *exactTarGz = [NSString stringWithFormat:@"%@.tar.gz", entryId];
     for (NSString *dir in searchDirs) {
         NSString *candidateIpsw = [dir stringByAppendingPathComponent:exactIpsw];
         if ([fm fileExistsAtPath:candidateIpsw]) return candidateIpsw;
         NSString *candidateZip = [dir stringByAppendingPathComponent:exactZip];
         if ([fm fileExistsAtPath:candidateZip]) return candidateZip;
+        NSString *candidateTarGz = [dir stringByAppendingPathComponent:exactTarGz];
+        if ([fm fileExistsAtPath:candidateTarGz]) return candidateTarGz;
     }
 
     CatalogEntry *ce = [self catalogEntryWithId:entryId];
@@ -1715,6 +2706,39 @@ static __weak MainViewController *sCurrentMainVC = nil;
     if (!data) return NO;
     NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
     if (![json isKindOfClass:[NSDictionary class]]) return NO;
+
+    NSString *rawEntryId = [entryId hasSuffix:@"-jb"]
+        ? [entryId substringToIndex:entryId.length - 3]
+        : entryId;
+    CatalogEntry *ce = [self catalogEntryWithId:rawEntryId];
+    if (ce && ce.rtcEpoch > 0) {
+        NSDictionary *mach = [json[@"machine"] isKindOfClass:[NSDictionary class]] ? json[@"machine"] : nil;
+        if (!mach[@"rtc-epoch"]) {
+            return NO;
+        }
+    }
+    if (([entryId hasPrefix:@"m68ap-5"] || [entryId hasPrefix:@"m68ap-7"] ||
+         [entryId hasPrefix:@"n45ap-5"] || [entryId hasPrefix:@"n45ap-7"]) &&
+        ![json[@"prep_v15"] boolValue]) {
+        return NO;
+    }
+    if ([entryId hasPrefix:@"k48ap-"] && ![json[@"prep_v14"] boolValue]) {
+        return NO;
+    }
+    if ([json[@"prep_v15"] boolValue] || [json[@"prep_v14"] boolValue] || [json[@"prep_v13"] boolValue]) {
+        return YES;
+    }
+    BOOL isK48Ios4Plus = ([entryId hasPrefix:@"k48ap-"] ||
+                          [entryId hasPrefix:@"n81ap-"] ||
+                          [entryId hasPrefix:@"n90ap-"] ||
+                          [entryId hasPrefix:@"n88ap-8"] ||
+                          [entryId hasPrefix:@"n88ap-9"] ||
+                          [entryId hasPrefix:@"n88ap-10"] ||
+                          [entryId hasPrefix:@"n18ap-8"] ||
+                          [entryId hasPrefix:@"n18ap-9"]);
+    if (isK48Ios4Plus) {
+        return NO;
+    }
     if ([json[@"prep_v12"] boolValue]) {
         return YES;
     }
@@ -1735,15 +2759,37 @@ static __weak MainViewController *sCurrentMainVC = nil;
     return NO;
 }
 
+- (BOOL)isFirefoxOSBasePrepV2Ready:(NSString *)baseDir entryId:(NSString *)entryId {
+    NSString *metaPath = [baseDir stringByAppendingPathComponent:@"android-metadata.json"];
+    NSData *data = [NSData dataWithContentsOfFile:metaPath];
+    if (!data) return NO;
+    NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+    if (![json isKindOfClass:[NSDictionary class]]) return NO;
+    NSInteger minVersion = [entryId hasPrefix:@"fxos-2.6"] ? 6 : 3;
+    return [json[@"fxos_prep_version"] integerValue] >= minVersion;
+}
+
 - (BOOL)hasPreparedBaseForEntryId:(NSString *)entryId {
+    if ([entryId hasPrefix:@"winrt-"] || [entryId hasPrefix:@"chromeos-"]) {
+        return YES;
+    }
     NSString *base = [[self basesDirectory] stringByAppendingPathComponent:entryId];
     NSFileManager *fm = [NSFileManager defaultManager];
-    if ([entryId hasPrefix:@"android-"] ||
+    if ([entryId hasPrefix:@"ut-virt-"]) {
+        return [fm fileExistsAtPath:[base stringByAppendingPathComponent:@"rootfs.ext4"]] &&
+               [fm fileExistsAtPath:[base stringByAppendingPathComponent:@"virt-metadata.json"]];
+    }
+    if ([entryId hasPrefix:@"android-"] || [entryId hasPrefix:@"fxos-"] ||
         [fm fileExistsAtPath:[base stringByAppendingPathComponent:@"kernel-qemu"]]) {
-        return [fm fileExistsAtPath:[base stringByAppendingPathComponent:@"kernel-qemu"]] &&
-               [fm fileExistsAtPath:[base stringByAppendingPathComponent:@"ramdisk.img"]] &&
-               [fm fileExistsAtPath:[base stringByAppendingPathComponent:@"system.img"]] &&
-               [fm fileExistsAtPath:[base stringByAppendingPathComponent:@"userdata.img"]];
+        BOOL hasImages = [fm fileExistsAtPath:[base stringByAppendingPathComponent:@"kernel-qemu"]] &&
+                         [fm fileExistsAtPath:[base stringByAppendingPathComponent:@"ramdisk.img"]] &&
+                         [fm fileExistsAtPath:[base stringByAppendingPathComponent:@"system.img"]] &&
+                         [fm fileExistsAtPath:[base stringByAppendingPathComponent:@"userdata.img"]];
+        if (!hasImages) return NO;
+        if ([entryId hasPrefix:@"fxos-"] && ![self isFirefoxOSBasePrepV2Ready:base entryId:entryId]) {
+            return NO;
+        }
+        return YES;
     }
     BOOL hasLock = [fm fileExistsAtPath:[base stringByAppendingPathComponent:@"device.lock.json"]] ||
                    [fm fileExistsAtPath:[base stringByAppendingPathComponent:@"lock.json"]];
@@ -1773,25 +2819,14 @@ static __weak MainViewController *sCurrentMainVC = nil;
         }
         return @"s5l8900";
     }
-    if ([identifier containsString:@"n72"] || [identifier containsString:@"iPod2,1"]) {
-        return @"s5l8720";
-    }
     return nil;
 }
 
 - (nullable NSString *)scanPathForInstalledBootromTypeOnDisk:(NSString *)romType {
-    if (!romType.length) return nil;
+    if (![romType isEqualToString:@"s5l8900"]) return nil;
     NSString *docs = [self appDocumentsPath];
     NSString *romsDir = [docs stringByAppendingPathComponent:@"bootroms"];
-    NSArray<NSString *> *names = nil;
-
-    if ([romType isEqualToString:@"s5l8900"]) {
-        names = @[@"bootrom_s5l8900", @"bootrom_s5l8900.bin", @"s5l8900.bin", @"s5l8900-bootrom.bin", @"bootrom.bin"];
-    } else if ([romType isEqualToString:@"s5l8720"]) {
-        names = @[@"bootrom_240_4", @"bootrom_240_4.bin", @"bootrom.bin"];
-    } else {
-        return nil;
-    }
+    NSArray<NSString *> *names = @[@"bootrom_s5l8900", @"bootrom_s5l8900.bin", @"s5l8900.bin", @"s5l8900-bootrom.bin", @"bootrom.bin"];
 
     NSFileManager *fm = [NSFileManager defaultManager];
     for (NSString *dir in @[docs, romsDir]) {
@@ -1809,8 +2844,6 @@ static __weak MainViewController *sCurrentMainVC = nil;
     NSMutableDictionary<NSString *, NSString *> *map = [NSMutableDictionary dictionary];
     NSString *s5l8900 = [self scanPathForInstalledBootromTypeOnDisk:@"s5l8900"];
     if (s5l8900) map[@"s5l8900"] = s5l8900;
-    NSString *s5l8720 = [self scanPathForInstalledBootromTypeOnDisk:@"s5l8720"];
-    if (s5l8720) map[@"s5l8720"] = s5l8720;
     return [map copy];
 }
 
@@ -1834,8 +2867,7 @@ static __weak MainViewController *sCurrentMainVC = nil;
 }
 
 - (BOOL)hasInstalledBootrom {
-    return ([self pathForInstalledBootromType:@"s5l8900"] != nil ||
-            [self pathForInstalledBootromType:@"s5l8720"] != nil);
+    return ([self pathForInstalledBootromType:@"s5l8900"] != nil);
 }
 
 - (void)updateRomButtonState {
@@ -1859,6 +2891,18 @@ static __weak MainViewController *sCurrentMainVC = nil;
 
 - (NSString *)formattedOSVersion:(NSString *)version forPlatform:(nullable NSString *)platform {
     if (!version || version.length == 0) return @"";
+    if ([platform isEqualToString:@"winrt"]) {
+        return [NSString stringWithFormat:@"Windows %@", version];
+    }
+    if ([platform isEqualToString:@"chromeos"]) {
+        return [NSString stringWithFormat:@"Chrome OS %@", version];
+    }
+    if ([platform isEqualToString:@"ubuntutouch"]) {
+        return [NSString stringWithFormat:@"Ubuntu Touch %@", version];
+    }
+    if ([platform isEqualToString:@"firefoxos"]) {
+        return [NSString stringWithFormat:@"Firefox OS %@", version];
+    }
     if ([platform isEqualToString:@"android"]) {
         return [NSString stringWithFormat:@"Android %@", version];
     }
@@ -1871,6 +2915,18 @@ static __weak MainViewController *sCurrentMainVC = nil;
 }
 
 - (NSString *)humanReadableNameForId:(NSString *)sub {
+    if ([sub hasPrefix:@"winrt-"] || [sub containsString:@"WinRTARMv7"]) {
+        return L(@"device_winrt_arm");
+    }
+    if ([sub hasPrefix:@"chromeos-"] || [sub containsString:@"ChromeOSARMv7"]) {
+        return L(@"device_chromeos_arm");
+    }
+    if ([sub hasPrefix:@"ut-virt-"] || [sub containsString:@"UbuntuTouchVirtARMv7"]) {
+        return L(@"device_ubuntutouch_virt");
+    }
+    if ([sub hasPrefix:@"fxos-"] || [sub containsString:@"FirefoxOSARMv7"]) {
+        return L(@"device_firefoxos_arm");
+    }
     if ([sub hasPrefix:@"android-"] || [sub containsString:@"AndroidARMv7"] || [sub containsString:@"goldfish"]) {
         return L(@"device_android_arm");
     }
@@ -1880,13 +2936,16 @@ static __weak MainViewController *sCurrentMainVC = nil;
     if ([sub containsString:@"iPhone3,1"] || [sub containsString:@"n90ap"]) return L(@"device_iphone_4");
     if ([sub containsString:@"iPhone5,2"] || [sub containsString:@"iPhone5,1"] || [sub containsString:@"n42ap"]) return L(@"device_iphone_5");
     if ([sub containsString:@"iPod1,1"] || [sub containsString:@"n45ap"]) return L(@"device_ipod_1g");
-    if ([sub containsString:@"iPod2,1"] || [sub containsString:@"n72ap"]) return L(@"device_ipod_2g");
     if ([sub containsString:@"iPod3,1"] || [sub containsString:@"n18ap"]) return L(@"device_ipod_3g");
     if ([sub containsString:@"iPod4,1"] || [sub containsString:@"n81ap"]) return L(@"device_ipod_4g");
     return sub;
 }
 
 - (NSString *)productTypeForId:(NSString *)sub {
+    if ([sub hasPrefix:@"winrt-"] || [sub containsString:@"WinRTARMv7"]) return @"WinRTARMv7";
+    if ([sub hasPrefix:@"chromeos-"] || [sub containsString:@"ChromeOSARMv7"]) return @"ChromeOSARMv7";
+    if ([sub hasPrefix:@"ut-virt-"] || [sub containsString:@"UbuntuTouchVirtARMv7"]) return @"UbuntuTouchVirtARMv7";
+    if ([sub hasPrefix:@"fxos-"] || [sub containsString:@"FirefoxOSARMv7"]) return @"FirefoxOSARMv7";
     if ([sub hasPrefix:@"android-"] || [sub containsString:@"AndroidARMv7"] || [sub containsString:@"goldfish"]) return @"AndroidARMv7";
     if ([sub containsString:@"iPad1,1"] || [sub containsString:@"k48ap"]) return @"iPad1,1";
     if ([sub containsString:@"iPhone1,1"] || [sub containsString:@"m68ap"]) return @"iPhone1,1";
@@ -1894,7 +2953,6 @@ static __weak MainViewController *sCurrentMainVC = nil;
     if ([sub containsString:@"iPhone3,1"] || [sub containsString:@"n90ap"]) return @"iPhone3,1";
     if ([sub containsString:@"iPhone5,2"] || [sub containsString:@"iPhone5,1"] || [sub containsString:@"n42ap"]) return @"iPhone5,2";
     if ([sub containsString:@"iPod1,1"] || [sub containsString:@"n45ap"]) return @"iPod1,1";
-    if ([sub containsString:@"iPod2,1"] || [sub containsString:@"n72ap"]) return @"iPod2,1";
     if ([sub containsString:@"iPod3,1"] || [sub containsString:@"n18ap"]) return @"iPod3,1";
     if ([sub containsString:@"iPod4,1"] || [sub containsString:@"n81ap"]) return @"iPod4,1";
     return @"";
@@ -1903,7 +2961,9 @@ static __weak MainViewController *sCurrentMainVC = nil;
 #pragma mark - Step-by-Step Creation Wizard (端末 -> OS -> コンテナ名)
 
 - (BOOL)supportsCydiaForEntry:(CatalogEntry *)entry {
-    if ([entry.platform isEqualToString:@"android"]) {
+    if ([entry.platform isEqualToString:@"android"] || [entry.platform isEqualToString:@"firefoxos"] ||
+        [entry.platform isEqualToString:@"winrt"] || [entry.platform isEqualToString:@"chromeos"] ||
+        [entry.platform isEqualToString:@"ubuntutouch"]) {
         return NO;
     }
     NSString *pt = entry.productType ?: @"";
@@ -1946,11 +3006,14 @@ static __weak MainViewController *sCurrentMainVC = nil;
         L(@"device_iphone_4_desc"): @"iPhone3,1",
         L(@"device_iphone_5_desc"): @"iPhone5,2",
         L(@"device_ipod_1g_desc"): @"iPod1,1",
-        L(@"device_ipod_2g_desc"): @"iPod2,1",
         L(@"device_ipod_3g_desc"): @"iPod3,1",
         L(@"device_ipod_4g_desc"): @"iPod4,1",
         L(@"device_ipad_1g_desc"): @"iPad1,1",
-        L(@"device_android_arm_desc"): @"AndroidARMv7"
+        L(@"device_android_arm_desc"): @"AndroidARMv7",
+        L(@"device_firefoxos_arm_desc"): @"FirefoxOSARMv7",
+        L(@"device_winrt_arm_desc"): @"WinRTARMv7",
+        L(@"device_chromeos_arm_desc"): @"ChromeOSARMv7",
+        L(@"device_ubuntutouch_virt_desc"): @"UbuntuTouchVirtARMv7"
     };
 
     NSArray *deviceOrder = @[
@@ -1959,11 +3022,14 @@ static __weak MainViewController *sCurrentMainVC = nil;
         L(@"device_iphone_4_desc"),
         L(@"device_iphone_5_desc"),
         L(@"device_ipod_1g_desc"),
-        L(@"device_ipod_2g_desc"),
         L(@"device_ipod_3g_desc"),
         L(@"device_ipod_4g_desc"),
         L(@"device_ipad_1g_desc"),
-        L(@"device_android_arm_desc")
+        L(@"device_android_arm_desc"),
+        L(@"device_firefoxos_arm_desc"),
+        L(@"device_winrt_arm_desc"),
+        L(@"device_chromeos_arm_desc"),
+        L(@"device_ubuntutouch_virt_desc")
     ];
 
     for (NSString *title in deviceOrder) {
@@ -1993,31 +3059,45 @@ static __weak MainViewController *sCurrentMainVC = nil;
             [filtered addObject:ce];
         }
     }
+    for (FirmwareFile *ff in [self scanDownloadedFirmwares]) {
+        if ([ff.entryId hasPrefix:@"custom-"]) {
+            CatalogEntry *customCe = [self catalogEntryWithId:ff.entryId];
+            if (customCe && [customCe.productType isEqualToString:prodType]) {
+                [filtered addObject:customCe];
+            }
+        }
+    }
 
     UIAlertController *versionSelect = [UIAlertController alertControllerWithTitle:L(@"wizard_select_os_title")
                                                                            message:[NSString stringWithFormat:L(@"wizard_select_os_prompt_fmt"), deviceTitle]
                                                                     preferredStyle:UIAlertControllerStyleActionSheet];
 
     for (CatalogEntry *ce in filtered) {
-        NSString *jbId = [NSString stringWithFormat:@"%@-jb", ce.entryId];
-        BOOL baseExists = [self hasPreparedBaseForEntryId:ce.entryId];
-        BOOL jbExists = [self hasPreparedBaseForEntryId:jbId];
-        NSString *localIPSW = [self findExistingIPSWForEntryId:ce.entryId];
-
-        NSString *tag = @"";
-        if (baseExists && jbExists) {
-            tag = L(@"tag_ready_cydia");
-        } else if (jbExists) {
-            tag = L(@"tag_cydia_ready");
-        } else if (baseExists) {
-            tag = L(@"tag_ready");
-        } else if (localIPSW) {
-            tag = L(@"tag_downloaded");
+        NSString *btnTitle = nil;
+        if ([ce.platform isEqualToString:@"winrt"] || [ce.platform isEqualToString:@"chromeos"]) {
+            int defGB = [ce.platform isEqualToString:@"chromeos"] ? (ce.diskGB >= 16 ? ce.diskGB : 16) : (ce.diskGB >= 32 ? ce.diskGB : 32);
+            btnTitle = [NSString stringWithFormat:@"%@ (%d GB QCOW2)", ce.build ?: @"ARM Desktop", defGB];
         } else {
-            tag = [NSString stringWithFormat:@" (%.0f MB)", (double)ce.bytes / (1024.0 * 1024.0)];
-        }
+            NSString *jbId = [NSString stringWithFormat:@"%@-jb", ce.entryId];
+            BOOL baseExists = [self hasPreparedBaseForEntryId:ce.entryId];
+            BOOL jbExists = [self hasPreparedBaseForEntryId:jbId];
+            NSString *localIPSW = [self findExistingIPSWForEntryId:ce.entryId];
 
-        NSString *btnTitle = [NSString stringWithFormat:@"%@ (%@)%@", [self formattedOSVersion:ce.version forPlatform:ce.platform], ce.build, tag];
+            NSString *tag = @"";
+            if (baseExists && jbExists) {
+                tag = L(@"tag_ready_cydia");
+            } else if (jbExists) {
+                tag = L(@"tag_cydia_ready");
+            } else if (baseExists) {
+                tag = L(@"tag_ready");
+            } else if (localIPSW) {
+                tag = L(@"tag_downloaded");
+            } else {
+                int64_t dlBytes = [self remainingDownloadBytesForEntry:ce];
+                tag = [NSString stringWithFormat:@" (%.0f MB)", (double)dlBytes / (1024.0 * 1024.0)];
+            }
+            btnTitle = [NSString stringWithFormat:@"%@ (%@)%@", [self formattedOSVersion:ce.version forPlatform:ce.platform], ce.build, tag];
+        }
         [versionSelect addAction:[UIAlertAction actionWithTitle:btnTitle style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
             [self promptContainerNameForEntry:ce deviceTitle:deviceTitle];
         }]];
@@ -2037,20 +3117,29 @@ static __weak MainViewController *sCurrentMainVC = nil;
     // Step 3: Enter Container Name (UTM-like) & Cydia option
     NSString *cleanDevice = [self humanReadableNameForId:entry.entryId];
     NSString *verFmt = [self formattedOSVersion:entry.version forPlatform:entry.platform];
-    NSString *defaultName = [entry.platform isEqualToString:@"android"] && entry.build.length > 0
-        ? [NSString stringWithFormat:@"%@ (%@)", verFmt, [entry.variant isEqualToString:@"google_apis"] ? @"Google APIs" : @"AOSP"]
-        : [NSString stringWithFormat:@"%@ (%@)", cleanDevice, verFmt];
+    BOOL isFirefoxOS = [entry.platform isEqualToString:@"firefoxos"];
+    BOOL isWinRT = [entry.platform isEqualToString:@"winrt"] || [entry.platform isEqualToString:@"chromeos"];
+    BOOL isUbuntuTouchVirt = [entry.platform isEqualToString:@"ubuntutouch"];
+    NSString *defaultName = (isWinRT || isUbuntuTouchVirt) && entry.build.length > 0
+        ? entry.build
+        : (isFirefoxOS && entry.build.length > 0
+            ? [NSString stringWithFormat:@"%@ (%@)", verFmt, entry.build]
+            : ([entry.platform isEqualToString:@"android"] && entry.build.length > 0
+                ? [NSString stringWithFormat:@"%@ (%@)", verFmt, [entry.variant isEqualToString:@"google_apis"] ? @"Google APIs" : @"AOSP"]
+                : [NSString stringWithFormat:@"%@ (%@)", cleanDevice, verFmt]));
     BOOL canCydia = [self supportsCydiaForEntry:entry];
 
     BOOL isIPhone5 = ([entry.productType isEqualToString:@"iPhone5,2"] || [entry.entryId containsString:@"n42ap"]);
-    BOOL isAndroid = [entry.platform isEqualToString:@"android"];
+    BOOL isAndroid = [entry.platform isEqualToString:@"android"] || isFirefoxOS;
     NSString *msg = canCydia
         ? L(@"wizard_name_config_prompt_cydia")
-        : (isAndroid
-            ? L(@"wizard_name_config_prompt_android")
-            : (isIPhone5
-                ? L(@"wizard_name_config_prompt_n42")
-                : L(@"wizard_name_config_prompt_default")));
+        : ((isWinRT || isUbuntuTouchVirt)
+            ? L(@"wizard_name_config_prompt_winrt")
+            : (isAndroid
+                ? L(@"wizard_name_config_prompt_android")
+                : (isIPhone5
+                    ? L(@"wizard_name_config_prompt_n42")
+                    : L(@"wizard_name_config_prompt_default"))));
 
     UIAlertController *namePrompt = [UIAlertController alertControllerWithTitle:L(@"wizard_name_config_title")
                                                                         message:msg
@@ -2076,6 +3165,40 @@ static __weak MainViewController *sCurrentMainVC = nil;
             NSString *chosenName = tf.text.length > 0 ? tf.text : defaultName;
             [self executeContainerCreationForEntry:entry containerName:chosenName installCydia:NO];
         }]];
+    } else if ([entry.platform isEqualToString:@"winrt"] ||
+               [entry.platform isEqualToString:@"chromeos"] ||
+               [entry.platform isEqualToString:@"ubuntutouch"]) {
+        BOOL isChromeOS = [entry.platform isEqualToString:@"chromeos"];
+        BOOL isUTVirt = [entry.platform isEqualToString:@"ubuntutouch"];
+        [namePrompt addAction:[UIAlertAction actionWithTitle:L(@"create") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            UITextField *tf = namePrompt.textFields.firstObject;
+            NSString *chosenName = tf.text.length > 0 ? tf.text : defaultName;
+            UIAlertController *sizeSheet = [UIAlertController alertControllerWithTitle:@"ストレージ容量を選択"
+                                                                             message:@"QCOW2 形式のため、実際に使用した分だけ容量を消費します。"
+                                                                      preferredStyle:UIAlertControllerStyleActionSheet];
+            NSArray<NSNumber *> *sizes = isUTVirt
+                ? @[@8, @16, @32, @64]
+                : (isChromeOS ? @[@16, @32, @48, @64, @128] : @[@32, @48, @64, @128]);
+            int recGB = isUTVirt
+                ? (entry.diskGB >= 8 ? entry.diskGB : 16)
+                : (isChromeOS ? (entry.diskGB >= 16 ? entry.diskGB : 16) : 32);
+            for (NSNumber *gbNum in sizes) {
+                int gb = gbNum.intValue;
+                NSString *title = (gb == recGB)
+                    ? [NSString stringWithFormat:@"%d GB（推奨・QCOW2）", gb]
+                    : [NSString stringWithFormat:@"%d GB（QCOW2）", gb];
+                [sizeSheet addAction:[UIAlertAction actionWithTitle:title style:UIAlertActionStyleDefault handler:^(UIAlertAction *act) {
+                    entry.diskGB = gb;
+                    [self executeContainerCreationForEntry:entry containerName:chosenName installCydia:NO];
+                }]];
+            }
+            [sizeSheet addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
+            sizeSheet.popoverPresentationController.sourceView = self.view;
+            sizeSheet.popoverPresentationController.sourceRect = CGRectMake(CGRectGetMidX(self.view.bounds), CGRectGetMidY(self.view.bounds), 1, 1);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self presentViewController:sizeSheet animated:YES completion:nil];
+            });
+        }]];
     } else {
         [namePrompt addAction:[UIAlertAction actionWithTitle:L(@"create") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
             UITextField *tf = namePrompt.textFields.firstObject;
@@ -2088,10 +3211,543 @@ static __weak MainViewController *sCurrentMainVC = nil;
     [self presentViewController:namePrompt animated:YES completion:nil];
 }
 
+- (void)downloadChromeOSImageForContainer:(VMContainer *)container
+                                    entry:(CatalogEntry *)entry
+                       fromViewController:(UIViewController *)presenter
+                               completion:(void (^ _Nullable)(BOOL ok))completion {
+    if (!container || !entry || entry.url.length == 0) {
+        if (completion) completion(NO);
+        return;
+    }
+    NSURL *url = [NSURL URLWithString:entry.url];
+    if (!url) {
+        if (completion) completion(NO);
+        return;
+    }
+    NSString *title = [NSString stringWithFormat:@"%@ をダウンロード中…", entry.version ?: @"Chrome OS ARM"];
+    UIAlertController *prog = [UIAlertController alertControllerWithTitle:title
+                                                                  message:@"接続しています…"
+                                                           preferredStyle:UIAlertControllerStyleAlert];
+    NSString *dlId = [NSString stringWithFormat:@"crosdl-%@-%ld", entry.entryId ?: @"img", (long)[[NSDate date] timeIntervalSince1970] % 100000];
+    [prog addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:^(UIAlertAction *action) {
+        [[IPSWDownloader sharedDownloader] cancel];
+    }]];
+    [presenter presentViewController:prog animated:YES completion:nil];
+
+    __weak typeof(self) weakSelf = self;
+    [[IPSWDownloader sharedDownloader] startDownloadWithId:dlId
+                                              displayTitle:entry.build ?: entry.version ?: @"Chrome OS ARM"
+                                                primaryURL:url
+                                               fallbackURL:nil
+                                              expectedSHA1:nil
+                                             expectedBytes:entry.bytes
+                                                  metadata:@{}
+                                                  progress:^(int64_t bytesWritten, int64_t totalBytes, double frac, double speedMBs) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            int pct = (int)llround(frac * 100.0);
+            if (totalBytes > 0) {
+                prog.message = [NSString stringWithFormat:@"%d%%  (%.1f / %.1f MB • %.1f MB/s)",
+                                pct, (double)bytesWritten / 1048576.0, (double)totalBytes / 1048576.0, speedMBs];
+            } else {
+                prog.message = [NSString stringWithFormat:@"%.1f MB (%.1f MB/s)",
+                                (double)bytesWritten / 1048576.0, speedMBs];
+            }
+        });
+    } completion:^(NSURL * _Nullable localURL, NSError * _Nullable error) {
+        if (error || !localURL) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [prog dismissViewControllerAnimated:YES completion:^{
+                    if (error && error.code != NSURLErrorCancelled) {
+                        UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:@"ダウンロード失敗"
+                                                                                          message:error.localizedDescription ?: @"Unknown error"
+                                                                                   preferredStyle:UIAlertControllerStyleAlert];
+                        [errAlert addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
+                        [presenter presentViewController:errAlert animated:YES completion:nil];
+                    }
+                    if (completion) completion(NO);
+                }];
+            });
+            return;
+        }
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            prog.title = @"イメージを配置中…";
+            prog.message = [entry.url.lowercaseString hasSuffix:@".zip"]
+                ? @"ZIP アーカイブを展開しています…"
+                : @"ディスクイメージを保存しています…";
+        });
+
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            __strong typeof(weakSelf) s = weakSelf;
+            if (!s) return;
+            NSString *statePath = [container statePathWithRoot:[s containersDirectory]];
+            NSFileManager *fm = [NSFileManager defaultManager];
+            [fm createDirectoryAtPath:statePath withIntermediateDirectories:YES attributes:nil error:nil];
+
+            BOOL isZip = [entry.url.lowercaseString hasSuffix:@".zip"];
+            NSString *destName = isZip
+                ? [NSString stringWithFormat:@"%@.img", entry.entryId ?: @"chromeos"]
+                : [NSString stringWithFormat:@"%@.iso", entry.entryId ?: @"chromeos"];
+            NSString *destPath = [statePath stringByAppendingPathComponent:destName];
+            [fm removeItemAtPath:destPath error:nil];
+
+            BOOL ok = NO;
+            NSString *errMsg = nil;
+            if (isZip) {
+                int rc = lighttouch_extract_zip_image([localURL.path fileSystemRepresentation],
+                                                      [destPath fileSystemRepresentation]);
+                [fm removeItemAtPath:localURL.path error:nil];
+                if (rc == 0) {
+                    ok = YES;
+                } else {
+                    const char *le = lighttouch_firmware_last_error();
+                    errMsg = (le && *le) ? [NSString stringWithUTF8String:le] : @"ZIP 展開に失敗しました";
+                }
+            } else {
+                NSError *mvErr = nil;
+                if ([fm moveItemAtPath:localURL.path toPath:destPath error:&mvErr] ||
+                    [fm copyItemAtPath:localURL.path toPath:destPath error:&mvErr]) {
+                    [fm removeItemAtPath:localURL.path error:nil];
+                    ok = YES;
+                } else {
+                    errMsg = mvErr.localizedDescription ?: @"ファイル保存に失敗しました";
+                }
+            }
+
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (ok) {
+                    container.winrtIsoPath = destName;
+                    container.winrtBootFromIso = YES;
+                    [container saveMetadataWithRoot:[s containersDirectory]];
+                    [s scanContainers];
+                }
+                [prog dismissViewControllerAnimated:YES completion:^{
+                    if (!ok) {
+                        UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:@"展開エラー"
+                                                                                          message:errMsg ?: @"Unknown error"
+                                                                                   preferredStyle:UIAlertControllerStyleAlert];
+                        [errAlert addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
+                        [presenter presentViewController:errAlert animated:YES completion:nil];
+                    } else {
+                        [s->_notifyHaptic notificationOccurred:UINotificationFeedbackTypeSuccess];
+                    }
+                    if (completion) completion(ok);
+                }];
+            });
+        });
+    }];
+}
+
+- (void)createWinRTContainerWithId:(NSString *)cid name:(NSString *)name entry:(CatalogEntry *)entry {
+    BOOL isChromeOS = [entry.platform isEqualToString:@"chromeos"];
+    VMContainer *c = [[VMContainer alloc] init];
+    c.containerId = cid;
+    c.name = name;
+    c.baseId = entry.entryId ?: (isChromeOS ? @"chromeos-daisy-r40" : @"winrt-8.1");
+    c.productType = entry.productType ?: (isChromeOS ? @"ChromeOSARMv7" : @"WinRTARMv7");
+    c.version = entry.version ?: (isChromeOS ? @"R40" : @"8.1");
+    c.build = entry.build ?: (isChromeOS ? @"Chrome OS R40 (ARM32)" : @"Windows RT (ARM32)");
+    c.platform = isChromeOS ? @"chromeos" : @"winrt";
+    c.ramMB = entry.ramMB > 0 ? entry.ramMB : (isChromeOS ? 1536 : 2048);
+    c.winrtDiskPath = @"sdcard.qcow2";
+    c.winrtIsoPath = nil;
+    c.winrtBootFromIso = NO;
+    c.winrtRtcDate = entry.rtcDate.length > 0 ? entry.rtcDate : (isChromeOS ? @"today" : @"2013-07-15");
+    c.winrtEnableNet = YES;
+    c.winrtEnableAudio = YES;
+    c.createdAt = [[NSDate date] timeIntervalSince1970];
+
+    NSString *statePath = [c statePathWithRoot:[self containersDirectory]];
+    [[NSFileManager defaultManager] createDirectoryAtPath:statePath withIntermediateDirectories:YES attributes:nil error:nil];
+
+    int minGB = isChromeOS ? 16 : 32;
+    uint64_t diskBytes = (uint64_t)(entry.diskGB >= minGB ? entry.diskGB : minGB) * 1024ULL * 1024ULL * 1024ULL;
+    NSString *diskPath = [statePath stringByAppendingPathComponent:c.winrtDiskPath];
+    NSError *diskErr = nil;
+    if (!ClassicCreateWinRTQcow2DiskImage(diskPath, diskBytes, &diskErr)) {
+        UIAlertController *fail = [UIAlertController alertControllerWithTitle:L(@"storage_build_failed")
+                                                                      message:diskErr.localizedDescription ?: @"Failed creating sparse disk"
+                                                               preferredStyle:UIAlertControllerStyleAlert];
+        [fail addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
+        [self presentViewController:fail animated:YES completion:nil];
+        return;
+    }
+
+    [c saveMetadataWithRoot:[self containersDirectory]];
+    [self->_notifyHaptic notificationOccurred:UINotificationFeedbackTypeSuccess];
+    [self scanContainers];
+
+    NSUInteger rowIdx = [self.containers indexOfObjectPassingTest:^BOOL(VMContainer *obj, NSUInteger idx, BOOL *stop) {
+        return [obj.containerId isEqualToString:cid];
+    }];
+
+    UIAlertController *done = [UIAlertController alertControllerWithTitle:L(@"container_created_title")
+                                                                  message:[NSString stringWithFormat:L(@"winrt_container_created_msg_fmt"), name]
+                                                           preferredStyle:UIAlertControllerStyleAlert];
+    if (isChromeOS && entry.url.length > 0) {
+        [done addAction:[UIAlertAction actionWithTitle:@"公式イメージをダウンロード" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            VMContainer *target = (rowIdx != NSNotFound && rowIdx < self.containers.count) ? self.containers[rowIdx] : c;
+            [self downloadChromeOSImageForContainer:target entry:entry fromViewController:self completion:nil];
+        }]];
+    }
+    [done addAction:[UIAlertAction actionWithTitle:L(@"winrt_configure_media") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        if (rowIdx != NSNotFound) {
+            ContainerDetailViewController *detailVC = [[ContainerDetailViewController alloc] initWithContainer:self.containers[rowIdx] mainVC:self index:(NSInteger)rowIdx];
+            [self.navigationController pushViewController:detailVC animated:YES];
+        }
+    }]];
+    [done addAction:[UIAlertAction actionWithTitle:L(@"done") style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:done animated:YES completion:nil];
+}
+
+- (void)createOrPrepareUbuntuTouchVirtForEntry:(CatalogEntry *)entry
+                                   containerId:(NSString *)cid
+                                          name:(NSString *)name
+                                        diskGB:(int)diskGB {
+    if ([self hasPreparedBaseForEntryId:entry.entryId]) {
+        [self instantiateUbuntuTouchVirtContainerWithId:cid name:name entry:entry diskGB:diskGB];
+        return;
+    }
+    NSString *localTar = [self findExistingIPSWForEntryId:entry.entryId];
+    if (localTar.length > 0) {
+        [self downloadOverlaysAndPrepareUbuntuTouchVirt:[NSURL fileURLWithPath:localTar]
+                                                  entry:entry
+                                            containerId:cid
+                                          containerName:name
+                                                 diskGB:diskGB];
+        return;
+    }
+    NSString *displayTitle = [NSString stringWithFormat:@"%@ (%@)",
+                              [self humanReadableNameForId:entry.productType],
+                              [self formattedOSVersion:entry.version forPlatform:entry.platform]];
+    NSDictionary *metadata = @{
+        @"platform": @"ubuntutouch",
+        @"entryId": entry.entryId ?: @"",
+        @"containerId": cid ?: @"",
+        @"containerName": name ?: @"",
+        @"diskGB": @(diskGB),
+        @"managementOnly": @NO,
+        @"displayTitle": displayTitle
+    };
+    [self startIPSWDownloadForEntry:entry metadata:metadata];
+}
+
+- (void)downloadOverlaysAndPrepareUbuntuTouchVirt:(NSURL *)tarURL
+                                            entry:(CatalogEntry *)entry
+                                      containerId:(NSString *)cid
+                                    containerName:(NSString *)name
+                                           diskGB:(int)diskGB {
+    if (self.isPreparingBase || self.isDownloadingOverlays) {
+        return;
+    }
+    if (tarURL.path.length == 0 || ![[NSFileManager defaultManager] fileExistsAtPath:tarURL.path]) {
+        [_notifyHaptic notificationOccurred:UINotificationFeedbackTypeError];
+        UIAlertController *fail = [UIAlertController alertControllerWithTitle:L(@"storage_build_failed")
+                                                                      message:[NSString stringWithFormat:L(@"firmware_err_ipsw_not_found_fmt"), tarURL.path ?: @"(null)"]
+                                                               preferredStyle:UIAlertControllerStyleAlert];
+        [fail addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
+        [self presentViewController:fail animated:YES completion:nil];
+        return;
+    }
+
+    NSArray<NSString *> *overlayUrls = entry.overlayUrls;
+    if (overlayUrls.count == 0 && entry.entryId.length > 0) {
+        CatalogEntry *catEntry = [self catalogEntryWithId:entry.entryId];
+        if (catEntry.overlayUrls.count > 0) {
+            overlayUrls = catEntry.overlayUrls;
+        }
+    }
+    if (overlayUrls.count == 0) {
+        [_notifyHaptic notificationOccurred:UINotificationFeedbackTypeError];
+        UIAlertController *fail = [UIAlertController alertControllerWithTitle:L(@"storage_build_failed")
+                                                                      message:@"Ubuntu Touch Mesa/Mir overlay package list is missing from catalog."
+                                                               preferredStyle:UIAlertControllerStyleAlert];
+        [fail addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
+        [self presentViewController:fail animated:YES completion:nil];
+        return;
+    }
+
+    self.isDownloadingOverlays = YES;
+    NSString *overlaysDir = [[[self firmwaresDirectory] stringByAppendingPathComponent:@"ut-overlays"]
+                             stringByAppendingPathComponent:(entry.entryId ?: @"ut-virt")];
+
+    [self showProgress:L(@"ubuntutouch_downloading_overlays")
+                detail:[NSString stringWithFormat:@"0 / %lu", (unsigned long)overlayUrls.count]];
+    self.cancelButton.hidden = NO;
+    self.progressBar.progress = 0.0f;
+    NSUInteger opToken = self.progressToken;
+
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSFileManager *fm = [NSFileManager defaultManager];
+        [fm createDirectoryAtPath:overlaysDir withIntermediateDirectories:YES attributes:nil error:nil];
+
+        NSURLSessionConfiguration *cfg = [NSURLSessionConfiguration defaultSessionConfiguration];
+        cfg.timeoutIntervalForRequest = 30.0;
+        cfg.timeoutIntervalForResource = 120.0;
+        NSURLSession *session = [NSURLSession sessionWithConfiguration:cfg];
+
+        BOOL (^isOpCancelled)(void) = ^BOOL {
+            __block BOOL cancelled = NO;
+            dispatch_sync(dispatch_get_main_queue(), ^{
+                __strong typeof(weakSelf) s = weakSelf;
+                cancelled = (!s || s.progressToken != opToken);
+            });
+            return cancelled;
+        };
+
+        NSString *dlErrorMsg = nil;
+        NSUInteger totalCount = overlayUrls.count;
+        for (NSUInteger idx = 0; idx < totalCount; idx++) {
+            if (isOpCancelled()) {
+                dlErrorMsg = @"cancelled";
+                break;
+            }
+            NSString *urlStr = overlayUrls[idx];
+            NSURL *debURL = [NSURL URLWithString:urlStr];
+            NSString *fileName = debURL.lastPathComponent ?: [NSString stringWithFormat:@"overlay_%lu.deb", (unsigned long)idx];
+            NSString *dstPath = [overlaysDir stringByAppendingPathComponent:fileName];
+            NSString *partPath = [dstPath stringByAppendingString:@".part"];
+
+            dispatch_async(dispatch_get_main_queue(), ^{
+                __strong typeof(weakSelf) s = weakSelf;
+                if (!s || s.progressToken != opToken) return;
+                s.progressBar.progress = (float)idx / (float)MAX(totalCount, 1);
+                s.progressDetailLabel.text = [NSString stringWithFormat:@"[%lu / %lu] %@",
+                                              (unsigned long)(idx + 1), (unsigned long)totalCount, fileName];
+            });
+
+            NSDictionary *existingAttrs = [fm attributesOfItemAtPath:dstPath error:nil];
+            if (existingAttrs && [existingAttrs fileSize] > 0) {
+                continue;
+            }
+
+            if (!debURL) {
+                dlErrorMsg = [NSString stringWithFormat:@"Invalid overlay URL: %@", urlStr];
+                break;
+            }
+
+            BOOL fetched = NO;
+            NSString *lastErr = @"Download failed";
+            for (int attempt = 0; attempt < 3; attempt++) {
+                if (isOpCancelled()) {
+                    dlErrorMsg = @"cancelled";
+                    break;
+                }
+                if (attempt > 0) {
+                    [NSThread sleepForTimeInterval:(attempt == 1 ? 1.5 : 3.0)];
+                    if (isOpCancelled()) {
+                        dlErrorMsg = @"cancelled";
+                        break;
+                    }
+                }
+                [fm removeItemAtPath:partPath error:nil];
+                dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+                __block NSURL *tmpLoc = nil;
+                __block NSURLResponse *resp = nil;
+                __block NSError *taskErr = nil;
+                NSURLSessionDownloadTask *task = [session downloadTaskWithURL:debURL completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
+                    if (location && !error) {
+                        NSError *mvErr = nil;
+                        if ([fm moveItemAtURL:location toURL:[NSURL fileURLWithPath:partPath] error:&mvErr] ||
+                            [fm copyItemAtURL:location toURL:[NSURL fileURLWithPath:partPath] error:&mvErr]) {
+                            tmpLoc = [NSURL fileURLWithPath:partPath];
+                        } else {
+                            taskErr = mvErr;
+                        }
+                    } else {
+                        taskErr = error;
+                    }
+                    resp = response;
+                    dispatch_semaphore_signal(sem);
+                }];
+                [task resume];
+                dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER);
+
+                NSInteger statusCode = [resp isKindOfClass:[NSHTTPURLResponse class]] ? ((NSHTTPURLResponse *)resp).statusCode : 0;
+                if (statusCode >= 200 && statusCode < 300 && tmpLoc != nil) {
+                    NSDictionary *partAttrs = [fm attributesOfItemAtPath:partPath error:nil];
+                    if (partAttrs && [partAttrs fileSize] > 0) {
+                        [fm removeItemAtPath:dstPath error:nil];
+                        NSError *finalErr = nil;
+                        if ([fm moveItemAtPath:partPath toPath:dstPath error:&finalErr]) {
+                            fetched = YES;
+                            break;
+                        }
+                        lastErr = finalErr.localizedDescription ?: @"Failed writing overlay .deb";
+                    } else {
+                        lastErr = [NSString stringWithFormat:@"Empty response for %@", fileName];
+                    }
+                } else {
+                    [fm removeItemAtPath:partPath error:nil];
+                    lastErr = taskErr.localizedDescription ?: [NSString stringWithFormat:@"HTTP %ld for %@", (long)statusCode, fileName];
+                    if (statusCode > 0 && statusCode < 500 && statusCode != 429) {
+                        break;
+                    }
+                }
+            }
+            if (dlErrorMsg) break;
+            if (!fetched) {
+                dlErrorMsg = lastErr;
+                break;
+            }
+        }
+
+        [session finishTasksAndInvalidate];
+
+        if (dlErrorMsg || isOpCancelled()) {
+            BOOL wasCancelled = !dlErrorMsg || [dlErrorMsg isEqualToString:@"cancelled"];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                __strong typeof(weakSelf) s = weakSelf;
+                if (!s) return;
+                s.isDownloadingOverlays = NO;
+                [s hideProgress];
+                if (!wasCancelled) {
+                    [s->_notifyHaptic notificationOccurred:UINotificationFeedbackTypeError];
+                    UIAlertController *err = [UIAlertController alertControllerWithTitle:L(@"download_failed_title")
+                                                                                 message:dlErrorMsg
+                                                                          preferredStyle:UIAlertControllerStyleAlert];
+                    [err addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
+                    [s presentViewController:err animated:YES completion:nil];
+                }
+            });
+            return;
+        }
+
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) s = weakSelf;
+            if (!s) return;
+            s.isDownloadingOverlays = NO;
+            s.isPreparingBase = YES;
+            s.cancelButton.hidden = YES;
+            s.progressTitleLabel.text = L(@"ubuntutouch_building_rootfs");
+            s.progressDetailLabel.text = L(@"extracting_android_images");
+            s.progressBar.progress = 0.0f;
+        });
+
+        NSString *outDir = [[self basesDirectory] stringByAppendingPathComponent:(entry.entryId ?: @"ut-virt-15.04")];
+        [fm removeItemAtPath:outDir error:nil];
+        [fm createDirectoryAtPath:outDir withIntermediateDirectories:YES attributes:nil error:nil];
+
+        int rc = lighttouch_prepare_ubuntutouch_virt(
+            tarURL.path.UTF8String,
+            overlaysDir.UTF8String,
+            (entry.version ?: @"15.04").UTF8String,
+            outDir.UTF8String,
+            firmware_progress_callback
+        );
+
+        NSString *prepErr = nil;
+        if (rc != 0) {
+            const char *le = lighttouch_firmware_last_error();
+            prepErr = (le && *le) ? [NSString stringWithUTF8String:le] : [NSString stringWithFormat:@"Prep failed (%d)", rc];
+        }
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) s = weakSelf;
+            if (!s) return;
+            s.isPreparingBase = NO;
+            [s hideProgress];
+            if (rc == 0) {
+                [s instantiateUbuntuTouchVirtContainerWithId:cid name:name entry:entry diskGB:diskGB];
+            } else {
+                [s->_notifyHaptic notificationOccurred:UINotificationFeedbackTypeError];
+                UIAlertController *fail = [UIAlertController alertControllerWithTitle:L(@"storage_build_failed")
+                                                                              message:prepErr ?: @"Unknown error"
+                                                                       preferredStyle:UIAlertControllerStyleAlert];
+                [fail addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
+                [s presentViewController:fail animated:YES completion:nil];
+            }
+        });
+    });
+}
+
+- (void)instantiateUbuntuTouchVirtContainerWithId:(NSString *)cid
+                                           name:(NSString *)name
+                                          entry:(CatalogEntry *)entry
+                                         diskGB:(int)diskGB {
+    VMContainer *c = [[VMContainer alloc] init];
+    c.containerId = cid;
+    c.name = name;
+    c.baseId = entry.entryId ?: @"ut-virt-15.04";
+    c.productType = entry.productType ?: @"UbuntuTouchVirtARMv7";
+    c.version = entry.version ?: @"15.04";
+    c.build = entry.build ?: @"Ubuntu Touch (Virt)";
+    c.platform = @"ubuntutouch";
+    c.ramMB = entry.ramMB > 0 ? entry.ramMB : 1536;
+    c.winrtDiskPath = @"userdata.qcow2";
+    c.winrtIsoPath = nil;
+    c.winrtBootFromIso = NO;
+    c.winrtRtcDate = @"today";
+    c.winrtEnableNet = YES;
+    c.winrtEnableAudio = YES;
+    c.createdAt = [[NSDate date] timeIntervalSince1970];
+
+    NSString *baseRootfs = [[[self basesDirectory] stringByAppendingPathComponent:c.baseId]
+                            stringByAppendingPathComponent:@"rootfs.ext4"];
+    NSString *statePath = [c statePathWithRoot:[self containersDirectory]];
+    NSString *stateRootfs = [statePath stringByAppendingPathComponent:@"rootfs.ext4"];
+    NSString *userdataPath = [statePath stringByAppendingPathComponent:c.winrtDiskPath];
+    uint64_t userdataBytes = (uint64_t)(diskGB >= 8 ? diskGB : 16) * 1024ULL * 1024ULL * 1024ULL;
+
+    [self showProgress:L(@"ubuntutouch_building_rootfs") detail:name ?: c.containerId];
+    self.cancelButton.hidden = YES;
+    self.progressBar.progress = 0.5f;
+
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSFileManager *fm = [NSFileManager defaultManager];
+        [fm createDirectoryAtPath:statePath withIntermediateDirectories:YES attributes:nil error:nil];
+        [fm removeItemAtPath:stateRootfs error:nil];
+
+        NSError *opErr = nil;
+        BOOL ok = [fm copyItemAtPath:baseRootfs toPath:stateRootfs error:&opErr];
+        if (ok) {
+            ok = ClassicCreateWinRTQcow2DiskImage(userdataPath, userdataBytes, &opErr);
+        }
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) s = weakSelf;
+            if (!s) return;
+            [s hideProgress];
+            if (!ok) {
+                [s->_notifyHaptic notificationOccurred:UINotificationFeedbackTypeError];
+                UIAlertController *fail = [UIAlertController alertControllerWithTitle:L(@"storage_build_failed")
+                                                                              message:opErr.localizedDescription ?: @"Failed creating Ubuntu Touch container storage"
+                                                                       preferredStyle:UIAlertControllerStyleAlert];
+                [fail addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
+                [s presentViewController:fail animated:YES completion:nil];
+                return;
+            }
+            [c saveMetadataWithRoot:[s containersDirectory]];
+            [s->_notifyHaptic notificationOccurred:UINotificationFeedbackTypeSuccess];
+            [s scanContainers];
+
+            UIAlertController *done = [UIAlertController alertControllerWithTitle:L(@"container_created_title")
+                                                                          message:[NSString stringWithFormat:L(@"container_ready_msg_fmt"), name]
+                                                                   preferredStyle:UIAlertControllerStyleAlert];
+            [done addAction:[UIAlertAction actionWithTitle:L(@"boot_now") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+                [s bootContainer:c];
+            }]];
+            [done addAction:[UIAlertAction actionWithTitle:L(@"done") style:UIAlertActionStyleCancel handler:nil]];
+            [s presentViewController:done animated:YES completion:nil];
+        });
+    });
+}
+
 - (void)executeContainerCreationForEntry:(CatalogEntry *)entry containerName:(NSString *)containerName installCydia:(BOOL)installCydia {
     if (self.isPreparingBase) return;
     // Generate unique container ID
     NSString *cid = [NSString stringWithFormat:@"vm-%@-%ld", entry.entryId, (long)[[NSDate date] timeIntervalSince1970] % 100000];
+    if ([entry.platform isEqualToString:@"winrt"] || [entry.platform isEqualToString:@"chromeos"]) {
+        [self createWinRTContainerWithId:cid name:containerName entry:entry];
+        return;
+    }
+    if ([entry.platform isEqualToString:@"ubuntutouch"]) {
+        int diskGB = (entry.diskGB >= 8 ? entry.diskGB : 16);
+        [self createOrPrepareUbuntuTouchVirtForEntry:entry containerId:cid name:containerName diskGB:diskGB];
+        return;
+    }
     NSString *baseId = installCydia ? [NSString stringWithFormat:@"%@-jb", entry.entryId] : entry.entryId;
 
     // Check if Base already exists
@@ -2115,6 +3771,52 @@ static __weak MainViewController *sCurrentMainVC = nil;
     [self downloadAndPrepareEntry:entry containerId:cid containerName:containerName installCydia:installCydia];
 }
 
+- (nullable CatalogEntry *)loadCustomCatalogEntryForId:(NSString *)entryId {
+    if (entryId.length == 0) return nil;
+    NSString *metaName = [NSString stringWithFormat:@"%@.custom.json", entryId];
+    for (NSString *dir in [self ipswSearchDirectories]) {
+        NSString *p = [dir stringByAppendingPathComponent:metaName];
+        NSData *data = [NSData dataWithContentsOfFile:p];
+        if (!data) continue;
+        NSDictionary *d = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        if (![d isKindOfClass:[NSDictionary class]]) continue;
+        CatalogEntry *ce = [[CatalogEntry alloc] init];
+        ce.entryId = d[@"id"] ?: entryId;
+        ce.platform = d[@"platform"] ?: @"ios";
+        ce.productType = d[@"product_type"] ?: @"";
+        ce.version = d[@"version"] ?: @"";
+        ce.build = d[@"build"] ?: @"";
+        ce.sha1 = d[@"sha1"] ?: @"";
+        ce.bytes = [d[@"bytes"] longLongValue];
+        ce.apiLevel = [d[@"api_level"] intValue];
+        ce.ramMB = [d[@"ram_mb"] intValue];
+        ce.lcdWidth = [d[@"width"] intValue];
+        ce.lcdHeight = [d[@"height"] intValue];
+        ce.lcdDensity = [d[@"dpi"] intValue];
+        ce.cpu = d[@"cpu"];
+        ce.cmdline = d[@"cmdline"];
+        ce.variant = d[@"variant"];
+        return ce;
+    }
+    return nil;
+}
+
+- (nullable NSString *)findBestGoldfishBaseZipForAPILevel:(NSInteger)targetApi {
+    NSString *bestPath = nil;
+    NSInteger bestDiff = NSIntegerMax;
+    for (CatalogEntry *ce in self.catalogEntries) {
+        if (![ce.platform isEqualToString:@"android"]) continue;
+        NSString *local = [self findExistingIPSWForEntryId:ce.entryId];
+        if (local.length == 0) continue;
+        NSInteger diff = labs((NSInteger)ce.apiLevel - targetApi);
+        if (diff < bestDiff) {
+            bestDiff = diff;
+            bestPath = local;
+        }
+    }
+    return bestPath;
+}
+
 - (nullable CatalogEntry *)catalogEntryWithId:(NSString *)entryId {
     if (entryId.length == 0) return nil;
     for (CatalogEntry *entry in self.catalogEntries) {
@@ -2122,7 +3824,7 @@ static __weak MainViewController *sCurrentMainVC = nil;
             return entry;
         }
     }
-    return nil;
+    return [self loadCustomCatalogEntryForId:entryId];
 }
 
 - (void)handleCompletedIPSWDownloadAtURL:(nullable NSURL *)localURL
@@ -2160,7 +3862,7 @@ static __weak MainViewController *sCurrentMainVC = nil;
     NSString *name = metadata[@"containerName"];
     BOOL installCydia = [metadata[@"installCydia"] boolValue];
     NSString *displayTitle = metadata[@"displayTitle"] ?: entryId ?: @"Firmware";
-    if (!self.isCatalogLoaded && !managementOnly && entryId.length > 0) {
+    if (!self.isCatalogLoaded && entryId.length > 0) {
         __weak typeof(self) weakSelf = self;
         [self ensureCatalogLoadedThen:^{
             __strong typeof(weakSelf) s = weakSelf;
@@ -2170,6 +3872,10 @@ static __weak MainViewController *sCurrentMainVC = nil;
         return;
     }
     CatalogEntry *entry = [self catalogEntryWithId:entryId];
+    if (entry && [entry.platform isEqualToString:@"firefoxos"] && ![self findExistingIPSWForEntryId:entry.entryId]) {
+        [self startIPSWDownloadForEntry:entry metadata:metadata];
+        return;
+    }
 
     if (managementOnly || !entry || cid.length == 0 || name.length == 0) {
         [self hideProgress];
@@ -2185,6 +3891,12 @@ static __weak MainViewController *sCurrentMainVC = nil;
         } else {
             [self promptFirmwareManagement:nil];
         }
+        return;
+    }
+
+    if (entry && [entry.platform isEqualToString:@"ubuntutouch"]) {
+        int diskGB = [metadata[@"diskGB"] intValue] >= 8 ? [metadata[@"diskGB"] intValue] : (entry.diskGB >= 8 ? entry.diskGB : 16);
+        [self downloadOverlaysAndPrepareUbuntuTouchVirt:localURL entry:entry containerId:cid containerName:name diskGB:diskGB];
         return;
     }
 
@@ -2270,21 +3982,50 @@ static __weak MainViewController *sCurrentMainVC = nil;
 
 - (void)startIPSWDownloadForEntry:(CatalogEntry *)entry metadata:(NSDictionary *)metadata {
     [_haptic impactOccurred];
-    NSString *title = [NSString stringWithFormat:@"%@ (%@)", [self humanReadableNameForId:entry.productType], [self formattedOSVersion:entry.version forPlatform:entry.platform]];
-    [self showProgress:[NSString stringWithFormat:L(@"downloading_fmt"), [self formattedOSVersion:entry.version forPlatform:entry.platform]]
+    NSString *downloadId = entry.entryId;
+    NSURL *primary = [NSURL URLWithString:entry.url];
+    NSURL *fallback = entry.fallbackUrl ? [NSURL URLWithString:entry.fallbackUrl] : nil;
+    NSString *expectedSHA1 = entry.sha1;
+    int64_t expectedBytes = entry.bytes;
+    NSString *stepLabel = [self formattedOSVersion:entry.version forPlatform:entry.platform];
+
+    if ([entry.platform isEqualToString:@"firefoxos"]) {
+        if (![self findExistingGonkBaseZip]) {
+            downloadId = @"android-19-aosp";
+            primary = [NSURL URLWithString:entry.gonkUrl];
+            fallback = nil;
+            expectedSHA1 = entry.gonkSha1;
+            expectedBytes = entry.gonkBytes;
+            stepLabel = [NSString stringWithFormat:@"%@ (1/3 Gonk Base)", [self formattedOSVersion:entry.version forPlatform:entry.platform]];
+        } else if (![self findExistingGaiaZipForEntryId:entry.entryId]) {
+            downloadId = [NSString stringWithFormat:@"%@-gaia", entry.entryId];
+            primary = [NSURL URLWithString:entry.gaiaUrl];
+            fallback = nil;
+            expectedSHA1 = entry.gaiaSha1;
+            expectedBytes = entry.gaiaBytes;
+            stepLabel = [NSString stringWithFormat:@"%@ (2/3 Gaia UI)", [self formattedOSVersion:entry.version forPlatform:entry.platform]];
+        } else {
+            downloadId = entry.entryId;
+            primary = [NSURL URLWithString:entry.url];
+            fallback = nil;
+            expectedSHA1 = entry.sha1;
+            expectedBytes = entry.b2gBytes > 0 ? entry.b2gBytes : entry.bytes;
+            stepLabel = [NSString stringWithFormat:@"%@ (3/3 Gecko B2G)", [self formattedOSVersion:entry.version forPlatform:entry.platform]];
+        }
+    }
+
+    NSString *title = [NSString stringWithFormat:@"%@ (%@)", [self humanReadableNameForId:entry.productType], stepLabel];
+    [self showProgress:[NSString stringWithFormat:L(@"downloading_fmt"), stepLabel]
                 detail:L(@"ipsw_bg_connecting_detail")];
     self.cancelButton.hidden = NO;
 
-    NSURL *primary = [NSURL URLWithString:entry.url];
-    NSURL *fallback = entry.fallbackUrl ? [NSURL URLWithString:entry.fallbackUrl] : nil;
-
     __weak typeof(self) weakSelf = self;
-    [[IPSWDownloader sharedDownloader] startDownloadWithId:entry.entryId
+    [[IPSWDownloader sharedDownloader] startDownloadWithId:downloadId
                                               displayTitle:title
                                                 primaryURL:primary
                                                fallbackURL:fallback
-                                              expectedSHA1:entry.sha1
-                                             expectedBytes:entry.bytes
+                                              expectedSHA1:expectedSHA1
+                                             expectedBytes:expectedBytes
                                                   metadata:metadata
                                                   progress:^(int64_t bytesWritten, int64_t totalBytes, double frac, double speedMBs) {
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -2409,12 +4150,14 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     }
 
     self.isPreparingBase = YES;
-    BOOL isAndroid = ([entry.platform isEqualToString:@"android"] || [entry.entryId hasPrefix:@"android-"]);
+    BOOL isFirefoxOS = ([entry.platform isEqualToString:@"firefoxos"] || [entry.entryId hasPrefix:@"fxos-"]);
+    BOOL isAndroid = isFirefoxOS || ([entry.platform isEqualToString:@"android"] || [entry.entryId hasPrefix:@"android-"]);
     NSString *baseId = (!isAndroid && installCydia) ? [NSString stringWithFormat:@"%@-jb", entry.entryId] : entry.entryId;
     NSString *progressTitle = isAndroid
         ? L(@"building_android_storage")
         : (installCydia ? L(@"building_device_storage_cydia") : L(@"building_device_storage"));
-    [self showProgress:progressTitle detail:isAndroid ? L(@"extracting_android_images") : L(@"decrypting_rootfs_nand")];
+    NSString *progressDetail = isAndroid ? L(@"extracting_android_images") : L(@"decrypting_rootfs_nand");
+    [self showProgress:progressTitle detail:progressDetail];
     self.cancelButton.hidden = YES;
     self.progressBar.progress = 0.0f;
 
@@ -2434,11 +4177,51 @@ static void firmware_progress_callback(int pct, const char *step_name) {
         tzset();
     }
 
+    NSString *gonkZipPath = isFirefoxOS ? [self findExistingGonkBaseZip] : nil;
+    NSString *gaiaZipPath = isFirefoxOS ? [self findExistingGaiaZipForEntryId:entry.entryId] : nil;
+    NSString *b2gTarPath = isFirefoxOS ? ([self findExistingB2GTarForEntryId:entry.entryId] ?: ipswURL.path) : nil;
+
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         int ret = 0;
-        if (isAndroid) {
-            ret = lighttouch_android_prepare(
+        if (isFirefoxOS) {
+            ret = lighttouch_firefoxos_prepare(
+                (gonkZipPath ?: @"").UTF8String,
+                (b2gTarPath ?: @"").UTF8String,
+                (gaiaZipPath ?: @"").UTF8String,
+                outDir.UTF8String,
+                firmware_progress_callback
+            );
+            if (ret == 0) {
+                int metaW = entry.lcdWidth > 0 ? entry.lcdWidth : 750;
+                int metaH = entry.lcdHeight > 0 ? entry.lcdHeight : 1334;
+                int metaDpi = entry.lcdDensity > 0 ? entry.lcdDensity : 320;
+                NSString *defCmdline = [NSString stringWithFormat:@"qemu=1 androidboot.hardware=goldfish console=ttyS0 android.qemud=1 android.checkjni=0 ndns=1 qemu.gles=1 qemu.sf.lcd_density=%d qemu.hw.mainkeys=0", metaDpi];
+                NSInteger prepVer = [entry.entryId hasPrefix:@"fxos-2.6"] ? 6 : 4;
+                NSDictionary *meta = @{
+                    @"platform": @"firefoxos",
+                    @"fxos_prep_version": @(prepVer),
+                    @"entryId": entry.entryId ?: @"",
+                    @"version": entry.version ?: @"",
+                    @"variant": entry.variant ?: @"b2g",
+                    @"api_level": @(entry.apiLevel > 0 ? entry.apiLevel : 19),
+                    @"ram_mb": @(entry.ramMB > 0 ? entry.ramMB : 768),
+                    @"cpu": entry.cpu.length > 0 ? entry.cpu : @"cortex-a8",
+                    @"width": @(metaW),
+                    @"height": @(metaH),
+                    @"dpi": @(metaDpi),
+                    @"cmdline": entry.cmdline ?: defCmdline
+                };
+                NSData *metaData = [NSJSONSerialization dataWithJSONObject:meta options:NSJSONWritingPrettyPrinted error:nil];
+                if (metaData) {
+                    [metaData writeToFile:[outDir stringByAppendingPathComponent:@"android-metadata.json"] atomically:YES];
+                }
+            }
+        } else if (isAndroid) {
+            NSInteger targetApi = entry.apiLevel > 0 ? entry.apiLevel : 19;
+            NSString *baseZipPath = [self findBestGoldfishBaseZipForAPILevel:targetApi];
+            ret = lighttouch_android_prepare_custom(
                 ipswURL.path.UTF8String,
+                (baseZipPath ?: @"").UTF8String,
                 outDir.UTF8String,
                 firmware_progress_callback
             );
@@ -2506,9 +4289,9 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     c.productType = entry.productType ?: [self productTypeForId:baseId];
     c.version = entry.version ?: @"";
     c.build = entry.build ?: @"";
-    c.platform = entry.platform.length > 0 ? entry.platform : ([baseId hasPrefix:@"android-"] ? @"android" : @"ios");
-    if ([c.platform isEqualToString:@"android"]) {
-        c.ramMB = entry.ramMB > 0 ? entry.ramMB : 512;
+    c.platform = entry.platform.length > 0 ? entry.platform : ([baseId hasPrefix:@"fxos-"] ? @"firefoxos" : ([baseId hasPrefix:@"android-"] ? @"android" : @"ios"));
+    if ([c.platform isEqualToString:@"android"] || [c.platform isEqualToString:@"firefoxos"]) {
+        c.ramMB = entry.ramMB > 0 ? entry.ramMB : ([c.platform isEqualToString:@"firefoxos"] ? 768 : 512);
         c.lcdDensity = entry.lcdDensity > 0 ? entry.lcdDensity : 320;
         c.gpuMode = ([entry.cmdline containsString:@"qemu.gles=0"] ? -1 : 1);
     }
@@ -2655,7 +4438,9 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     self.isImportingIPSWForManagement = managementOnly;
     NSArray *types = @[
         [UTType typeWithFilenameExtension:@"ipsw"] ?: UTTypeData,
-        [UTType typeWithFilenameExtension:@"zip"] ?: UTTypeData
+        [UTType typeWithFilenameExtension:@"zip"] ?: UTTypeData,
+        [UTType typeWithFilenameExtension:@"img"] ?: UTTypeData,
+        [UTType typeWithFilenameExtension:@"gz"] ?: (UTTypeGZIP ?: UTTypeData)
     ];
     UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:types asCopy:YES];
     picker.delegate = self;
@@ -2708,7 +4493,7 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     [fm copyItemAtPath:url.path toPath:destRoms error:nil];
 
     if (ok) {
-        NSString *romType = [targetName containsString:@"8900"] ? @"s5l8900" : @"s5l8720";
+        NSString *romType = @"s5l8900";
         self.cachedBootromPaths[romType] = destDoc;
         self.hasLoadedBootromCache = YES;
         [self->_notifyHaptic notificationOccurred:UINotificationFeedbackTypeSuccess];
@@ -2748,25 +4533,6 @@ static void firmware_progress_callback(int pct, const char *step_name) {
         [self installImportedBootromFromURL:url targetName:@"bootrom_s5l8900" romLabel:L(@"bootrom_s5l8900_desc") size:sz];
         return;
     }
-    if (kind == ClassicBootromSoCS5L8720) {
-        [self installImportedBootromFromURL:url targetName:@"bootrom_240_4" romLabel:L(@"bootrom_s5l8720_desc") size:sz];
-        return;
-    }
-    if (kind == ClassicBootromSoCAmbiguous) {
-        UIAlertController *pick = [UIAlertController alertControllerWithTitle:L(@"bootrom_select_type_title")
-                                                                      message:L(@"bootrom_select_type_msg")
-                                                               preferredStyle:UIAlertControllerStyleAlert];
-        [pick addAction:[UIAlertAction actionWithTitle:L(@"bootrom_s5l8900_desc") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
-            [self installImportedBootromFromURL:url targetName:@"bootrom_s5l8900" romLabel:L(@"bootrom_s5l8900_desc") size:sz];
-        }]];
-        [pick addAction:[UIAlertAction actionWithTitle:L(@"bootrom_s5l8720_desc") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
-            [self installImportedBootromFromURL:url targetName:@"bootrom_240_4" romLabel:L(@"bootrom_s5l8720_desc") size:sz];
-        }]];
-        [pick addAction:[UIAlertAction actionWithTitle:L(@"cancel") style:UIAlertActionStyleCancel handler:nil]];
-        UIViewController *presenter = self.presentedViewController ?: self;
-        [presenter presentViewController:pick animated:YES completion:nil];
-        return;
-    }
 
     [self->_notifyHaptic notificationOccurred:UINotificationFeedbackTypeError];
     UIAlertController *fail = [UIAlertController alertControllerWithTitle:L(@"bootrom_invalid_title")
@@ -2792,19 +4558,168 @@ static void firmware_progress_callback(int pct, const char *step_name) {
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
             NSError *err = nil;
             NSString *sha1 = [IPSWDownloader computeSHA1ForFile:url error:&err];
+            NSString *sha256 = [IPSWDownloader computeSHA256ForFile:url error:nil];
             CatalogEntry *matched = nil;
+            NSString *matchedFileName = nil;
             for (CatalogEntry *ce in catalogSnapshot) {
-                if ([ce.sha1 isEqualToString:sha1]) {
+                if ((ce.sha1.length == 64 && [ce.sha1 isEqualToString:sha256]) ||
+                    (ce.sha1.length > 0 && [ce.sha1 isEqualToString:sha1])) {
                     matched = ce;
                     break;
                 }
             }
             NSError *copyErr = nil;
             BOOL copied = NO;
+            NSString *customInspectError = nil;
+            NSDictionary *customMetaDict = nil;
+            if (!matched) {
+                NSString *extLower = url.pathExtension.lowercaseString;
+                if ([extLower isEqualToString:@"ipsw"]) {
+                    char *rawJson = lighttouch_ipsw_inspect(url.path.UTF8String);
+                    if (rawJson) {
+                        NSData *jData = [NSData dataWithBytes:rawJson length:strlen(rawJson)];
+                        lighttouch_firmware_free_string(rawJson);
+                        NSDictionary *info = [NSJSONSerialization JSONObjectWithData:jData options:0 error:nil];
+                        if ([info isKindOfClass:[NSDictionary class]]) {
+                            NSString *prodType = [info[@"product_type"] isKindOfClass:[NSString class]] ? info[@"product_type"] : @"";
+                            NSString *boardCfg = [info[@"board_config"] isKindOfClass:[NSString class]] ? info[@"board_config"] : @"";
+                            NSArray *boardCfgs = [info[@"board_configs"] isKindOfClass:[NSArray class]] ? info[@"board_configs"] : @[];
+                            NSString *ver = [info[@"product_version"] isKindOfClass:[NSString class]] ? info[@"product_version"] : @"0.0";
+                            NSString *bld = [info[@"product_build_version"] isKindOfClass:[NSString class]] ? info[@"product_build_version"] : @"custom";
+
+                            NSMutableSet<NSString *> *supportedBoards = [NSMutableSet set];
+                            for (CatalogEntry *ce in catalogSnapshot) {
+                                if ([ce.platform isEqualToString:@"ios"] && ce.productType.length > 0) {
+                                    // Map productType via board prefix or catalog entry
+                                    if ([ce.entryId containsString:@"-" ]) {
+                                        NSString *b = [[ce.entryId componentsSeparatedByString:@"-"] firstObject];
+                                        if (b.length > 0) [supportedBoards addObject:b.lowercaseString];
+                                    }
+                                }
+                            }
+                            NSString *pickedBoard = nil;
+                            if (boardCfg.length > 0 && [supportedBoards containsObject:boardCfg.lowercaseString]) {
+                                pickedBoard = boardCfg.lowercaseString;
+                            } else {
+                                for (id bObj in boardCfgs) {
+                                    if ([bObj isKindOfClass:[NSString class]] && [supportedBoards containsObject:[(NSString *)bObj lowercaseString]]) {
+                                        pickedBoard = [(NSString *)bObj lowercaseString];
+                                        break;
+                                    }
+                                }
+                            }
+                            CatalogEntry *templateEntry = nil;
+                            for (CatalogEntry *ce in catalogSnapshot) {
+                                if ([ce.platform isEqualToString:@"ios"] &&
+                                    ((pickedBoard.length > 0 && [ce.entryId hasPrefix:[pickedBoard stringByAppendingString:@"-"]]) ||
+                                     (prodType.length > 0 && [ce.productType isEqualToString:prodType]))) {
+                                    templateEntry = ce;
+                                    break;
+                                }
+                            }
+                            if (templateEntry) {
+                                NSString *tagBoard = pickedBoard ?: [[templateEntry.entryId componentsSeparatedByString:@"-"] firstObject];
+                                NSCharacterSet *badChars = [[NSCharacterSet alphanumericCharacterSet] invertedSet];
+                                NSString *cleanVer = [[ver componentsSeparatedByCharactersInSet:badChars] componentsJoinedByString:@"_"];
+                                NSString *cleanBld = [[bld componentsSeparatedByCharactersInSet:badChars] componentsJoinedByString:@"_"];
+                                NSString *customId = [NSString stringWithFormat:@"custom-%@-%@-%@", tagBoard, cleanVer, cleanBld];
+
+                                CatalogEntry *ce = [[CatalogEntry alloc] init];
+                                ce.entryId = customId;
+                                ce.platform = @"ios";
+                                ce.productType = templateEntry.productType.length > 0 ? templateEntry.productType : prodType;
+                                ce.version = ver;
+                                ce.build = bld;
+                                ce.sha1 = sha1 ?: @"";
+                                unsigned long long fsize = [[[NSFileManager defaultManager] attributesOfItemAtPath:url.path error:nil] fileSize];
+                                ce.bytes = (int64_t)fsize;
+                                matched = ce;
+                                customMetaDict = @{
+                                    @"id": customId,
+                                    @"platform": @"ios",
+                                    @"product_type": ce.productType ?: @"",
+                                    @"version": ver,
+                                    @"build": bld,
+                                    @"sha1": ce.sha1,
+                                    @"bytes": @(ce.bytes)
+                                };
+                            } else {
+                                customInspectError = [NSString stringWithFormat:@"Unsupported device board %@ (%@) in IPSW Restore.plist.", boardCfg, prodType];
+                            }
+                        }
+                    } else {
+                        const char *le = lighttouch_firmware_last_error();
+                        if (le && strlen(le) > 0) customInspectError = [NSString stringWithUTF8String:le];
+                    }
+                } else if ([extLower isEqualToString:@"zip"]) {
+                    char *rawJson = lighttouch_android_inspect_zip(url.path.UTF8String);
+                    if (rawJson) {
+                        NSData *jData = [NSData dataWithBytes:rawJson length:strlen(rawJson)];
+                        lighttouch_firmware_free_string(rawJson);
+                        NSDictionary *info = [NSJSONSerialization JSONObjectWithData:jData options:0 error:nil];
+                        if ([info isKindOfClass:[NSDictionary class]]) {
+                            int api = [info[@"api_level"] intValue] > 0 ? [info[@"api_level"] intValue] : 19;
+                            NSString *ver = [info[@"version"] isKindOfClass:[NSString class]] ? info[@"version"] : @"4.4";
+                            NSString *romName = [info[@"rom_name"] isKindOfClass:[NSString class]] ? info[@"rom_name"] : @"";
+                            if (romName.length == 0) {
+                                romName = [url.lastPathComponent stringByDeletingPathExtension];
+                            }
+                            NSCharacterSet *badChars = [[NSCharacterSet alphanumericCharacterSet] invertedSet];
+                            NSString *cleanStem = [[[url.lastPathComponent stringByDeletingPathExtension] componentsSeparatedByCharactersInSet:badChars] componentsJoinedByString:@"_"];
+                            if (cleanStem.length > 36) cleanStem = [cleanStem substringToIndex:36];
+                            NSString *customId = [NSString stringWithFormat:@"custom-android-%d-%@", api, cleanStem];
+                            int ramMB = (api >= 21) ? 1024 : ((api >= 19) ? 760 : 512);
+                            NSString *cmdline = @"qemu=1 console=ttyS0 androidboot.console=ttyS0 androidboot.hardware=goldfish android.qemud=1 ndns=1 qemu.gles=1 qemu.sf.lcd_density=320 qemu.hw.mainkeys=0";
+                            unsigned long long fsize = [[[NSFileManager defaultManager] attributesOfItemAtPath:url.path error:nil] fileSize];
+
+                            CatalogEntry *ce = [[CatalogEntry alloc] init];
+                            ce.entryId = customId;
+                            ce.platform = @"android";
+                            ce.productType = @"AndroidARMv7";
+                            ce.version = ver;
+                            ce.build = romName;
+                            ce.variant = @"custom";
+                            ce.apiLevel = api;
+                            ce.ramMB = ramMB;
+                            ce.lcdWidth = 750;
+                            ce.lcdHeight = 1334;
+                            ce.lcdDensity = 320;
+                            ce.cpu = @"cortex-a8";
+                            ce.cmdline = cmdline;
+                            ce.sha1 = sha1 ?: @"";
+                            ce.bytes = (int64_t)fsize;
+                            matched = ce;
+                            customMetaDict = @{
+                                @"id": customId,
+                                @"platform": @"android",
+                                @"product_type": @"AndroidARMv7",
+                                @"version": ver,
+                                @"build": romName,
+                                @"variant": @"custom",
+                                @"api_level": @(api),
+                                @"ram_mb": @(ramMB),
+                                @"width": @(750),
+                                @"height": @(1334),
+                                @"dpi": @(320),
+                                @"cpu": @"cortex-a8",
+                                @"cmdline": cmdline,
+                                @"sha1": ce.sha1,
+                                @"bytes": @(ce.bytes)
+                            };
+                        }
+                    } else {
+                        const char *le = lighttouch_firmware_last_error();
+                        if (le && strlen(le) > 0) customInspectError = [NSString stringWithUTF8String:le];
+                    }
+                }
+            }
             if (matched) {
-                NSString *ext = [matched.platform isEqualToString:@"android"] ? @"zip" : @"ipsw";
-                NSString *perm = [firmwaresDir stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.%@", matched.entryId, ext]];
-                NSString *tmpPerm = [firmwaresDir stringByAppendingPathComponent:[NSString stringWithFormat:@".importing-%@.%@", matched.entryId, ext]];
+                NSString *ext = ([matched.platform isEqualToString:@"firefoxos"] || [matched.platform isEqualToString:@"ubuntutouch"])
+                    ? @"tar.gz"
+                    : ([matched.platform isEqualToString:@"android"] ? @"zip" : @"ipsw");
+                NSString *destName = matchedFileName ?: [NSString stringWithFormat:@"%@.%@", matched.entryId, ext];
+                NSString *perm = [firmwaresDir stringByAppendingPathComponent:destName];
+                NSString *tmpPerm = [firmwaresDir stringByAppendingPathComponent:[NSString stringWithFormat:@".importing-%@", destName]];
                 NSFileManager *fm = [NSFileManager defaultManager];
                 [fm removeItemAtPath:tmpPerm error:nil];
                 if ([fm copyItemAtPath:url.path toPath:tmpPerm error:&copyErr]) {
@@ -2813,6 +4728,11 @@ static void firmware_progress_callback(int pct, const char *step_name) {
                 }
                 if (!copied) {
                     [fm removeItemAtPath:tmpPerm error:nil];
+                } else if (customMetaDict) {
+                    NSData *mData = [NSJSONSerialization dataWithJSONObject:customMetaDict options:NSJSONWritingPrettyPrinted error:nil];
+                    if (mData) {
+                        [mData writeToFile:[firmwaresDir stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.custom.json", matched.entryId]] atomically:YES];
+                    }
                 }
             }
             dispatch_async(dispatch_get_main_queue(), ^{
@@ -2834,7 +4754,7 @@ static void firmware_progress_callback(int pct, const char *step_name) {
                     [TopPresentedViewController(hostVC) presentViewController:alert animated:YES completion:nil];
                 } else {
                     UIAlertController *alert = [UIAlertController alertControllerWithTitle:L(@"unsupported_ipsw")
-                                                                                   message:L(@"ipsw_sha1_mismatch")
+                                                                                   message:customInspectError ?: L(@"ipsw_sha1_mismatch")
                                                                             preferredStyle:UIAlertControllerStyleAlert];
                     [alert addAction:[UIAlertAction actionWithTitle:L(@"ok") style:UIAlertActionStyleDefault handler:nil]];
                     [TopPresentedViewController(hostVC) presentViewController:alert animated:YES completion:nil];
@@ -3012,6 +4932,8 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     if (self.isPreparingBase) {
         return;
     }
+    self.isDownloadingOverlays = NO;
+    self.progressToken += 1;
     [[IPSWDownloader sharedDownloader] cancel];
     [self hideProgress];
 }
@@ -3034,13 +4956,11 @@ static void firmware_progress_callback(int pct, const char *step_name) {
         return;
     }
 
-    // Check BootROM requirement per SoC family (S5L8900 vs S5L8720)
+    // Check BootROM requirement (S5L8900 for iPhone 2G / iPod touch 1G OS 1.x)
     NSString *requiredRom = [self requiredBootromTypeForIdentifier:container.baseId ?: container.productType];
     if (requiredRom && ![self hasInstalledBootromForIdentifier:container.baseId ?: container.productType]) {
         [_notifyHaptic notificationOccurred:UINotificationFeedbackTypeWarning];
-        NSString *romMsg = [requiredRom isEqualToString:@"s5l8720"]
-            ? L(@"bootrom_required_s5l8720_msg")
-            : L(@"bootrom_required_s5l8900_msg");
+        NSString *romMsg = L(@"bootrom_required_s5l8900_msg");
         UIAlertController *romAlert = [UIAlertController alertControllerWithTitle:L(@"bootrom_required_title")
                                                                           message:romMsg
                                                                    preferredStyle:UIAlertControllerStyleAlert];
@@ -3055,17 +4975,26 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     }
 
     // Auto-upgrade any pre-v5 base affected by v3/v4 OpenGLES / sandbox_patch / N42 restore helper updates
-    if (container.baseId.length > 0) {
+    BOOL isWinRT = ([container.platform isEqualToString:@"winrt"] || [container.baseId hasPrefix:@"winrt-"] ||
+                    [container.platform isEqualToString:@"chromeos"] || [container.baseId hasPrefix:@"chromeos-"] ||
+                    [container.platform isEqualToString:@"ubuntutouch"] || [container.baseId hasPrefix:@"ut-virt-"]);
+    if (!isWinRT && container.baseId.length > 0) {
         NSString *baseDir = [container basePathWithRoot:[self basesDirectory]];
         NSString *stateDir = [container statePathWithRoot:[self containersDirectory]];
         NSFileManager *fm = [NSFileManager defaultManager];
-        BOOL isAndroid = ([container.platform isEqualToString:@"android"] ||
-                          [container.baseId hasPrefix:@"android-"] ||
-                          [fm fileExistsAtPath:[baseDir stringByAppendingPathComponent:@"kernel-qemu"]]);
+        BOOL isFirefoxOS = ([container.platform isEqualToString:@"firefoxos"] ||
+                            [container.baseId hasPrefix:@"fxos-"]);
+        BOOL isAndroid = (!isFirefoxOS &&
+                          ([container.platform isEqualToString:@"android"] ||
+                           [container.baseId hasPrefix:@"android-"] ||
+                           [fm fileExistsAtPath:[baseDir stringByAppendingPathComponent:@"kernel-qemu"]]));
         BOOL isN42 = [container.baseId hasPrefix:@"n42ap-"];
         BOOL n42AlreadyInit = isN42 && [fm fileExistsAtPath:[stateDir stringByAppendingPathComponent:@".ppn_initialized"]];
-        if (!isAndroid && !n42AlreadyInit && ![self isBasePrepV11OrStableReady:baseDir entryId:container.baseId]) {
-            BOOL isJb = [container.baseId hasSuffix:@"-jb"];
+        BOOL needsBaseUpgrade = isFirefoxOS
+            ? ![self isFirefoxOSBasePrepV2Ready:baseDir entryId:container.baseId]
+            : (!isAndroid && !n42AlreadyInit && ![self isBasePrepV11OrStableReady:baseDir entryId:container.baseId]);
+        if (needsBaseUpgrade) {
+            BOOL isJb = (!isFirefoxOS && [container.baseId hasSuffix:@"-jb"]);
             NSString *rawEntryId = isJb ? [container.baseId substringToIndex:container.baseId.length - 3] : container.baseId;
             __weak typeof(self) weakSelf = self;
             [self ensureCatalogLoadedThen:^{
@@ -3075,6 +5004,7 @@ static void firmware_progress_callback(int pct, const char *step_name) {
                 if (!ce) {
                     ce = [[CatalogEntry alloc] init];
                     ce.entryId = rawEntryId;
+                    ce.platform = isFirefoxOS ? @"firefoxos" : container.platform;
                     ce.productType = container.productType ?: [s productTypeForId:rawEntryId];
                     ce.version = container.version ?: @"";
                     ce.build = container.build ?: @"";
@@ -3168,6 +5098,13 @@ static void firmware_progress_callback(int pct, const char *step_name) {
     emuVC.androidRamMB = container.ramMB;
     emuVC.androidLcdDensity = container.lcdDensity;
     emuVC.androidGpuMode = container.gpuMode;
+    emuVC.platform = container.platform;
+    emuVC.winrtDiskPath = container.winrtDiskPath;
+    emuVC.winrtIsoPath = container.winrtIsoPath;
+    emuVC.winrtBootFromIso = container.winrtBootFromIso;
+    emuVC.winrtRtcDate = container.winrtRtcDate;
+    emuVC.winrtEnableNet = container.winrtEnableNet;
+    emuVC.winrtEnableAudio = container.winrtEnableAudio;
     __weak typeof(self) weakSelf = self;
     emuVC.onEngineProcessConsumed = ^{
         weakSelf.hasConsumedEngineProcess = YES;
@@ -3344,6 +5281,10 @@ static UIImage *ClassicDeviceIconWithBadge(UIImage *symbol, UIColor *accentColor
     static UIImage *sIpadBadgeImg = nil;
     static UIImage *sIpodBadgeImg = nil;
     static UIImage *sAndroidBadgeImg = nil;
+    static UIImage *sFirefoxBadgeImg = nil;
+    static UIImage *sWinRTBadgeImg = nil;
+    static UIImage *sChromeOSBadgeImg = nil;
+    static UIImage *sUbuntuTouchBadgeImg = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         UIImageSymbolConfiguration *playCfg = [UIImageSymbolConfiguration configurationWithPointSize:14.0 weight:UIImageSymbolWeightBold];
@@ -3353,11 +5294,18 @@ static UIImage *ClassicDeviceIconWithBadge(UIImage *symbol, UIColor *accentColor
         UIImage *rawIpad = [UIImage systemImageNamed:@"ipad" withConfiguration:symCfg];
         UIImage *rawIpod = [UIImage systemImageNamed:@"ipodtouch" withConfiguration:symCfg];
         UIImage *rawAndroid = [UIImage systemImageNamed:@"smartphone" withConfiguration:symCfg] ?: rawIphone;
+        UIImage *rawFirefox = [UIImage systemImageNamed:@"flame.fill" withConfiguration:symCfg] ?: rawAndroid;
+        UIImage *rawWinrt = [UIImage systemImageNamed:@"laptopcomputer" withConfiguration:symCfg] ?: rawIpad;
+        UIImage *rawChromeOS = [UIImage systemImageNamed:@"globe" withConfiguration:symCfg] ?: rawWinrt;
 
         sIphoneBadgeImg = ClassicDeviceIconWithBadge(rawIphone, [UIColor systemBlueColor]);
         sIpadBadgeImg = ClassicDeviceIconWithBadge(rawIpad, [UIColor systemIndigoColor]);
         sIpodBadgeImg = ClassicDeviceIconWithBadge(rawIpod, [UIColor systemPurpleColor]);
         sAndroidBadgeImg = ClassicDeviceIconWithBadge(rawAndroid, [UIColor systemGreenColor]);
+        sFirefoxBadgeImg = ClassicDeviceIconWithBadge(rawFirefox, [UIColor systemOrangeColor]);
+        sWinRTBadgeImg = ClassicDeviceIconWithBadge(rawWinrt, [UIColor systemCyanColor]);
+        sChromeOSBadgeImg = ClassicDeviceIconWithBadge(rawChromeOS, [UIColor systemTealColor]);
+        sUbuntuTouchBadgeImg = ClassicDeviceIconWithBadge(rawIphone, [UIColor colorWithRed:0.91 green:0.33 blue:0.13 alpha:1.0]);
     });
 
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:cellId];
@@ -3388,13 +5336,19 @@ static UIImage *ClassicDeviceIconWithBadge(UIImage *symbol, UIColor *accentColor
     VMContainer *c = self.containers[indexPath.row];
     cell.textLabel.text = c.name;
 
-    BOOL isAndroid = ([c.platform isEqualToString:@"android"] || [c.baseId hasPrefix:@"android-"]);
+    BOOL isChromeOS = ([c.platform isEqualToString:@"chromeos"] || [c.baseId hasPrefix:@"chromeos-"]);
+    BOOL isUbuntuTouchVirt = ([c.platform isEqualToString:@"ubuntutouch"] || [c.baseId hasPrefix:@"ut-virt-"]);
+    BOOL isWinRTOnly = ([c.platform isEqualToString:@"winrt"] || [c.baseId hasPrefix:@"winrt-"]);
+    BOOL isWinRT = isWinRTOnly || isChromeOS || isUbuntuTouchVirt;
+    BOOL isFirefoxOS = !isWinRT && ([c.platform isEqualToString:@"firefoxos"] || [c.baseId hasPrefix:@"fxos-"]);
+    BOOL isAndroid = !isWinRT && (isFirefoxOS || ([c.platform isEqualToString:@"android"] || [c.baseId hasPrefix:@"android-"]));
     NSString *devClean = [self humanReadableNameForId:c.baseId];
-    NSString *verStr = c.version.length > 0 ? [self formattedOSVersion:c.version forPlatform:(isAndroid ? @"android" : c.platform)] : @"";
+    NSString *verPlatform = isChromeOS ? @"chromeos" : (isUbuntuTouchVirt ? @"ubuntutouch" : (isWinRTOnly ? @"winrt" : (isFirefoxOS ? @"firefoxos" : (isAndroid ? @"android" : c.platform))));
+    NSString *verStr = c.version.length > 0 ? [self formattedOSVersion:c.version forPlatform:verPlatform] : @"";
 
     NSString *romTag = @"";
     BOOL romMissing = NO;
-    if (!isAndroid && [self requiredBootromTypeForIdentifier:c.baseId] != nil) {
+    if (!isAndroid && !isWinRT && [self requiredBootromTypeForIdentifier:c.baseId] != nil) {
         BOOL hasRom = [self hasInstalledBootromForIdentifier:c.baseId];
         romMissing = !hasRom;
         romTag = hasRom
@@ -3402,8 +5356,10 @@ static UIImage *ClassicDeviceIconWithBadge(UIImage *symbol, UIColor *accentColor
             : [NSString stringWithFormat:@" • %@", L(@"bootrom_missing")];
     }
 
-    NSString *cydiaTag = (!isAndroid && [c.baseId hasSuffix:@"-jb"]) ? @" • Cydia" : @"";
-    NSString *variantTag = (isAndroid && c.build.length > 0) ? [NSString stringWithFormat:@" • %@", c.build] : @"";
+    NSString *cydiaTag = (!isAndroid && !isWinRT && [c.baseId hasSuffix:@"-jb"]) ? @" • Cydia" : @"";
+    NSString *variantTag = (isWinRT && c.winrtIsoPath.length > 0)
+        ? [NSString stringWithFormat:@" • %@", c.winrtIsoPath.lastPathComponent]
+        : ((isAndroid && c.build.length > 0) ? [NSString stringWithFormat:@" • %@", c.build] : @"");
     NSString *idTag = c.containerId.length > 0 ? [NSString stringWithFormat:@"\nID: %@", c.containerId] : @"";
     NSString *detailText = [NSString stringWithFormat:@"%@ • %@%@%@%@%@", devClean, verStr, variantTag, cydiaTag, romTag, idTag];
     if (romMissing) {
@@ -3424,7 +5380,15 @@ static UIImage *ClassicDeviceIconWithBadge(UIImage *symbol, UIColor *accentColor
     }
 
     // Modern cached badge icons based on device type
-    if (isAndroid) {
+    if (isChromeOS) {
+        cell.imageView.image = sChromeOSBadgeImg;
+    } else if (isUbuntuTouchVirt) {
+        cell.imageView.image = sUbuntuTouchBadgeImg;
+    } else if (isWinRTOnly) {
+        cell.imageView.image = sWinRTBadgeImg;
+    } else if (isFirefoxOS) {
+        cell.imageView.image = sFirefoxBadgeImg;
+    } else if (isAndroid) {
         cell.imageView.image = sAndroidBadgeImg;
     } else if ([c.name containsString:@"iPad"] || [c.baseId containsString:@"iPad"]) {
         cell.imageView.image = sIpadBadgeImg;

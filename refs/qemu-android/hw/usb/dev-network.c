@@ -303,6 +303,116 @@ static const USBDesc desc_net = {
     .str  = usb_net_stringtable,
 };
 
+static USBDescEndpoint eps_winrt_rndis_ctrl_hs[1];
+static USBDescEndpoint eps_winrt_rndis_data_hs[2];
+static USBDescIface desc_iface_winrt_rndis_full[2];
+static USBDescIface desc_iface_winrt_rndis_high[2];
+
+static const USBDescIfaceAssoc desc_ifgroup_winrt_rndis_full = {
+    .bFirstInterface   = 0,
+    .bInterfaceCount   = 2,
+    .bFunctionClass    = 0xE0,
+    .bFunctionSubClass = 0x01,
+    .bFunctionProtocol = 0x03,
+    .iFunction         = STRING_RNDIS_CONTROL,
+    .nif               = 2,
+    .ifs               = desc_iface_winrt_rndis_full,
+};
+
+static const USBDescIfaceAssoc desc_ifgroup_winrt_rndis_high = {
+    .bFirstInterface   = 0,
+    .bInterfaceCount   = 2,
+    .bFunctionClass    = 0xE0,
+    .bFunctionSubClass = 0x01,
+    .bFunctionProtocol = 0x03,
+    .iFunction         = STRING_RNDIS_CONTROL,
+    .nif               = 2,
+    .ifs               = desc_iface_winrt_rndis_high,
+};
+
+static const USBDescConfig desc_conf_winrt_rndis_full = {
+    .bNumInterfaces      = 2,
+    .bConfigurationValue = 1,
+    .iConfiguration      = STRING_RNDIS,
+    .bmAttributes        = USB_CFG_ATT_ONE | USB_CFG_ATT_SELFPOWER,
+    .bMaxPower           = 0x32,
+    .nif_groups          = 1,
+    .if_groups           = &desc_ifgroup_winrt_rndis_full,
+};
+
+static const USBDescConfig desc_conf_winrt_rndis_high = {
+    .bNumInterfaces      = 2,
+    .bConfigurationValue = 1,
+    .iConfiguration      = STRING_RNDIS,
+    .bmAttributes        = USB_CFG_ATT_ONE | USB_CFG_ATT_SELFPOWER,
+    .bMaxPower           = 0x32,
+    .nif_groups          = 1,
+    .if_groups           = &desc_ifgroup_winrt_rndis_high,
+};
+
+static const USBDescDevice desc_device_net_winrt_full = {
+    .bcdUSB             = 0x0200,
+    .bDeviceClass       = 0xEF,
+    .bDeviceSubClass    = 0x02,
+    .bDeviceProtocol    = 0x01,
+    .bMaxPacketSize0    = 0x40,
+    .bNumConfigurations = 1,
+    .confs              = &desc_conf_winrt_rndis_full,
+};
+
+static const USBDescDevice desc_device_net_winrt_high = {
+    .bcdUSB             = 0x0200,
+    .bDeviceClass       = 0xEF,
+    .bDeviceSubClass    = 0x02,
+    .bDeviceProtocol    = 0x01,
+    .bMaxPacketSize0    = 0x40,
+    .bNumConfigurations = 1,
+    .confs              = &desc_conf_winrt_rndis_high,
+};
+
+static const USBDesc desc_net_winrt = {
+    .id = {
+        .idVendor          = RNDIS_VENDOR_NUM,
+        .idProduct         = RNDIS_PRODUCT_NUM,
+        .bcdDevice         = 0,
+        .iManufacturer     = STRING_MANUFACTURER,
+        .iProduct          = STRING_PRODUCT,
+        .iSerialNumber     = STRING_SERIALNUMBER,
+    },
+    .full = &desc_device_net_winrt_full,
+    .high = &desc_device_net_winrt_high,
+    .str  = usb_net_stringtable,
+};
+
+static void usb_net_winrt_init_descs(void)
+{
+    static bool initialized;
+
+    if (initialized) {
+        return;
+    }
+    initialized = true;
+
+    desc_iface_winrt_rndis_full[0] = desc_iface_rndis[0];
+    desc_iface_winrt_rndis_full[0].bInterfaceClass = 0xE0;
+    desc_iface_winrt_rndis_full[0].bInterfaceSubClass = 0x01;
+    desc_iface_winrt_rndis_full[0].bInterfaceProtocol = 0x03;
+    desc_iface_winrt_rndis_full[1] = desc_iface_rndis[1];
+
+    eps_winrt_rndis_ctrl_hs[0] = desc_iface_rndis[0].eps[0];
+    eps_winrt_rndis_ctrl_hs[0].bInterval = 9;
+
+    eps_winrt_rndis_data_hs[0] = desc_iface_rndis[1].eps[0];
+    eps_winrt_rndis_data_hs[0].wMaxPacketSize = 512;
+    eps_winrt_rndis_data_hs[1] = desc_iface_rndis[1].eps[1];
+    eps_winrt_rndis_data_hs[1].wMaxPacketSize = 512;
+
+    desc_iface_winrt_rndis_high[0] = desc_iface_winrt_rndis_full[0];
+    desc_iface_winrt_rndis_high[0].eps = eps_winrt_rndis_ctrl_hs;
+    desc_iface_winrt_rndis_high[1] = desc_iface_winrt_rndis_full[1];
+    desc_iface_winrt_rndis_high[1].eps = eps_winrt_rndis_data_hs;
+}
+
 /*
  * RNDIS Definitions - in theory not specific to USB.
  */
@@ -649,6 +759,7 @@ struct USBNetState {
     NICState *nic;
     NICConf conf;
     QTAILQ_HEAD(, rndis_response) rndis_resp;
+    bool winrt_rndis;
 };
 
 #define TYPE_USB_NET "usb-net"
@@ -656,8 +767,13 @@ OBJECT_DECLARE_SIMPLE_TYPE(USBNetState, USB_NET)
 
 static int is_rndis(USBNetState *s)
 {
-    return s->dev.config ?
-            s->dev.config->bConfigurationValue == DEV_RNDIS_CONFIG_VALUE : 0;
+    if (!s->dev.config) {
+        return 0;
+    }
+    if (s->winrt_rndis) {
+        return s->dev.config->bConfigurationValue == 1;
+    }
+    return s->dev.config->bConfigurationValue == DEV_RNDIS_CONFIG_VALUE;
 }
 
 static int ndis_query(USBNetState *s, uint32_t oid,
@@ -1361,6 +1477,11 @@ static void usb_net_realize(USBDevice *dev, Error **errp)
 {
     USBNetState *s = USB_NET(dev);
 
+    if (s->winrt_rndis) {
+        usb_net_winrt_init_descs();
+        dev->usb_desc = &desc_net_winrt;
+    }
+
     usb_desc_create_serial(dev);
     usb_desc_init(dev);
 
@@ -1409,6 +1530,7 @@ static const VMStateDescription vmstate_usb_net = {
 
 static const Property net_properties[] = {
     DEFINE_NIC_PROPERTIES(USBNetState, conf),
+    DEFINE_PROP_BOOL("winrt-rndis", USBNetState, winrt_rndis, false),
 };
 
 static void usb_net_class_initfn(ObjectClass *klass, const void *data)

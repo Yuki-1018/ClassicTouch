@@ -127,13 +127,13 @@
 "unused" = "Kullanılmıyor";
 "no_bases" = "Hazırlanmış temel imaj yok.";
 
-"bootrom_footer_soc" = "iPhone 2G / iPod touch 1G için S5L8900 (64 KB); iPod touch 2G için S5L8720 (iBoot-240.4) BootROM gereklidir.\niPhone 3GS/4, iPod touch 3G/4G ve iPad doğrudan BootROM olmadan başlatılır.";
+"bootrom_footer_soc" = "64 KB S5L8900 BootROM yalnızca iPhone 2G / iPod touch 1G (iPhone OS 1.x) için gereklidir.\niPhone 3GS/4/5, iPod touch 3G/4G ve iPad için BootROM gerekmez.";
 "bootrom_invalid_title" = "Geçersiz BootROM";
-"bootrom_invalid_msg" = "Seçilen dosya geçerli bir 64 KB S5L8900 veya S5L8720 BootROM dosyası olarak tanınmadı.";
+"bootrom_invalid_msg" = "Seçilen dosya geçerli bir 64 KB S5L8900 BootROM olarak doğrulanamadı.";
 "bootrom_imported_soc_msg" = "%@ doğrulandı ve «%@» (%llu bayt) başarıyla kaydedildi.";
 "bootrom_required_s5l8900_msg" = "Bu cihaz için 64 KB S5L8900 BootROM (bootrom_s5l8900) gereklidir.";
 "bootrom_required_s5l8720_msg" = "Bu cihaz için 64 KB S5L8720 iBoot-240.4 BootROM (bootrom_240_4) gereklidir.";
-"bootrom_missing_detail_fmt" = "%@\n\nDosyalar uygulamasından ilgili S5L8900 veya S5L8720 BootROM'u seçin veya ClassicTouch Belgeler klasörüne yerleştirin.";
+"bootrom_missing_detail_fmt" = "%@\n\nLütfen S5L8900 BootROM dosyasını Dosyalar'dan içe aktarın veya Belgeler klasörüne koyun.";
 
 "download_catalog_ipsw" = "Katalogdan Yazılım İndir...";
 "download_catalog_device_msg" = "İndirilecek cihaz modelini seçin:";
@@ -209,11 +209,11 @@
 "device_ipod_2g" = "iPod touch (2. Nesil)";
 "device_ipod_3g" = "iPod touch (3. Nesil)";
 "device_ipod_4g" = "iPod touch (4. Nesil)";
-"device_iphone_2g_desc" = "iPhone 2G (iPhone OS 1.0–3.1.3 / OS 1.x BootROM gerektirir)";
+"device_iphone_2g_desc" = "iPhone 2G (iPhone OS 1.0 - 1.1.4 / BootROM Gerekli)";
 "device_iphone_3gs_desc" = "iPhone 3GS (iPhone OS 3.0–iOS 6.1.6)";
 "device_iphone_4_desc" = "iPhone 4 (iOS 4.0–7.1.2)";
 "device_iphone_5_desc" = "iPhone 5 (iOS 6.0–10.3.4)";
-"device_ipod_1g_desc" = "iPod touch 1G (iPhone OS 1.1–3.1.3 / OS 1.x BootROM gerektirir)";
+"device_ipod_1g_desc" = "iPod touch 1G (iPhone OS 1.1 - 1.1.5 / BootROM Gerekli)";
 "device_ipod_2g_desc" = "iPod touch 2G (iPhone OS 2.1.1–iOS 4.2.1 / BootROM gerektirir)";
 "device_ipod_3g_desc" = "iPod touch 3G (iPhone OS 3.1.1–iOS 5.1.1)";
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1–6.1.6)";
@@ -269,7 +269,7 @@
 "vm_already_running_fmt" = "«%@» sanal makinesi zaten çalışıyor.\nAynı anda yalnızca bir sanal makine çalıştırılabilir.";
 "base_rebuild_required" = "Temel İmajın Yeniden İnşası Gerekli";
 "base_rebuild_msg" = "Önyükleme düzeltmelerini (OpenGLES, sandbox ve iPhone 5 başlatması) uygulamak için lütfen bu kapsayıcıyı silip yeniden oluşturun.";
-"how_to_use_footer" = "Başlangıç Kılavuzu\n1. Aşağıdan cihaz modelini ve iOS sürümünü seçin\n2. Başlatmadan önce StikDebug (universal.js) ile JIT'i etkinleştirin\n3. Oluşturulan cihazın yanındaki ▶ simgesine dokunun\n※ Yalnızca iPhone 2G / iPod 1G ve 2G Ayarlar'dan (dişli simgesi) BootROM gerektirir";
+"how_to_use_footer" = "Başlarken:\n1. Aşağıdaki düğmeden cihaz ve OS seçin\n2. Başlatmadan önce StikDebug (universal.js) ile JIT'i etkinleştirin\n3. Başlatmak için ▶ simgesine dokunun\n* Yalnızca iPhone 2G / iPod 1G için Ayarlar'dan S5L8900 BootROM gerekir";
 "rename_container_title" = "Kapsayıcıyı Yeniden Adlandır";
 "enter_new_name_prompt" = "Yeni adı girin:";
 "delete_container_confirm_title" = "Kapsayıcıyı Sil";
@@ -382,8 +382,8 @@
 "settings_ipsw_management" = "Yazılım Yönetimi";
 "settings_ipsw_subtitle_fmt" = "%lu yazılım dosyası";
 "settings_bootrom_management" = "BootROM Yönetimi";
-"settings_bootrom_subtitle_fmt" = "%lu / 2 yüklendi";
-"settings_bootrom_subtitle_none" = "Yüklü Değil (S5L8900 / S5L8720)";
+"settings_bootrom_subtitle_fmt" = "1 dosyadan %lu kurulu";
+"settings_bootrom_subtitle_none" = "Kurulu değil (S5L8900)";
 "settings_system_header" = "Sistem ve Çalışma Ortamı";
 "settings_jit_title" = "JIT Derleyicisi";
 "settings_jit_active" = "Etkin (Aktif)";
@@ -420,7 +420,7 @@
 
 /* Android */
 "device_android_arm" = "Android";
-"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"device_android_arm_desc" = "Android (4.4 - 7.1 ARM)";
 "android_variant_aosp" = "AOSP Standart";
 "android_variant_gapps" = "Google APIs";
 "wizard_name_config_prompt_android" = "Sanal makine adını girin (daha sonra değiştirilebilir).\n* Donanım OpenGL ES hızlandırmalı ARMv7 Goldfish ve 640×1136 ekranla çalışır.";
@@ -445,3 +445,68 @@
 "android_wipe_userdata_action" = "Kullanıcı Verisini Sil (userdata.img)";
 "android_cfg_ram_custom" = "Özel (MB)...";
 "android_cfg_ram_custom_hint" = "RAM boyutunu MB cinsinden girin (256–3072 MB). A9 gibi 2 GB cihazlarda kullanılabilir belleği aşmak uygulamayı kapatabilir.";
+"device_firefoxos_arm" = "Firefox OS";
+"device_firefoxos_arm_desc" = "Firefox OS (1.4 - 2.6 B2G)";
+"device_winrt_arm" = "Windows RT";
+"device_winrt_arm_desc" = "Windows RT 8.0 / 8.1 (ARM32)";
+"winrt_variant_arm32" = "Windows RT (ARM32)";
+"section_winrt_config" = "Windows RT Ayarları";
+"winrt_cfg_ram" = "Bellek (RAM)";
+"winrt_cfg_ram_hint" = "RAM ayırın (512–2048 MB). Kullanılabilir belleği aşmak iOS tarafından sonlandırmaya yol açabilir.";
+"winrt_cfg_disk" = "Sanal Disk (SD Kart)";
+"winrt_cfg_disk_hint" = "Bir VHD/VHDX/IMG/QCOW2 disk kalıbı içe aktarın veya boş sanal SD disk oluşturun.";
+"winrt_cfg_iso" = "Yükleyici / USB Kalıbı";
+"winrt_cfg_iso_hint" = "USB depolamaya kurulum ISO'su veya WinPE VHD/VHDX/IMG bağlayın.";
+"winrt_cfg_none" = "Yok";
+"winrt_cfg_boot_order" = "Önyükleme Sırası";
+"winrt_boot_usb_first" = "Önce USB / ISO";
+"winrt_boot_sd_first" = "Önce SD Disk";
+"winrt_cfg_rtc" = "Sistem Saati (RTC)";
+"winrt_cfg_rtc_hint" = "Windows RT 8.0/8.1 yükleyicileri sertifika süresi nedeniyle sıkça 2013–2014 tarihi gerektirir.";
+"winrt_rtc_today" = "Geçerli Saat (UTC)";
+"winrt_rtc_custom" = "Özel Tarih...";
+"winrt_rtc_custom_hint" = "Tarihi YYYY-MM-DD biçiminde girin (örn. 2013-07-15).";
+"winrt_cfg_net" = "Ağ (USB RNDIS)";
+"winrt_cfg_audio" = "USB Ses";
+"winrt_enabled" = "Etkin";
+"winrt_disabled" = "Devre Dışı";
+"winrt_import_disk_action" = "Disk Kalıbını İçe Aktar...";
+"winrt_create_blank_disk_fmt" = "Boş Disk Oluştur (%ld GB)";
+"winrt_attach_iso_action" = "ISO / USB Kalıbı Bağla...";
+"winrt_eject_iso_action" = "Bağlı Kalıbı Çıkar";
+"winrt_importing_media" = "Kalıp VM'ye kopyalanıyor...";
+"winrt_invalid_image_ext" = "Desteklenmeyen biçim. .iso, .vhd, .vhdx, .img, .raw veya .qcow2 seçin.";
+"wizard_name_config_prompt_winrt" = "Sanal makine adını girin (sonradan değiştirilebilir).\n• Oluşturduktan sonra Kapsayıcı Ayarlarından Windows RT ARM32 ISO veya VHD bağlayın.";
+"winrt_container_created_msg_fmt" = "“%@” oluşturuldu. Başlatmadan önce kurulum ISO'su veya Windows RT VHD/VHDX bağlayın.";
+"winrt_configure_media" = "Medyayı Yapılandır...";
+"winrt_send_cad" = "Ctrl + Alt + Del Gönder";
+"winrt_reset_usb" = "USB Girişini Sıfırla";
+"winrt_usb_reset_toast" = "USB klavye ve fare yeniden bağlandı";
+"winrt_quick_keys" = "Hızlı Tuşlar";
+"winrt_missing_media_error" = "Önyüklenebilir disk veya ISO bağlı değil. Önce Kapsayıcı Ayarlarından VHD/ISO içe aktarın.";
+"winrt_input_mode_touch" = "Dokunmatik Modu";
+"winrt_input_mode_mouse" = "Fare Modu";
+"winrt_mode_touch_toast" = "Giriş: Doğrudan Dokunmatik";
+"winrt_mode_mouse_toast" = "Giriş: Fare İzleme Dörtgeni (Sürükle=Hareket, Dokun=Tık, Basılı=Sağ Tık)";
+"winrt_sticky_mods_section" = "Yapışkan Değiştiriciler";
+"winrt_sticky_clear" = "Değiştiricileri Bırak";
+"winrt_special_nav_menu" = "Gezinme ve Düzenleme";
+"winrt_fn_keys_menu" = "İşlev Tuşları (F1–F12)";
+"winrt_right_click_action" = "Sağ Tık";
+"menu_install_apk" = "APK Yükle...";
+"apk_install_not_ready" = "APK yüklemeden önce Android'in açılmasını ve ADB bağlantısını bekleyin.";
+"apk_install_in_progress" = "Başka bir paket yüklemesi zaten devam ediyor.";
+"apk_invalid_extension" = "Lütfen bir .apk dosyası seçin.";
+"apk_preparing" = "APK hazırlanıyor...";
+"apk_connecting_adb" = "ADB bağlanıyor (Android ekranında görünürse onaylayın)...";
+"apk_pushing" = "APK aktarılıyor...";
+"apk_pushing_pct_fmt" = "APK aktarılıyor... %d%%";
+"apk_installing" = "APK Android'e yükleniyor...";
+"apk_install_success_title" = "APK Yüklemesi Tamamlandı";
+"apk_install_success_msg_fmt" = "%@ yüklendi.";
+"apk_install_failed_title" = "APK Yüklemesi Başarısız";
+
+/* Windows RT Diagnostics */
+"winrt_iso_no_eltorito_title" = "No UEFI El Torito Boot Record Found";
+"winrt_iso_no_eltorito_msg" = "This ISO does not contain an ISO-9660 El Torito (\"CD001\") boot record (it appears to be UDF-only or non-bootable). Because the ARM32 UEFI firmware has no UDF driver, booting from it will stop at the UEFI Shell with BLK0 only.\n\nPlease use an El Torito ARM32 UEFI ISO (such as Windows RT 8.1 Update 3 9600.17053 / 9600.17328) or a bootable FAT32 .vhd/.img USB disk image.";
+

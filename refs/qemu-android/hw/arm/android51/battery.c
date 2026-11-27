@@ -1,5 +1,5 @@
 /*
- * Goldfish battery device (ported from Android_On_iOS).
+ * Goldfish battery device.
  */
 #include "qemu/osdep.h"
 #include "android51.h"

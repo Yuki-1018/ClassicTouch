@@ -141,6 +141,64 @@ static void build_acpi0017(Aml *table)
     aml_append(table, scope);
 }
 
+static void acpi_dsdt_add_ehci(Aml *scope, const char *name, int uid,
+                               const MemMapEntry *ehci_memmap,
+                               uint32_t ehci_irq)
+{
+    Aml *dev = aml_device("%s", name);
+    Aml *crs = aml_resource_template();
+
+    aml_append(dev, aml_name_decl("_HID", aml_string("PNP0D20")));
+    aml_append(dev, aml_name_decl("_UID", aml_int(uid)));
+    aml_append(crs, aml_memory32_fixed(ehci_memmap->base,
+                                       ehci_memmap->size, AML_READ_WRITE));
+    aml_append(crs, aml_interrupt(AML_CONSUMER, AML_LEVEL, AML_ACTIVE_HIGH,
+                                  AML_EXCLUSIVE, &ehci_irq, 1));
+    aml_append(dev, aml_name_decl("_CRS", crs));
+    aml_append(scope, dev);
+}
+
+static void acpi_dsdt_add_ohci(Aml *scope, const MemMapEntry *ohci_memmap,
+                               uint32_t ohci_irq)
+{
+    Aml *dev = aml_device("USB1");
+    Aml *crs = aml_resource_template();
+
+    aml_append(dev, aml_name_decl("_HID", aml_string("PNP0D10")));
+    aml_append(dev, aml_name_decl("_UID", aml_int(1)));
+    aml_append(crs, aml_memory32_fixed(ohci_memmap->base,
+                                       ohci_memmap->size, AML_READ_WRITE));
+    aml_append(crs, aml_interrupt(AML_CONSUMER, AML_LEVEL, AML_ACTIVE_HIGH,
+                                  AML_EXCLUSIVE, &ohci_irq, 1));
+    aml_append(dev, aml_name_decl("_CRS", crs));
+    aml_append(scope, dev);
+}
+
+static void acpi_dsdt_add_mmci(Aml *scope, const MemMapEntry *sdhci_memmap,
+                               uint32_t sdhci_irq)
+{
+    Aml *dev = aml_device("SDC1");
+    Aml *crs = aml_resource_template();
+    Aml *carddev = aml_device("SDMM");
+    Aml *adr = aml_method("_ADR", 0, AML_NOTSERIALIZED);
+    Aml *rmv = aml_method("_RMV", 0, AML_NOTSERIALIZED);
+
+    aml_append(dev, aml_name_decl("_HID", aml_string("PNP0D40")));
+    aml_append(dev, aml_name_decl("_UID", aml_int(0)));
+    aml_append(crs, aml_memory32_fixed(sdhci_memmap->base,
+                                       sdhci_memmap->size, AML_READ_WRITE));
+    aml_append(crs, aml_interrupt(AML_CONSUMER, AML_LEVEL, AML_ACTIVE_HIGH,
+                                  AML_EXCLUSIVE, &sdhci_irq, 1));
+    aml_append(dev, aml_name_decl("_CRS", crs));
+
+    aml_append(adr, aml_return(aml_int(0)));
+    aml_append(rmv, aml_return(aml_int(0)));
+    aml_append(carddev, adr);
+    aml_append(carddev, rmv);
+    aml_append(dev, carddev);
+    aml_append(scope, dev);
+}
+
 static void acpi_dsdt_add_pci(Aml *scope, const MemMapEntry *memmap,
                               uint32_t irq, VirtMachineState *vms)
 {
@@ -861,13 +919,15 @@ build_gtdt(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
      * polarity" bit as '0: Interrupt is Active high'
      */
     const uint32_t irqflags = 0;  /* Interrupt is Level triggered  */
-    AcpiTable table = { .sig = "GTDT", .rev = 3, .oem_id = vms->oem_id,
+    AcpiTable table = { .sig = "GTDT", .rev = vms->winrt ? 2 : 3,
+                        .oem_id = vms->oem_id,
                         .oem_table_id = vms->oem_table_id };
 
     acpi_table_begin(&table, table_data);
 
     /* CntControlBase Physical Address */
-    build_append_int_noprefix(table_data, 0xFFFFFFFFFFFFFFFF, 8);
+    build_append_int_noprefix(table_data,
+                              vms->winrt ? 0 : 0xFFFFFFFFFFFFFFFFULL, 8);
     build_append_int_noprefix(table_data, 0, 4); /* Reserved */
     /*
      * FIXME: clarify comment:
@@ -892,19 +952,22 @@ build_gtdt(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
     /* Non-Secure EL2 timer Flags */
     build_append_int_noprefix(table_data, irqflags, 4);
     /* CntReadBase Physical address */
-    build_append_int_noprefix(table_data, 0xFFFFFFFFFFFFFFFF, 8);
+    build_append_int_noprefix(table_data,
+                              vms->winrt ? 0 : 0xFFFFFFFFFFFFFFFFULL, 8);
     /* Platform Timer Count */
     build_append_int_noprefix(table_data, 0, 4);
     /* Platform Timer Offset */
     build_append_int_noprefix(table_data, 0, 4);
-    if (vms->ns_el2_virt_timer_irq) {
-        /* Virtual EL2 Timer GSIV */
-        build_append_int_noprefix(table_data, ARCH_TIMER_NS_EL2_VIRT_IRQ, 4);
-        /* Virtual EL2 Timer Flags */
-        build_append_int_noprefix(table_data, irqflags, 4);
-    } else {
-        build_append_int_noprefix(table_data, 0, 4);
-        build_append_int_noprefix(table_data, 0, 4);
+    if (!vms->winrt) {
+        if (vms->ns_el2_virt_timer_irq) {
+            /* Virtual EL2 Timer GSIV */
+            build_append_int_noprefix(table_data, ARCH_TIMER_NS_EL2_VIRT_IRQ, 4);
+            /* Virtual EL2 Timer Flags */
+            build_append_int_noprefix(table_data, irqflags, 4);
+        } else {
+            build_append_int_noprefix(table_data, 0, 4);
+            build_append_int_noprefix(table_data, 0, 4);
+        }
     }
     acpi_table_end(linker, &table);
 }
@@ -986,7 +1049,8 @@ build_madt(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
 {
     int i;
     const MemMapEntry *memmap = vms->memmap;
-    AcpiTable table = { .sig = "APIC", .rev = 4, .oem_id = vms->oem_id,
+    AcpiTable table = { .sig = "APIC", .rev = vms->winrt ? 3 : 4,
+                        .oem_id = vms->oem_id,
                         .oem_table_id = vms->oem_table_id };
 
     acpi_table_begin(&table, table_data);
@@ -1021,7 +1085,7 @@ build_madt(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
 
         /* 5.2.12.14 GIC Structure */
         build_append_int_noprefix(table_data, 0xB, 1);  /* Type */
-        build_append_int_noprefix(table_data, 80, 1);   /* Length */
+        build_append_int_noprefix(table_data, vms->winrt ? 76 : 80, 1); /* Length */
         build_append_int_noprefix(table_data, 0, 2);    /* Reserved */
         build_append_int_noprefix(table_data, i, 4);    /* GIC ID */
         build_append_int_noprefix(table_data, i, 4);    /* ACPI Processor UID */
@@ -1041,10 +1105,12 @@ build_madt(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
         build_append_int_noprefix(table_data, 0, 8);    /* GICR Base Address*/
         /* MPIDR */
         build_append_int_noprefix(table_data, arm_cpu_mp_affinity(armcpu), 8);
-        /* Processor Power Efficiency Class */
-        build_append_int_noprefix(table_data, 0, 1);
-        /* Reserved */
-        build_append_int_noprefix(table_data, 0, 3);
+        if (!vms->winrt) {
+            /* Processor Power Efficiency Class */
+            build_append_int_noprefix(table_data, 0, 1);
+            /* Reserved */
+            build_append_int_noprefix(table_data, 0, 3);
+        }
     }
 
     if (vms->gic_version != VIRT_GIC_VERSION_2) {
@@ -1093,10 +1159,10 @@ build_madt(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
 static void build_fadt_rev6(GArray *table_data, BIOSLinker *linker,
                             VirtMachineState *vms, unsigned dsdt_tbl_offset)
 {
-    /* ACPI v6.3 */
+    /* ACPI v6.3 (or ACPI v5.1 for Windows RT) */
     AcpiFadtData fadt = {
-        .rev = 6,
-        .minor_ver = 3,
+        .rev = vms->winrt ? 5 : 6,
+        .minor_ver = vms->winrt ? 1 : 3,
         .flags = 1 << ACPI_FADT_F_HW_REDUCED_ACPI,
         .xdsdt_tbl_offset = &dsdt_tbl_offset,
     };
@@ -1155,7 +1221,14 @@ build_dsdt(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
     virtio_acpi_dsdt_add(scope, memmap[VIRT_MMIO].base, memmap[VIRT_MMIO].size,
                          (irqmap[VIRT_MMIO] + ARM_SPI_BASE),
                          0, vms->virtio_transports);
-    acpi_dsdt_add_pci(scope, memmap, irqmap[VIRT_PCIE] + ARM_SPI_BASE, vms);
+    if (vms->winrt) {
+        acpi_dsdt_add_ehci(scope, "USB0", 0, &memmap[VIRT_EHCI], irqmap[VIRT_EHCI] + ARM_SPI_BASE);
+        acpi_dsdt_add_ohci(scope, &memmap[VIRT_OHCI], irqmap[VIRT_OHCI] + ARM_SPI_BASE);
+        acpi_dsdt_add_ehci(scope, "USB2", 2, &memmap[VIRT_EHCI2], irqmap[VIRT_EHCI2] + ARM_SPI_BASE);
+        acpi_dsdt_add_mmci(scope, &memmap[VIRT_SDHCI], irqmap[VIRT_SDHCI] + ARM_SPI_BASE);
+    } else {
+        acpi_dsdt_add_pci(scope, memmap, irqmap[VIRT_PCIE] + ARM_SPI_BASE, vms);
+    }
     if (vms->acpi_dev) {
         build_ged_aml(scope, "\\_SB."GED_DEVICE,
                       HOTPLUG_HANDLER(vms->acpi_dev),
@@ -1185,32 +1258,34 @@ build_dsdt(GArray *table_data, BIOSLinker *linker, VirtMachineState *vms)
 
     aml_append(dsdt, scope);
 
-    pci0_scope = aml_scope("\\_SB.PCI0");
+    if (!vms->winrt) {
+        pci0_scope = aml_scope("\\_SB.PCI0");
 
-    aml_append(pci0_scope, build_pci_bridge_edsm());
-    build_append_pci_bus_devices(pci0_scope, vms->bus);
-    if (object_property_find(OBJECT(vms->bus), ACPI_PCIHP_PROP_BSEL)) {
-        build_append_pcihp_slots(pci0_scope, vms->bus);
-    }
-
-    if (vms->acpi_dev) {
-        bool acpi_pcihp;
-
-        acpi_pcihp = object_property_get_bool(OBJECT(vms->acpi_dev),
-                                              ACPI_PM_PROP_ACPI_PCIHP_BRIDGE,
-                                              NULL);
-
-        if (acpi_pcihp) {
-            build_acpi_pci_hotplug(dsdt, AML_SYSTEM_MEMORY,
-                                   memmap[VIRT_ACPI_PCIHP].base);
-            build_append_pcihp_resources(pci0_scope,
-                                         memmap[VIRT_ACPI_PCIHP].base,
-                                         memmap[VIRT_ACPI_PCIHP].size);
-
-            build_append_notification_callback(pci0_scope, vms->bus);
+        aml_append(pci0_scope, build_pci_bridge_edsm());
+        build_append_pci_bus_devices(pci0_scope, vms->bus);
+        if (object_property_find(OBJECT(vms->bus), ACPI_PCIHP_PROP_BSEL)) {
+            build_append_pcihp_slots(pci0_scope, vms->bus);
         }
+
+        if (vms->acpi_dev) {
+            bool acpi_pcihp;
+
+            acpi_pcihp = object_property_get_bool(OBJECT(vms->acpi_dev),
+                                                  ACPI_PM_PROP_ACPI_PCIHP_BRIDGE,
+                                                  NULL);
+
+            if (acpi_pcihp) {
+                build_acpi_pci_hotplug(dsdt, AML_SYSTEM_MEMORY,
+                                       memmap[VIRT_ACPI_PCIHP].base);
+                build_append_pcihp_resources(pci0_scope,
+                                             memmap[VIRT_ACPI_PCIHP].base,
+                                             memmap[VIRT_ACPI_PCIHP].size);
+
+                build_append_notification_callback(pci0_scope, vms->bus);
+            }
+        }
+        aml_append(dsdt, pci0_scope);
     }
-    aml_append(dsdt, pci0_scope);
 
     /* copy AML table into ACPI tables blob */
     g_array_append_vals(table_data, dsdt->buf->data, dsdt->buf->len);
@@ -1354,8 +1429,10 @@ void virt_acpi_build(VirtMachineState *vms, AcpiBuildTables *tables)
                           vms->oem_table_id);
     }
 
-    acpi_add_table(table_offsets, tables_blob);
-    build_iort(tables_blob, tables->linker, vms);
+    if (!vms->winrt) {
+        acpi_add_table(table_offsets, tables_blob);
+        build_iort(tables_blob, tables->linker, vms);
+    }
 
 #ifdef CONFIG_TPM
     if (tpm_get_version(tpm_find()) == TPM_VERSION_2_0) {

@@ -127,13 +127,13 @@
 "unused" = "Niet in gebruik";
 "no_bases" = "Geen voorbereide basisbestanden.";
 
-"bootrom_footer_soc" = "iPhone 2G en iPod touch 1G hebben een S5L8900 BootROM (64 KB) nodig; iPod touch 2G heeft S5L8720 (iBoot-240.4) nodig.\niPhone 3GS/4, iPod touch 3G/4G en iPad starten direct zonder BootROM.";
+"bootrom_footer_soc" = "Een S5L8900 BootROM van 64 KB is alleen vereist voor iPhone 2G / iPod touch 1G (iPhone OS 1.x).\niPhone 3GS/4/5, iPod touch 3G/4G en iPad hebben geen BootROM nodig.";
 "bootrom_invalid_title" = "Ongeldige BootROM";
-"bootrom_invalid_msg" = "Het geselecteerde bestand is niet herkend als een geldige 64 KB S5L8900 of S5L8720 BootROM.";
+"bootrom_invalid_msg" = "Het geselecteerde bestand kon niet worden geverifieerd als een geldige 64 KB S5L8900 BootROM.";
 "bootrom_imported_soc_msg" = "%@ geverifieerd en «%@» (%llu bytes) geregistreerd.";
 "bootrom_required_s5l8900_msg" = "Dit apparaat vereist een 64 KB S5L8900 BootROM (bootrom_s5l8900).";
 "bootrom_required_s5l8720_msg" = "Dit apparaat vereist een 64 KB S5L8720 iBoot-240.4 BootROM (bootrom_240_4).";
-"bootrom_missing_detail_fmt" = "%@\n\nSelecteer de overeenkomstige S5L8900 of S5L8720 BootROM in de app Bestanden of plaats deze in de map Documenten van ClassicTouch.";
+"bootrom_missing_detail_fmt" = "%@\n\nImporteer de S5L8900 BootROM vanuit Bestanden of plaats deze in Documenten.";
 
 "download_catalog_ipsw" = "Firmware downloaden uit catalogus...";
 "download_catalog_device_msg" = "Selecteer het gewenste apparaatmodel om te downloaden:";
@@ -209,11 +209,11 @@
 "device_ipod_2g" = "iPod touch (2e generatie)";
 "device_ipod_3g" = "iPod touch (3e generatie)";
 "device_ipod_4g" = "iPod touch (4e generatie)";
-"device_iphone_2g_desc" = "iPhone 2G (iPhone OS 1.0–3.1.3 / OS 1.x vereist BootROM)";
+"device_iphone_2g_desc" = "iPhone 2G (iPhone OS 1.0 - 1.1.4 / BootROM vereist)";
 "device_iphone_3gs_desc" = "iPhone 3GS (iPhone OS 3.0–iOS 6.1.6)";
 "device_iphone_4_desc" = "iPhone 4 (iOS 4.0–7.1.2)";
 "device_iphone_5_desc" = "iPhone 5 (iOS 6.0–10.3.4)";
-"device_ipod_1g_desc" = "iPod touch 1G (iPhone OS 1.1–3.1.3 / OS 1.x vereist BootROM)";
+"device_ipod_1g_desc" = "iPod touch 1G (iPhone OS 1.1 - 1.1.5 / BootROM vereist)";
 "device_ipod_2g_desc" = "iPod touch 2G (iPhone OS 2.1.1–iOS 4.2.1 / vereist BootROM)";
 "device_ipod_3g_desc" = "iPod touch 3G (iPhone OS 3.1.1–iOS 5.1.1)";
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1–6.1.6)";
@@ -269,7 +269,7 @@
 "vm_already_running_fmt" = "Virtuele machine «%@» wordt al uitgevoerd.\nEr kan slechts één virtuele machine tegelijk actief zijn.";
 "base_rebuild_required" = "Herbouw van basiskopie vereist";
 "base_rebuild_msg" = "Om opstartoplossingen (OpenGLES, sandbox en iPhone 5 initialisatie) toe te passen, verwijdert u deze container en maakt u deze opnieuw aan.";
-"how_to_use_footer" = "Snel aan de slag\n1. Kies apparaat en iOS-versie hieronder\n2. Schakel JIT in met StikDebug (universal.js) voor het starten\n3. Tik op ▶ naast het aangemaakte apparaat\n※ Alleen iPhone 2G / iPod 1G en 2G hebben een BootROM nodig in Instellingen (tandwiel-icoon)";
+"how_to_use_footer" = "Aan de slag:\n1. Kies apparaat & OS met de knop hieronder\n2. Schakel JIT in met StikDebug (universal.js) vóór het opstarten\n3. Tik op ▶ om te starten\n* S5L8900 BootROM via Instellingen alleen vereist voor iPhone 2G / iPod 1G";
 "rename_container_title" = "Containernaam wijzigen";
 "enter_new_name_prompt" = "Voer de nieuwe naam in:";
 "delete_container_confirm_title" = "Container verwijderen";
@@ -382,8 +382,8 @@
 "settings_ipsw_management" = "Firmwarebeheer";
 "settings_ipsw_subtitle_fmt" = "%lu firmwarebestanden";
 "settings_bootrom_management" = "BootROM-beheer";
-"settings_bootrom_subtitle_fmt" = "%lu / 2 geïnstalleerd";
-"settings_bootrom_subtitle_none" = "Niet geïnstalleerd (S5L8900 / S5L8720)";
+"settings_bootrom_subtitle_fmt" = "%lu van 1 geïnstalleerd";
+"settings_bootrom_subtitle_none" = "Niet geïnstalleerd (S5L8900)";
 "settings_system_header" = "Systeem & Uitvoeromgeving";
 "settings_jit_title" = "JIT-compiler";
 "settings_jit_active" = "Ingeschakeld (Actief)";
@@ -420,7 +420,7 @@
 
 /* Android */
 "device_android_arm" = "Android";
-"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"device_android_arm_desc" = "Android (4.4 - 7.1 ARM)";
 "android_variant_aosp" = "AOSP Standaard";
 "android_variant_gapps" = "Google APIs";
 "wizard_name_config_prompt_android" = "Voer de naam van de virtuele machine in (later te wijzigen).\n* Draait op ARMv7 Goldfish met OpenGL ES-hardwareversnelling en 640×1136-scherm.";
@@ -445,3 +445,68 @@
 "android_wipe_userdata_action" = "Gebruikersgegevens wissen (userdata.img)";
 "android_cfg_ram_custom" = "Aangepast (MB)...";
 "android_cfg_ram_custom_hint" = "Voer RAM-grootte in MB in (256–3072 MB). Op 2 GB-apparaten (zoals A9) kan te veel RAM leiden tot sluiten door iOS.";
+"device_firefoxos_arm" = "Firefox OS";
+"device_firefoxos_arm_desc" = "Firefox OS (1.4 - 2.6 B2G)";
+"device_winrt_arm" = "Windows RT";
+"device_winrt_arm_desc" = "Windows RT 8.0 / 8.1 (ARM32)";
+"winrt_variant_arm32" = "Windows RT (ARM32)";
+"section_winrt_config" = "Windows RT-instellingen";
+"winrt_cfg_ram" = "Geheugen (RAM)";
+"winrt_cfg_ram_hint" = "RAM toewijzen (512–2048 MB). Te veel RAM kan sluiten door iOS veroorzaken.";
+"winrt_cfg_disk" = "Virtuele schijf (SD-kaart)";
+"winrt_cfg_disk_hint" = "Importeer een VHD/VHDX/IMG/QCOW2-image of maak een lege virtuele SD-schijf.";
+"winrt_cfg_iso" = "Installatie- / USB-image";
+"winrt_cfg_iso_hint" = "Koppel een ISO-installer of WinPE VHD/VHDX/IMG aan de USB-opslag.";
+"winrt_cfg_none" = "Geen";
+"winrt_cfg_boot_order" = "Opstartvolgorde";
+"winrt_boot_usb_first" = "USB / ISO eerst";
+"winrt_boot_sd_first" = "SD-schijf eerst";
+"winrt_cfg_rtc" = "Systeemklok (RTC)";
+"winrt_cfg_rtc_hint" = "Windows RT 8.0/8.1-installers vereisen vaak datums uit 2013–2014 wegens certificaten.";
+"winrt_rtc_today" = "Huidige tijd (UTC)";
+"winrt_rtc_custom" = "Aangepaste datum...";
+"winrt_rtc_custom_hint" = "Voer datum in als YYYY-MM-DD (bijv. 2013-07-15).";
+"winrt_cfg_net" = "Netwerk (USB RNDIS)";
+"winrt_cfg_audio" = "USB-audio";
+"winrt_enabled" = "Ingeschakeld";
+"winrt_disabled" = "Uitgeschakeld";
+"winrt_import_disk_action" = "Schijfimage importeren...";
+"winrt_create_blank_disk_fmt" = "Lege schijf maken (%ld GB)";
+"winrt_attach_iso_action" = "ISO / USB-image koppelen...";
+"winrt_eject_iso_action" = "Gekoppelde image uitwerpen";
+"winrt_importing_media" = "Image naar VM kopiëren...";
+"winrt_invalid_image_ext" = "Niet-ondersteund formaat. Kies .iso, .vhd, .vhdx, .img, .raw of .qcow2.";
+"wizard_name_config_prompt_winrt" = "Voer de naam van de VM in (later wijzigbaar).\n• Koppel na aanmaken een Windows RT ARM32 ISO of VHD in Containerinstellingen.";
+"winrt_container_created_msg_fmt" = "‘%@’ aangemaakt. Koppel eerst een installatie-ISO of Windows RT VHD/VHDX voor het starten.";
+"winrt_configure_media" = "Media instellen...";
+"winrt_send_cad" = "Ctrl + Alt + Del verzenden";
+"winrt_reset_usb" = "USB-invoer resetten";
+"winrt_usb_reset_toast" = "USB-toetsenbord en -muis opnieuw gekoppeld";
+"winrt_quick_keys" = "Sneltoetsen";
+"winrt_missing_media_error" = "Geen opstartbare schijf of ISO gekoppeld. Open Containerinstellingen om een VHD/ISO te importeren.";
+"winrt_input_mode_touch" = "Aanraakmodus";
+"winrt_input_mode_mouse" = "Muismodus";
+"winrt_mode_touch_toast" = "Invoer: Direct aanraken";
+"winrt_mode_mouse_toast" = "Invoer: Muis-trackpad (Slepen=Verplaatsen, Tik=Klik, Vasthouden=Rechtsklik)";
+"winrt_sticky_mods_section" = "Plaktoetsen (Modifiers)";
+"winrt_sticky_clear" = "Modifiers loslaten";
+"winrt_special_nav_menu" = "Navigatie & Bewerken";
+"winrt_fn_keys_menu" = "Functietoetsen (F1–F12)";
+"winrt_right_click_action" = "Rechtermuisklik";
+"menu_install_apk" = "APK installeren...";
+"apk_install_not_ready" = "Wacht tot Android is opgestart en ADB verbonden is.";
+"apk_install_in_progress" = "Er wordt al een ander pakket geïnstalleerd.";
+"apk_invalid_extension" = "Selecteer een .apk-bestand.";
+"apk_preparing" = "APK voorbereiden...";
+"apk_connecting_adb" = "Verbinden met ADB (accepteer melding op Android indien getoond)...";
+"apk_pushing" = "APK overzetten...";
+"apk_pushing_pct_fmt" = "APK overzetten... %d%%";
+"apk_installing" = "APK installeren op Android...";
+"apk_install_success_title" = "APK-installatie voltooid";
+"apk_install_success_msg_fmt" = "%@ geïnstalleerd.";
+"apk_install_failed_title" = "APK-installatie mislukt";
+
+/* Windows RT Diagnostics */
+"winrt_iso_no_eltorito_title" = "No UEFI El Torito Boot Record Found";
+"winrt_iso_no_eltorito_msg" = "This ISO does not contain an ISO-9660 El Torito (\"CD001\") boot record (it appears to be UDF-only or non-bootable). Because the ARM32 UEFI firmware has no UDF driver, booting from it will stop at the UEFI Shell with BLK0 only.\n\nPlease use an El Torito ARM32 UEFI ISO (such as Windows RT 8.1 Update 3 9600.17053 / 9600.17328) or a bootable FAT32 .vhd/.img USB disk image.";
+

@@ -1,6 +1,6 @@
 /*
  * Data-only virtual modem for AOSP reference-ril (Android 4-6).
- * Ported from Android_On_iOS.
+ * Goldfish GSM modem definitions.
  */
 #ifndef ANDROIDEMU_GSM_H
 #define ANDROIDEMU_GSM_H
@@ -108,6 +108,11 @@ static void gf_gsm_command(GFGSM *s, const char *cmd, char out[1024])
             snprintf(value, sizeof(value), "+CGACT: 1,%d", s->active);
         }
         reply = value;
+    } else if (!strcmp(cmd, "AT+CGACT=1,1")) {
+        s->active = true;
+        reply = "";
+    } else if (!strcmp(cmd, "AT+CGPADDR=1") || !strcmp(cmd, "AT+CGPADDR")) {
+        reply = s->context ? "+CGPADDR: 1,\"10.0.2.15\"" : "";
     } else if (!strcmp(cmd, "AT+CGACT=1,0") || !strcmp(cmd, "AT+CGACT=0,1")) {
         s->active = false;
         reply = "";

@@ -127,13 +127,13 @@
 "unused" = "사용 안 됨";
 "no_bases" = "준비된 베이스 이미지가 없습니다.";
 
-"bootrom_footer_soc" = "iPhone 2G / iPod touch 1G에는 S5L8900, iPod touch 2G에는 S5L8720 (iBoot-240.4) 64 KB BootROM이 필요합니다.\niPhone 3GS/4, iPod touch 3G/4G, iPad는 BootROM 없이 바로 실행할 수 있습니다.";
+"bootrom_footer_soc" = "iPhone 2G / iPod touch 1G(iPhone OS 1.x)에는 64 KB S5L8900 BootROM이 필요합니다.\niPhone 3GS/4/5, iPod touch 3G/4G 및 iPad는 BootROM이 필요하지 않습니다.";
 "bootrom_invalid_title" = "잘못된 BootROM";
-"bootrom_invalid_msg" = "선택한 파일이 유효한 64 KB S5L8900 또는 S5L8720(iBoot-240.4) BootROM으로 확인되지 않았습니다.";
+"bootrom_invalid_msg" = "선택한 파일을 유효한 64 KB S5L8900 BootROM으로 확인할 수 없습니다.";
 "bootrom_imported_soc_msg" = "%@ 확인 후 “%@”(%llu 바이트) 등록을 완료했습니다.";
 "bootrom_required_s5l8900_msg" = "이 기기를 부팅하려면 64 KB S5L8900 BootROM(bootrom_s5l8900)이 필요합니다.";
 "bootrom_required_s5l8720_msg" = "이 기기를 부팅하려면 64 KB S5L8720 iBoot-240.4 BootROM(bootrom_240_4)이 필요합니다.";
-"bootrom_missing_detail_fmt" = "%@\n\n'파일' 앱에서 해당 S5L8900 또는 S5L8720 BootROM을 선택하거나 ClassicTouch의 '도큐멘트'(Documents) 폴더에 복사해 주세요.";
+"bootrom_missing_detail_fmt" = "%@\n\n파일 앱에서 S5L8900 BootROM을 가져오거나 Documents 폴더에 배치하세요.";
 
 "download_catalog_ipsw" = "카탈로그에서 펌웨어 다운로드...";
 "download_catalog_device_msg" = "다운로드할 펌웨어 기기 모델을 선택하세요:";
@@ -209,11 +209,11 @@
 "device_ipod_2g" = "iPod touch (2세대)";
 "device_ipod_3g" = "iPod touch (3세대)";
 "device_ipod_4g" = "iPod touch (4세대)";
-"device_iphone_2g_desc" = "iPhone 2G (iPhone OS 1.0～3.1.3 / OS 1.x는 BootROM 필요)";
+"device_iphone_2g_desc" = "iPhone 2G (iPhone OS 1.0 - 1.1.4 / BootROM 필요)";
 "device_iphone_3gs_desc" = "iPhone 3GS (iPhone OS 3.0～iOS 6.1.6)";
 "device_iphone_4_desc" = "iPhone 4 (iOS 4.0～7.1.2)";
 "device_iphone_5_desc" = "iPhone 5 (iOS 6.0～10.3.4)";
-"device_ipod_1g_desc" = "iPod touch 1G (iPhone OS 1.1～3.1.3 / OS 1.x는 BootROM 필요)";
+"device_ipod_1g_desc" = "iPod touch 1G (iPhone OS 1.1 - 1.1.5 / BootROM 필요)";
 "device_ipod_2g_desc" = "iPod touch 2G (iPhone OS 2.1.1～iOS 4.2.1 / BootROM 필요)";
 "device_ipod_3g_desc" = "iPod touch 3G (iPhone OS 3.1.1～iOS 5.1.1)";
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1～6.1.6)";
@@ -269,7 +269,7 @@
 "vm_already_running_fmt" = "가상 머신 “%@”이(가) 이미 실행 중입니다.\n한 번에 하나의 가상 머신만 실행할 수 있습니다.";
 "base_rebuild_required" = "베이스 이미지 재생성 필요";
 "base_rebuild_msg" = "부팅 수정 사항(OpenGLES, 샌드박스 및 iPhone 5 초기화 업데이트)을 적용하려면 이 컨테이너를 삭제하고 다시 생성해 주세요.";
-"how_to_use_footer" = "처음 사용 안내\n1. 아래 버튼에서 기기와 OS 버전을 선택\n2. 실행 전 StikDebug(universal.js)로 JIT 활성화\n3. 생성된 기기의 ▶를 눌러 부팅\n※ iPhone 2G / iPod 1G・2G 모델만 설정(톱니바퀴 아이콘)에서 BootROM이 필요합니다";
+"how_to_use_footer" = "시작하기:\n1. 아래 버튼에서 기기 및 OS를 선택하세요\n2. 부팅 전에 StikDebug(universal.js)로 JIT를 활성화하세요\n3. 생성된 기기에서 ▶를 눌러 부팅하세요\n* iPhone 2G / iPod 1G만 설정(톱니바퀴)에서 S5L8900 BootROM이 필요합니다";
 "rename_container_title" = "컨테이너 이름 변경";
 "enter_new_name_prompt" = "새 이름을 입력하세요:";
 "delete_container_confirm_title" = "컨테이너 삭제";
@@ -382,8 +382,8 @@
 "settings_ipsw_management" = "펌웨어 관리";
 "settings_ipsw_subtitle_fmt" = "%lu개의 펌웨어";
 "settings_bootrom_management" = "BootROM 관리";
-"settings_bootrom_subtitle_fmt" = "%lu / 2개 설치됨";
-"settings_bootrom_subtitle_none" = "설치되지 않음 (S5L8900 / S5L8720)";
+"settings_bootrom_subtitle_fmt" = "1개 중 %lu개 설치됨";
+"settings_bootrom_subtitle_none" = "설치되지 않음 (S5L8900)";
 "settings_system_header" = "시스템 및 실행 환경";
 "settings_jit_title" = "JIT 컴파일러";
 "settings_jit_active" = "활성화됨 (Active)";
@@ -420,7 +420,7 @@
 
 /* Android */
 "device_android_arm" = "Android";
-"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"device_android_arm_desc" = "Android (4.4 - 7.1 ARM)";
 "android_variant_aosp" = "AOSP 기본 구성";
 "android_variant_gapps" = "Google APIs 포함";
 "wizard_name_config_prompt_android" = "가상 머신 이름을 입력하세요 (나중에 변경 가능).\n* ARMv7 Goldfish + OpenGL ES GPU 가속(640×1136) 환경으로 실행됩니다.";
@@ -445,3 +445,68 @@
 "android_wipe_userdata_action" = "사용자 데이터 초기화 (userdata.img)";
 "android_cfg_ram_custom" = "직접 입력 (MB)...";
 "android_cfg_ram_custom_hint" = "할당할 RAM 용량을 MB 단위로 입력하세요 (256~3072 MB). A9 등 2GB 기기에서는 가용 메모리를 초과하면 종료될 수 있습니다.";
+"device_firefoxos_arm" = "Firefox OS";
+"device_firefoxos_arm_desc" = "Firefox OS (1.4 - 2.6 B2G)";
+"device_winrt_arm" = "Windows RT";
+"device_winrt_arm_desc" = "Windows RT 8.0 / 8.1 (ARM32)";
+"winrt_variant_arm32" = "Windows RT (ARM32)";
+"section_winrt_config" = "Windows RT 설정";
+"winrt_cfg_ram" = "메모리 (RAM)";
+"winrt_cfg_ram_hint" = "RAM 크기 할당 (512~2048 MB). 기기 가용 메모리를 초과하면 iOS에서 종료될 수 있습니다.";
+"winrt_cfg_disk" = "가상 디스크 (SD 카드)";
+"winrt_cfg_disk_hint" = "VHD/VHDX/IMG/QCOW2 디스크 이미지를 가져오거나 빈 가상 SD 디스크를 만듭니다.";
+"winrt_cfg_iso" = "설치 / USB 이미지";
+"winrt_cfg_iso_hint" = "USB 저장소에 ISO 설치 이미지 또는 WinPE VHD/VHDX/IMG를 연결합니다.";
+"winrt_cfg_none" = "없음";
+"winrt_cfg_boot_order" = "부팅 순서";
+"winrt_boot_usb_first" = "USB / ISO 우선";
+"winrt_boot_sd_first" = "SD 디스크 우선";
+"winrt_cfg_rtc" = "시스템 시계 (RTC)";
+"winrt_cfg_rtc_hint" = "Windows RT 8.0/8.1 설치 시 인증서 만료로 인해 2013~2014년 날짜가 필요한 경우가 많습니다.";
+"winrt_rtc_today" = "현재 시간 (UTC)";
+"winrt_rtc_custom" = "사용자 지정 날짜...";
+"winrt_rtc_custom_hint" = "YYYY-MM-DD 형식으로 날짜를 입력하세요 (예: 2013-07-15).";
+"winrt_cfg_net" = "네트워크 (USB RNDIS)";
+"winrt_cfg_audio" = "USB 오디오";
+"winrt_enabled" = "사용함";
+"winrt_disabled" = "사용 안 함";
+"winrt_import_disk_action" = "디스크 이미지 가져오기...";
+"winrt_create_blank_disk_fmt" = "빈 디스크 만들기 (%ld GB)";
+"winrt_attach_iso_action" = "ISO / USB 이미지 연결...";
+"winrt_eject_iso_action" = "연결된 이미지 꺼내기";
+"winrt_importing_media" = "이미지를 VM으로 복사하는 중...";
+"winrt_invalid_image_ext" = "지원되지 않는 이미지 형식입니다. .iso, .vhd, .vhdx, .img, .raw 또는 .qcow2를 선택하세요.";
+"wizard_name_config_prompt_winrt" = "가상 머신 이름을 입력하세요 (나중에 변경할 수 있습니다).\n• 생성 후 컨테이너 설정에서 Windows RT ARM32 ISO 또는 VHD를 연결하세요.";
+"winrt_container_created_msg_fmt" = "\"%@\"이(가) 생성되었습니다. 부팅 전에 설치 ISO 또는 Windows RT VHD/VHDX를 연결하세요.";
+"winrt_configure_media" = "미디어 구성...";
+"winrt_send_cad" = "Ctrl + Alt + Del 보내기";
+"winrt_reset_usb" = "USB 입력 재설정";
+"winrt_usb_reset_toast" = "USB 키보드 및 마우스가 다시 연결되었습니다";
+"winrt_quick_keys" = "빠른 키";
+"winrt_missing_media_error" = "부팅 가능한 디스크 또는 ISO가 연결되어 있지 않습니다. 먼저 컨테이너 설정에서 VHD/ISO를 가져오세요.";
+"winrt_input_mode_touch" = "터치 모드";
+"winrt_input_mode_mouse" = "마우스 모드";
+"winrt_mode_touch_toast" = "입력 전환: 직접 터치";
+"winrt_mode_mouse_toast" = "입력 전환: 마우스 트랙패드 (드래그=이동, 탭=클릭, 길게=우클릭)";
+"winrt_sticky_mods_section" = "고정 보조 키";
+"winrt_sticky_clear" = "보조 키 모두 해제";
+"winrt_special_nav_menu" = "탐색 및 편집 키";
+"winrt_fn_keys_menu" = "기능 키 (F1–F12)";
+"winrt_right_click_action" = "오른쪽 클릭";
+"menu_install_apk" = "APK 설치...";
+"apk_install_not_ready" = "Android 부팅과 ADB 연결이 완료된 후 APK를 설치하세요.";
+"apk_install_in_progress" = "다른 패키지 설치가 이미 진행 중입니다.";
+"apk_invalid_extension" = ".apk 파일을 선택해 주세요.";
+"apk_preparing" = "APK 준비 중...";
+"apk_connecting_adb" = "ADB 연결 중 (화면에 프롬프트가 표시되면 허용하세요)...";
+"apk_pushing" = "APK 전송 중...";
+"apk_pushing_pct_fmt" = "APK 전송 중... %d%%";
+"apk_installing" = "Android에 APK 설치 중...";
+"apk_install_success_title" = "APK 설치 완료";
+"apk_install_success_msg_fmt" = "%@ 설치됨.";
+"apk_install_failed_title" = "APK 설치 실패";
+
+/* Windows RT Diagnostics */
+"winrt_iso_no_eltorito_title" = "UEFI El Torito 부트 레코드 없음";
+"winrt_iso_no_eltorito_msg" = "이 ISO에는 ISO-9660 El Torito(\"CD001\") 부트 레코드가 없습니다(UDF 전용이거나 비부팅 ISO일 수 있음). ARM32 UEFI에는 UDF 드라이버가 없어 UEFI 셸에서 BLK0만 표시됩니다.\n\nEl Torito ARM32 UEFI ISO(예: Windows RT 8.1 Update 3 9600.17053 / 9600.17328) 또는 부팅 가능한 FAT32 VHD/IMG를 사용하세요.";
+

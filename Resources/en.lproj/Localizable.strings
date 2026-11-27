@@ -127,13 +127,13 @@
 "unused" = "Unused";
 "no_bases" = "No prepared bases.";
 
-"bootrom_footer_soc" = "64 KB BootROM required: S5L8900 for iPhone 2G / iPod touch 1G, and S5L8720 (iBoot-240.4) for iPod touch 2G.\niPhone 3GS/4, iPod touch 3G/4G, and iPad do not require a BootROM.";
+"bootrom_footer_soc" = "64 KB S5L8900 BootROM is required only for iPhone 2G / iPod touch 1G (iPhone OS 1.x).\niPhone 3GS/4/5, iPod touch 3G/4G, and iPad do not require a BootROM.";
 "bootrom_invalid_title" = "Invalid BootROM";
-"bootrom_invalid_msg" = "The selected file could not be verified as a valid 64 KB S5L8900 or S5L8720 (iBoot-240.4) BootROM.";
+"bootrom_invalid_msg" = "The selected file could not be verified as a valid 64 KB S5L8900 BootROM.";
 "bootrom_imported_soc_msg" = "%@ verified and installed from \"%@\" (%llu bytes).";
 "bootrom_required_s5l8900_msg" = "This device requires the 64 KB S5L8900 BootROM (bootrom_s5l8900).";
 "bootrom_required_s5l8720_msg" = "This device requires the 64 KB S5L8720 iBoot-240.4 BootROM (bootrom_240_4).";
-"bootrom_missing_detail_fmt" = "%@\n\nPlease import the matching S5L8900 or S5L8720 BootROM from Files or place it in Documents.";
+"bootrom_missing_detail_fmt" = "%@\n\nPlease import the S5L8900 BootROM from Files or place it in Documents.";
 
 "download_catalog_ipsw" = "Download Firmware from Catalog...";
 "download_catalog_device_msg" = "Select a device to download its stock firmware into Firmware Management.";
@@ -222,11 +222,11 @@
 "device_ipod_2g" = "iPod touch (2nd Gen)";
 "device_ipod_3g" = "iPod touch (3rd Gen)";
 "device_ipod_4g" = "iPod touch (4th Gen)";
-"device_iphone_2g_desc" = "iPhone 2G (iPhone OS 1.0 - 3.1.3 / OS 1.x needs BootROM)";
+"device_iphone_2g_desc" = "iPhone 2G (iPhone OS 1.0 - 1.1.4 / Needs BootROM)";
 "device_iphone_3gs_desc" = "iPhone 3GS (iPhone OS 3.0 - iOS 6.1.6)";
 "device_iphone_4_desc" = "iPhone 4 (iOS 4.0 - 7.1.2)";
 "device_iphone_5_desc" = "iPhone 5 (iOS 6.0 - 10.3.4)";
-"device_ipod_1g_desc" = "iPod touch 1G (iPhone OS 1.1 - 3.1.3 / OS 1.x needs BootROM)";
+"device_ipod_1g_desc" = "iPod touch 1G (iPhone OS 1.1 - 1.1.5 / Needs BootROM)";
 "device_ipod_2g_desc" = "iPod touch 2G (iPhone OS 2.1.1 - iOS 4.2.1 / Needs BootROM)";
 "device_ipod_3g_desc" = "iPod touch 3G (iPhone OS 3.1.1 - iOS 5.1.1)";
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1 - 6.1.6)";
@@ -282,7 +282,7 @@
 "vm_already_running_fmt" = "Virtual machine \"%@\" is already running.\nOnly one VM can run at a time.";
 "base_rebuild_required" = "Base Image Rebuild Required";
 "base_rebuild_msg" = "To apply recent boot and graphics fixes, please delete and recreate this container.";
-"how_to_use_footer" = "Getting Started:\n1. Select device & OS using the button below\n2. Enable JIT with StikDebug (universal.js) before booting\n3. Tap ▶ on the created device to boot\n* BootROM required via Settings (gear icon) for iPhone 2G / iPod 1G & 2G only";
+"how_to_use_footer" = "Getting Started:\n1. Select device & OS using the button below\n2. Enable JIT with StikDebug (universal.js) before booting\n3. Tap ▶ on the created device to boot\n* S5L8900 BootROM required via Settings (gear icon) for iPhone 2G / iPod 1G only";
 "rename_container_title" = "Rename Container";
 "enter_new_name_prompt" = "Enter new container name:";
 "delete_container_confirm_title" = "Delete Container";
@@ -395,8 +395,8 @@
 "settings_ipsw_management" = "Firmware Management";
 "settings_ipsw_subtitle_fmt" = "%lu files installed";
 "settings_bootrom_management" = "BootROM Management";
-"settings_bootrom_subtitle_fmt" = "%lu of 2 installed";
-"settings_bootrom_subtitle_none" = "Not installed (S5L8900 / S5L8720)";
+"settings_bootrom_subtitle_fmt" = "%lu of 1 installed";
+"settings_bootrom_subtitle_none" = "Not installed (S5L8900)";
 "settings_system_header" = "System & Execution Environment";
 "settings_jit_title" = "JIT Compiler";
 "settings_jit_active" = "Active";
@@ -433,7 +433,7 @@
 
 /* Android */
 "device_android_arm" = "Android";
-"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"device_android_arm_desc" = "Android (4.4 - 7.1 ARM)";
 "android_variant_aosp" = "AOSP Standard";
 "android_variant_gapps" = "Google APIs";
 "wizard_name_config_prompt_android" = "Enter virtual machine name (can be changed later).\n* Runs ARMv7 Goldfish with hardware OpenGL ES acceleration and 640×1136 display.";
@@ -458,3 +458,68 @@
 "android_wipe_userdata_action" = "Erase User Data (userdata.img)";
 "android_cfg_ram_custom" = "Custom (MB)...";
 "android_cfg_ram_custom_hint" = "Enter RAM size in MB (256–3072 MB). Exceeding host available memory on 2 GB devices (e.g. A9) may trigger iOS Jetsam.";
+"device_firefoxos_arm" = "Firefox OS";
+"device_firefoxos_arm_desc" = "Firefox OS (1.4 - 2.6 B2G)";
+"device_winrt_arm" = "Windows RT";
+"device_winrt_arm_desc" = "Windows RT 8.0 / 8.1 (ARM32)";
+"winrt_variant_arm32" = "Windows RT (ARM32)";
+"section_winrt_config" = "Windows RT Settings";
+"winrt_cfg_ram" = "Memory (RAM)";
+"winrt_cfg_ram_hint" = "Assign RAM (512–2048 MB). Exceeding host memory may trigger iOS termination.";
+"winrt_cfg_disk" = "Virtual Disk (SD Card)";
+"winrt_cfg_disk_hint" = "Import a VHD/VHDX/IMG/QCOW2 disk image or create a blank virtual SD disk.";
+"winrt_cfg_iso" = "Installer / USB Image";
+"winrt_cfg_iso_hint" = "Attach an ISO installer or WinPE VHD/VHDX/IMG to the USB storage drive.";
+"winrt_cfg_none" = "None";
+"winrt_cfg_boot_order" = "Boot Priority";
+"winrt_boot_usb_first" = "USB / ISO First";
+"winrt_boot_sd_first" = "SD Disk First";
+"winrt_cfg_rtc" = "System Clock (RTC)";
+"winrt_cfg_rtc_hint" = "Windows RT 8.0/8.1 installers often require 2013–2014 dates due to certificate expiration.";
+"winrt_rtc_today" = "Current Time (UTC)";
+"winrt_rtc_custom" = "Custom Date...";
+"winrt_rtc_custom_hint" = "Enter date as YYYY-MM-DD (e.g. 2013-07-15).";
+"winrt_cfg_net" = "Network (USB RNDIS)";
+"winrt_cfg_audio" = "USB Audio";
+"winrt_enabled" = "Enabled";
+"winrt_disabled" = "Disabled";
+"winrt_import_disk_action" = "Import Disk Image...";
+"winrt_create_blank_disk_fmt" = "Create Blank Disk (%ld GB)";
+"winrt_attach_iso_action" = "Attach ISO / USB Image...";
+"winrt_eject_iso_action" = "Eject Attached Image";
+"winrt_importing_media" = "Copying image to VM...";
+"winrt_invalid_image_ext" = "Unsupported image format. Select .iso, .vhd, .vhdx, .img, .raw, or .qcow2.";
+"wizard_name_config_prompt_winrt" = "Enter virtual machine name (can be changed later).\n• After creation, attach a Windows RT ARM32 ISO or VHD in Container Settings.";
+"winrt_container_created_msg_fmt" = "\"%@\" created. Attach an installer ISO or Windows RT VHD/VHDX before booting.";
+"winrt_configure_media" = "Configure Media...";
+"winrt_send_cad" = "Send Ctrl + Alt + Del";
+"winrt_reset_usb" = "Reset USB Input";
+"winrt_usb_reset_toast" = "USB keyboard & mouse reattached";
+"winrt_quick_keys" = "Quick Keys";
+"winrt_missing_media_error" = "No bootable disk or ISO attached. Open Container Settings to import a VHD/ISO first.";
+"winrt_input_mode_touch" = "Touch Mode";
+"winrt_input_mode_mouse" = "Mouse Mode";
+"winrt_mode_touch_toast" = "Input: Direct Touch";
+"winrt_mode_mouse_toast" = "Input: Mouse Trackpad (Drag=Move, Tap=Click, Hold=Right-Click)";
+"winrt_sticky_mods_section" = "Sticky Modifiers";
+"winrt_sticky_clear" = "Release Modifiers";
+"winrt_special_nav_menu" = "Navigation & Edit";
+"winrt_fn_keys_menu" = "Function Keys (F1–F12)";
+"winrt_right_click_action" = "Right Click";
+
+/* Windows RT Diagnostics */
+"winrt_iso_no_eltorito_title" = "No UEFI El Torito Boot Record Found";
+"winrt_iso_no_eltorito_msg" = "This ISO does not contain an ISO-9660 El Torito (\"CD001\") boot record (it appears to be UDF-only or non-bootable). Because the ARM32 UEFI firmware has no UDF driver, booting from it will stop at the UEFI Shell with BLK0 only.\n\nPlease use an El Torito ARM32 UEFI ISO (such as Windows RT 8.1 Update 3 9600.17053 / 9600.17328) or a bootable FAT32 .vhd/.img USB disk image.";
+
+/* Chrome OS & Ubuntu Touch Virt */
+"device_chromeos_arm" = "Chrome OS ARM (Virt)";
+"device_chromeos_arm_desc" = "Chrome OS R40 ARM (QEMU Virt, Desktop)";
+"device_ubuntutouch_virt" = "Ubuntu Touch (Virt)";
+"device_ubuntutouch_virt_desc" = "Ubuntu Touch 14.09 / 15.04 (Isolated Virt)";
+"section_chromeos_config" = "Chrome OS Hardware";
+"section_ubuntutouch_config" = "Ubuntu Touch Hardware";
+"chromeos_cfg_stateful" = "Stateful QCOW2 Disk";
+"chromeos_cfg_image" = "Chrome OS Recovery Image";
+"ubuntutouch_cfg_userdata" = "Userdata QCOW2 Disk";
+"ubuntutouch_downloading_overlays" = "Downloading Mesa & Mir Overlays";
+"ubuntutouch_building_rootfs" = "Building Ubuntu Touch Virt Rootfs";

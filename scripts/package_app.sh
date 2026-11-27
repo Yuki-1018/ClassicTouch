@@ -24,6 +24,21 @@ cp -f "$ROOT/Info.plist" "$BUNDLE/Info.plist"
 # Copy Resources
 cp -f "$ROOT/Resources/firmware-catalog.json" "$BUNDLE/firmware-catalog.json"
 cp -f "$ROOT/Resources/android-catalog.json" "$BUNDLE/android-catalog.json"
+cp -f "$ROOT/Resources/firefoxos-catalog.json" "$BUNDLE/firefoxos-catalog.json"
+cp -f "$ROOT/Resources/winrt-catalog.json" "$BUNDLE/winrt-catalog.json"
+cp -f "$ROOT/Resources/chromeos-catalog.json" "$BUNDLE/chromeos-catalog.json"
+cp -f "$ROOT/Resources/ubuntutouch-catalog.json" "$BUNDLE/ubuntutouch-catalog.json"
+if [ ! -f "$ROOT/Resources/linux-virt/vmlinuz-virt-armhf" ] || [ ! -f "$ROOT/Resources/linux-virt/initrd-virt-armhf.cpio.gz" ]; then
+    echo "error: Missing Resources/linux-virt boot files; run scripts/build_linux_virt_boot.sh first" >&2
+    exit 1
+fi
+mkdir -p "$BUNDLE/linux-virt"
+cp -f "$ROOT/Resources/linux-virt/vmlinuz-virt-armhf" "$BUNDLE/linux-virt/vmlinuz-virt-armhf"
+cp -f "$ROOT/Resources/linux-virt/initrd-virt-armhf.cpio.gz" "$BUNDLE/linux-virt/initrd-virt-armhf.cpio.gz"
+if [ -f "$ROOT/Resources/winrt/QEMU_EFI_1512_driver1998.fd" ]; then
+    mkdir -p "$BUNDLE/winrt"
+    cp -f "$ROOT/Resources/winrt/QEMU_EFI_1512_driver1998.fd" "$BUNDLE/winrt/QEMU_EFI_1512_driver1998.fd"
+fi
 if [ -f "$ROOT/Resources/goldfish-highmem.zImage" ]; then
     cp -f "$ROOT/Resources/goldfish-highmem.zImage" "$BUNDLE/goldfish-highmem.zImage"
 fi
@@ -79,8 +94,9 @@ cp -rf "$ROOT/build/Frameworks"/* "$BUNDLE/Frameworks/"
 chmod -R 755 "$BUNDLE/Frameworks"
 
 # Sign with ldid (-Cadhoc sets CS_ADHOC on CodeDirectory)
-find "$BUNDLE/Frameworks" -type f \( -name "*.dylib" -o -name "OpenGL" \) -exec /home/Yuki-1018/theos/toolchain/linux/iphone/bin/ldid -Cadhoc -S {} +
-/home/Yuki-1018/theos/toolchain/linux/iphone/bin/ldid -Cadhoc -S"$ROOT/entitlements.plist" "$BUNDLE/$APP_NAME"
+LDID="${LDID:-${THEOS:-$HOME/theos}/toolchain/linux/iphone/bin/ldid}"
+find "$BUNDLE/Frameworks" -type f \( -name "*.dylib" -o -name "OpenGL" \) -exec "$LDID" -Cadhoc -S {} +
+"$LDID" -Cadhoc -S"$ROOT/entitlements.plist" "$BUNDLE/$APP_NAME"
 
 # Create .ipa and .tipa (TrollStore IPA)
 cd "$DIST"

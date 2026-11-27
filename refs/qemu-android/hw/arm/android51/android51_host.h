@@ -1,5 +1,5 @@
 /*
- * Host ABI header for Android51 Goldfish engine (ported from Android_On_iOS).
+ * Host ABI header for Android51 Goldfish engine.
  * Licensed under the terms of the GNU General Public License version 2 or later.
  */
 #ifndef ANDROID51_HOST_H

@@ -1,5 +1,5 @@
 /*
- * Android51 host runtime lifecycle & callback dispatch (ported from Android_On_iOS).
+ * Android51 host runtime lifecycle & callback dispatch.
  */
 #include "qemu/osdep.h"
 #include "android51.h"
@@ -39,6 +39,13 @@ void android51_host_frame(const uint8_t *pixels, size_t stride, uint32_t x,
     }
 }
 
+__attribute__((weak)) void android51_host_gpu_frame(const uint8_t *pixels, size_t stride,
+                                                    uint32_t x, uint32_t y,
+                                                    uint32_t width, uint32_t height)
+{
+    android51_host_frame(pixels, stride, x, y, width, height);
+}
+
 void android51_host_pcm(const uint8_t *data, size_t bytes)
 {
     if (callbacks.pcm) {
@@ -50,6 +57,9 @@ void android51_host_serial(const uint8_t *data, size_t bytes)
 {
     if (callbacks.serial) {
         callbacks.serial(callbacks.opaque, data, bytes);
+    } else if (data && bytes) {
+        (void)fwrite(data, 1, bytes, stdout);
+        fflush(stdout);
     }
 }
 

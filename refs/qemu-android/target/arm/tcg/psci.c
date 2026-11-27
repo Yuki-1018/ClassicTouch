@@ -45,6 +45,16 @@ bool arm_is_psci_call(ARMCPU *cpu, int excp_type)
         break;
     case EXCP_SMC:
         if (cpu->psci_conduit != QEMU_PSCI_CONDUIT_SMC) {
+            /* Windows RT / ARM32 UEFI ResetSystem may invoke PSCI SYSTEM_RESET
+             * or SYSTEM_OFF via SMC even when the FDT conduit is HVC. Intercept
+             * those two power calls so they never trap into an uninitialized
+             * EL3 Monitor vector table (MVBAR = 0) and trigger a BSOD. */
+            if (cpu->psci_conduit != QEMU_PSCI_CONDUIT_DISABLED &&
+                !is_a64(&cpu->env) &&
+                (cpu->env.regs[0] == QEMU_PSCI_0_2_FN_SYSTEM_RESET ||
+                 cpu->env.regs[0] == QEMU_PSCI_0_2_FN_SYSTEM_OFF)) {
+                break;
+            }
             return false;
         }
         break;
@@ -120,6 +130,7 @@ void arm_handle_psci_call(ARMCPU *cpu)
         }
         break;
     case QEMU_PSCI_0_2_FN_SYSTEM_RESET:
+        fprintf(stderr, "[arm-psci] SYSTEM_RESET requested by guest\n");
         qemu_system_reset_request(SHUTDOWN_CAUSE_GUEST_RESET);
         /* QEMU reset and shutdown are async requests, but PSCI
          * mandates that we never return from the reset/shutdown
@@ -128,6 +139,7 @@ void arm_handle_psci_call(ARMCPU *cpu)
          */
         goto cpu_off;
     case QEMU_PSCI_0_2_FN_SYSTEM_OFF:
+        fprintf(stderr, "[arm-psci] SYSTEM_OFF requested by guest\n");
         qemu_system_shutdown_request(SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
         goto cpu_off;
     case QEMU_PSCI_0_1_FN_CPU_ON:

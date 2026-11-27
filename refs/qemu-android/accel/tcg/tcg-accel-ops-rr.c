@@ -36,6 +36,9 @@
 #include "tcg-accel-ops.h"
 #include "tcg-accel-ops-rr.h"
 #include "tcg-accel-ops-icount.h"
+#ifdef CONFIG_DARWIN
+#include <pthread/qos.h>
+#endif
 
 /* Kick all RR vCPUs */
 void rr_kick_vcpu_thread(CPUState *unused)
@@ -182,6 +185,9 @@ static void *rr_cpu_thread_fn(void *arg)
     Notifier force_rcu;
     CPUState *cpu = arg;
 
+#ifdef CONFIG_DARWIN
+    pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+#endif
     assert(tcg_enabled());
     rcu_register_thread();
     force_rcu.notify = rr_force_rcu;

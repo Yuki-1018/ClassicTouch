@@ -20,7 +20,7 @@ struct FrameStats {
     uint64_t bytesCopied = 0;
 };
 
-// Persistent BGRA backing store ported from Android_On_iOS.
+// Persistent BGRA backing store for Goldfish framebuffer and EAGL GPU output.
 // Coalesces dirty rectangles across dropped presentations without stalling the producer.
 class FrameMailbox {
     uint32_t width_ = 0;

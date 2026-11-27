@@ -127,13 +127,13 @@
 "unused" = "未使用";
 "no_bases" = "準備済みのベースはありません。";
 
-"bootrom_footer_soc" = "iPhone 2G / iPod touch 1G には S5L8900、iPod touch 2G には S5L8720 (iBoot-240.4) の 64 KB BootROM が必要です。\niPhone 3GS・4・iPod touch 3G/4G・iPad は BootROM 不要でそのまま起動できます。";
+"bootrom_footer_soc" = "iPhone 2G / iPod touch 1G（iPhone OS 1.x）には 64 KB の S5L8900 BootROM が必要です。\niPhone 3GS・4・5・iPod touch 3G/4G・iPad は BootROM 不要でそのまま起動できます。";
 "bootrom_invalid_title" = "無効なBootROM";
-"bootrom_invalid_msg" = "選択されたファイルは有効な 64 KB の S5L8900 または S5L8720 (iBoot-240.4) BootROM と認識できませんでした。";
+"bootrom_invalid_msg" = "選択されたファイルは有効な 64 KB の S5L8900 BootROM と認識できませんでした。";
 "bootrom_imported_soc_msg" = "%@ を検証して「%@」(%llu バイト) を登録しました。";
 "bootrom_required_s5l8900_msg" = "この機種の起動には 64 KB の S5L8900 BootROM (bootrom_s5l8900) が必要です。";
 "bootrom_required_s5l8720_msg" = "この機種の起動には 64 KB の S5L8720 iBoot-240.4 BootROM (bootrom_240_4) が必要です。";
-"bootrom_missing_detail_fmt" = "%@\n\nファイルアプリ等から対応する S5L8900 または S5L8720 BootROM を選択するか、ClassicTouch の書類（Documents）フォルダに配置してください。";
+"bootrom_missing_detail_fmt" = "%@\n\nファイルアプリ等から対応する S5L8900 BootROM を選択するか、ClassicTouch の書類（Documents）フォルダに配置してください。";
 
 "download_catalog_ipsw" = "カタログからファームウェアをダウンロード...";
 "download_catalog_device_msg" = "ダウンロードするファームウェアの機種を選択してください:";
@@ -222,11 +222,11 @@
 "device_ipod_2g" = "iPod touch (第2世代)";
 "device_ipod_3g" = "iPod touch (第3世代)";
 "device_ipod_4g" = "iPod touch (第4世代)";
-"device_iphone_2g_desc" = "iPhone 2G (iPhone OS 1.0〜3.1.3 / OS 1.xは要BootROM)";
+"device_iphone_2g_desc" = "iPhone 2G (iPhone OS 1.0〜1.1.4 / 要BootROM)";
 "device_iphone_3gs_desc" = "iPhone 3GS (iPhone OS 3.0〜iOS 6.1.6)";
 "device_iphone_4_desc" = "iPhone 4 (iOS 4.0〜7.1.2)";
 "device_iphone_5_desc" = "iPhone 5 (iOS 6.0〜10.3.4)";
-"device_ipod_1g_desc" = "iPod touch 1G (iPhone OS 1.1〜3.1.3 / OS 1.xは要BootROM)";
+"device_ipod_1g_desc" = "iPod touch 1G (iPhone OS 1.1〜1.1.5 / 要BootROM)";
 "device_ipod_2g_desc" = "iPod touch 2G (iPhone OS 2.1.1〜iOS 4.2.1 / 要BootROM)";
 "device_ipod_3g_desc" = "iPod touch 3G (iPhone OS 3.1.1〜iOS 5.1.1)";
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1〜6.1.6)";
@@ -282,7 +282,7 @@
 "vm_already_running_fmt" = "仮想マシン「%@」が起動中です。\n一度に起動できるのは1台までです。";
 "base_rebuild_required" = "ベースイメージの再構築が必要";
 "base_rebuild_msg" = "ブート不具合修正（OpenGLES・サンドボックス・iPhone 5 初期化更新）を適用するため、このコンテナを一度削除して再作成してください。";
-"how_to_use_footer" = "はじめての使い方\n1. 下のボタンから機種と OS を選択\n2. 起動前に StikDebug（universal.js）で JIT を有効化\n3. 作成した端末の ▶ を押して起動\n※ iPhone 2G / iPod 1G・2G のみ設定（歯車アイコン）から BootROM が必要です";
+"how_to_use_footer" = "はじめての使い方\n1. 下のボタンから機種と OS を選択\n2. 起動前に StikDebug（universal.js）で JIT を有効化\n3. 作成した端末の ▶ を押して起動\n※ iPhone 2G / iPod touch 1G のみ設定（歯車アイコン）から S5L8900 BootROM が必要です";
 "rename_container_title" = "コンテナ名の変更";
 "enter_new_name_prompt" = "新しい名前を入力してください:";
 "delete_container_confirm_title" = "コンテナの削除";
@@ -395,8 +395,8 @@
 "settings_ipsw_management" = "ファームウェア管理";
 "settings_ipsw_subtitle_fmt" = "%lu 個のファームウェア";
 "settings_bootrom_management" = "BootROM 管理";
-"settings_bootrom_subtitle_fmt" = "%lu / 2 導入済み";
-"settings_bootrom_subtitle_none" = "未導入 (S5L8900 / S5L8720)";
+"settings_bootrom_subtitle_fmt" = "%lu / 1 導入済み";
+"settings_bootrom_subtitle_none" = "未導入 (S5L8900)";
 "settings_system_header" = "システム & 実行環境";
 "settings_jit_title" = "JIT コンパイラ";
 "settings_jit_active" = "有効 (Active)";
@@ -433,7 +433,7 @@
 
 /* Android */
 "device_android_arm" = "Android";
-"device_android_arm_desc" = "Android (4.0〜7.1 ARM)";
+"device_android_arm_desc" = "Android (4.4〜7.1 ARM)";
 "android_variant_aosp" = "AOSP 標準構成";
 "android_variant_gapps" = "Google APIs 搭載";
 "wizard_name_config_prompt_android" = "仮想マシンの名前を入力してください（あとから変更できます）。\n※ ARMv7 Goldfish + OpenGL ES GPUアクセラレーション（640×1136）で動作します。";
@@ -458,3 +458,68 @@
 "android_wipe_userdata_action" = "ユーザーデータを初期化 (userdata.img)";
 "android_cfg_ram_custom" = "カスタム入力 (MB)...";
 "android_cfg_ram_custom_hint" = "割り当てる RAM 容量を MB 単位で入力してください（256〜3072 MB）。A9 などの 2GB 端末では上限を超えると強制終了する場合があります。";
+"device_firefoxos_arm" = "Firefox OS";
+"device_firefoxos_arm_desc" = "Firefox OS (1.4〜2.6 B2G)";
+"device_winrt_arm" = "Windows RT";
+"device_winrt_arm_desc" = "Windows RT 8.0 / 8.1 (ARM32)";
+"winrt_variant_arm32" = "Windows RT (ARM32)";
+"section_winrt_config" = "Windows RT 設定";
+"winrt_cfg_ram" = "メモリ (RAM)";
+"winrt_cfg_ram_hint" = "割り当てる RAM 容量を選択（512〜2048 MB）。搭載メモリを超える設定は強制終了の原因になります。";
+"winrt_cfg_disk" = "仮想ディスク (SD カード)";
+"winrt_cfg_disk_hint" = "VHD/VHDX/IMG/QCOW2 イメージを取り込むか、空の仮想 SD ディスクを作成します。";
+"winrt_cfg_iso" = "インストーラ / USB イメージ";
+"winrt_cfg_iso_hint" = "USB ストレージに ISO または WinPE 用の VHD/VHDX/IMG を接続します。";
+"winrt_cfg_none" = "なし";
+"winrt_cfg_boot_order" = "起動順位";
+"winrt_boot_usb_first" = "USB / ISO を優先";
+"winrt_boot_sd_first" = "SD ディスクを優先";
+"winrt_cfg_rtc" = "システム時刻 (RTC)";
+"winrt_cfg_rtc_hint" = "Windows RT 8.0/8.1 のセットアップでは証明書期限のため 2013〜2014 年の日付が推奨されます。";
+"winrt_rtc_today" = "現在時刻 (UTC)";
+"winrt_rtc_custom" = "カスタム日付...";
+"winrt_rtc_custom_hint" = "YYYY-MM-DD 形式で日付を入力してください（例: 2013-07-15）。";
+"winrt_cfg_net" = "ネットワーク (USB RNDIS)";
+"winrt_cfg_audio" = "USB オーディオ";
+"winrt_enabled" = "有効";
+"winrt_disabled" = "無効";
+"winrt_import_disk_action" = "ディスクイメージを読み込む...";
+"winrt_create_blank_disk_fmt" = "空のディスクを作成 (%ld GB)";
+"winrt_attach_iso_action" = "ISO / USB イメージを選択...";
+"winrt_eject_iso_action" = "イメージを取り外す";
+"winrt_importing_media" = "イメージを VM へコピー中...";
+"winrt_invalid_image_ext" = "非対応の形式です。.iso / .vhd / .vhdx / .img / .raw / .qcow2 を選択してください。";
+"wizard_name_config_prompt_winrt" = "仮想マシンの名前を入力してください（あとから変更できます）。\n※ 作成後、コンテナ設定で Windows RT ARM32 の ISO または VHD を接続してください。";
+"winrt_container_created_msg_fmt" = "「%@」を作成しました。起動前にコンテナ設定からインストール ISO または Windows RT の VHD/VHDX を設定してください。";
+"winrt_configure_media" = "メディアを設定...";
+"winrt_send_cad" = "Ctrl + Alt + Del を送信";
+"winrt_reset_usb" = "USB 入力を再接続";
+"winrt_usb_reset_toast" = "USB キーボード・マウスを再接続しました";
+"winrt_quick_keys" = "クイックキー";
+"winrt_missing_media_error" = "起動可能なディスクまたは ISO が設定されていません。コンテナ設定から VHD / ISO を選択してください。";
+"winrt_input_mode_touch" = "タッチ操作";
+"winrt_input_mode_mouse" = "マウス操作";
+"winrt_mode_touch_toast" = "入力切替: タッチ操作";
+"winrt_mode_mouse_toast" = "入力切替: マウス操作（ドラッグで移動 / タップでクリック / 長押し・2本指で右クリック）";
+"winrt_sticky_mods_section" = "固定修飾キー";
+"winrt_sticky_clear" = "修飾キーをすべて解除";
+"winrt_special_nav_menu" = "移動・編集キー";
+"winrt_fn_keys_menu" = "ファンクションキー (F1–F12)";
+"winrt_right_click_action" = "右クリック";
+
+/* Windows RT Diagnostics */
+"winrt_iso_no_eltorito_title" = "UEFI El Torito ブートレコードが見つかりません";
+"winrt_iso_no_eltorito_msg" = "選択した ISO には ISO-9660 El Torito（\"CD001\"）ブートレコードが含まれていません（UDF 専用 ISO などの可能性があります）。同梱 ARM32 UEFI には UDF ドライバがないため、このまま起動すると BLK0 のみ認識されて UEFI シェルで停止します。\n\nUEFI El Torito 対応の ARM32 ISO（Windows RT 8.1 Update 3 9600.17053 / 9600.17328 など）または FAT32 起動可能な VHD / IMG をご使用ください。";
+
+/* Chrome OS & Ubuntu Touch Virt */
+"device_chromeos_arm" = "Chrome OS ARM (Virt)";
+"device_chromeos_arm_desc" = "Chrome OS R40 ARM (QEMU Virt・デスクトップ)";
+"device_ubuntutouch_virt" = "Ubuntu Touch (Virt)";
+"device_ubuntutouch_virt_desc" = "Ubuntu Touch 14.09 / 15.04 (隔離 Virt)";
+"section_chromeos_config" = "Chrome OS ハードウェア構成";
+"section_ubuntutouch_config" = "Ubuntu Touch ハードウェア構成";
+"chromeos_cfg_stateful" = "ステートフル QCOW2 ディスク";
+"chromeos_cfg_image" = "Chrome OS リカバリイメージ";
+"ubuntutouch_cfg_userdata" = "ユーザーデータ QCOW2 ディスク";
+"ubuntutouch_downloading_overlays" = "Mesa・Mir オーバーレイをダウンロード中";
+"ubuntutouch_building_rootfs" = "Ubuntu Touch Virt Rootfs を構築中";

@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "platform": "chromeos",
+  "entries": [
+    {
+      "id": "chromeos-daisy-r40",
+      "platform": "chromeos",
+      "product_type": "ChromeOSARMv7",
+      "board": "virt",
+      "version": "R40 (6457.107.0)",
+      "codename": "Chrome OS R40 (ARM32)",
+      "cpu": "cortex-a15",
+      "ram_mb": 1536,
+      "disk_gb": 16,
+      "width": 1024,
+      "height": 768,
+      "rtc_date": "today",
+      "url": "https://dl.google.com/dl/edgedl/chromeos/recovery/chromeos_6457.107.0_daisy_recovery_stable-channel_snow-mp-v3.bin.zip",
+      "bytes": 491356273
+    }
+  ]
+}

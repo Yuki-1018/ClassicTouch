@@ -1,6 +1,6 @@
 /*
  * Entry point for embedding `libqemu-android.dylib` inside ClassicTouch iOS,
- * backed by the Android_On_iOS (`android51`) Goldfish core.
+ * backed by the Goldfish (`android51`) Goldfish core.
  */
 
 #include "qemu/osdep.h"

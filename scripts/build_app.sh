@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-THEOS="/home/Yuki-1018/theos"
+THEOS="${THEOS:-$HOME/theos}"
 CLANG="$THEOS/toolchain/linux/iphone/bin/clang"
 SDK="$THEOS/sdks/iPhoneOS16.5.sdk"
 MIN_IOS="${MIN_IOS:-15.0}"
@@ -40,7 +40,8 @@ for src in \
     "$ROOT/src/ios_usb_mux.mm" \
     "$ROOT/src/ios_ipa_installer.mm" \
     "$ROOT/src/ios_guest_tools.m" \
-    "$ROOT/src/ios_jit_helper.c"
+    "$ROOT/src/ios_jit_helper.c" \
+    "$ROOT/src/ios_winrt_qcow2.c"
 do
     obj="$OBJ_DIR/$(basename "${src%.*}").o"
     echo "  Compiling $(basename "$src")..."

@@ -207,7 +207,7 @@ ColorBuffer* ColorBuffer::create(EGLDisplay p_display,
     }
 
     cb->m_resizer = new TextureResize(p_width, p_height);
-    s_gles2.glFlush();
+    s_gles2.glFinish();
 
     return cb;
 }
@@ -295,13 +295,13 @@ void ColorBuffer::subUpdate(int x,
             s_gles2.glTexSubImage2D(
                     GL_TEXTURE_2D, 0, x, y, width, height, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
             ::free(rgba);
-            s_gles2.glFlush();
+            s_gles2.glFinish();
             return;
         }
     }
     s_gles2.glTexSubImage2D(
             GL_TEXTURE_2D, 0, x, y, width, height, p_format, p_type, pixels);
-    s_gles2.glFlush();
+    s_gles2.glFinish();
 }
 
 bool ColorBuffer::blitFromCurrentReadBuffer()
@@ -334,7 +334,7 @@ bool ColorBuffer::blitFromCurrentReadBuffer()
         if (prevFbo != 0) {
             s_gles2.glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)prevFbo);
         }
-        s_gles2.glFlush();
+        s_gles2.glFinish();
         static std::atomic<uint32_t> s_gl2_blits{0};
         uint32_t bn = s_gl2_blits.fetch_add(1, std::memory_order_relaxed) + 1;
         if (bn <= 3) {
@@ -349,9 +349,17 @@ bool ColorBuffer::blitFromCurrentReadBuffer()
             return false;
         }
         uint8_t* tmpRow = pixels + rowBytes * m_height;
-        s_gles1.glFlush();
+        GLint prevFbo = 0;
+        s_gles1.glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFbo);
+        if (prevFbo != 0) {
+            s_gles1.glBindFramebufferEXT(0x8D40 /* GL_FRAMEBUFFER_OES */, 0);
+        }
+        s_gles1.glFinish();
         s_gles1.glPixelStorei(GL_PACK_ALIGNMENT, 1);
         s_gles1.glReadPixels(0, 0, m_width, m_height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        if (prevFbo != 0) {
+            s_gles1.glBindFramebufferEXT(0x8D40 /* GL_FRAMEBUFFER_OES */, (GLuint)prevFbo);
+        }
         static std::atomic<uint32_t> s_gl1_blits{0};
         uint32_t bn = s_gl1_blits.fetch_add(1, std::memory_order_relaxed) + 1;
         if (bn <= 3) {
@@ -359,8 +367,8 @@ bool ColorBuffer::blitFromCurrentReadBuffer()
             for (size_t i = 0; i + 3 < rowBytes * m_height; i += 64) {
                 if (pixels[i] != 0 || pixels[i + 1] != 0 || pixels[i + 2] != 0) non_black++;
             }
-            fprintf(stderr, "[emugl] blitFromCurrentReadBuffer GL1 #%u (%ux%u non_black=%zu)\n",
-                    bn, m_width, m_height, non_black);
+            fprintf(stderr, "[emugl] blitFromCurrentReadBuffer GL1 #%u (%ux%u prevFbo=%d non_black=%zu)\n",
+                    bn, m_width, m_height, prevFbo, non_black);
         }
         for (GLuint y = 0; y < m_height / 2; ++y) {
             uint8_t* top = pixels + (size_t)y * rowBytes;
@@ -378,7 +386,7 @@ bool ColorBuffer::blitFromCurrentReadBuffer()
         s_gles2.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         s_gles2.glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, m_width, m_height,
                                GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-        s_gles2.glFlush();
+        s_gles2.glFinish();
         ::free(pixels);
         return true;
     }
@@ -403,7 +411,7 @@ bool ColorBuffer::blitFromCurrentReadBuffer()
     // Restore previous viewport.
     s_gles2.glViewport(vport[0], vport[1], vport[2], vport[3]);
     unbindFbo();
-    s_gles2.glFlush();
+    s_gles2.glFinish();
 
     return true;
 }

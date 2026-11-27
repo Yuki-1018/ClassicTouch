@@ -1,5 +1,5 @@
 /*
- * Android51 Goldfish ARMv7 Machine (ported from Android_On_iOS).
+ * Android51 Goldfish ARMv7 Machine.
  */
 #include "qemu/osdep.h"
 #include "android51.h"
@@ -11,6 +11,7 @@
 #include "qapi/visitor.h"
 #include "hw/net/smc91c111.h"
 #include "hw/arm/machines-qom.h"
+#include "system/reset.h"
 #include "exec/cpu-common.h"
 #include "exec/target_page.h"
 
@@ -29,6 +30,31 @@ void gf_map(Android51State *s, MemoryRegion *mr, const char *name, uint32_t base
     memory_region_add_subregion(get_system_memory(), base, mr);
 }
 
+static hwaddr gf_translate_vaddr(Android51State *s, uint32_t vaddr)
+{
+    CPUState *cs = CPU(s->cpu);
+    CPUARMState *env = &s->cpu->env;
+    if (s->kernel_ttbr0 == 0 && (env->cp15.sctlr_el[1] & 1) && env->cp15.ttbr0_el[1] != 0) {
+        s->kernel_ttbr0 = env->cp15.ttbr0_el[1];
+    }
+    hwaddr page = cpu_get_phys_page_debug(cs, vaddr);
+    if (page == (hwaddr)-1 && vaddr >= 0x80000000U && s->kernel_ttbr0 != 0 &&
+        env->cp15.ttbr0_el[1] != s->kernel_ttbr0) {
+        /* 32-bit ARM splits vmalloc L1 entries lazily from swapper_pg_dir. */
+        uint64_t saved = env->cp15.ttbr0_el[1];
+        env->cp15.ttbr0_el[1] = s->kernel_ttbr0;
+        page = cpu_get_phys_page_debug(cs, vaddr);
+        env->cp15.ttbr0_el[1] = saved;
+    }
+    return page;
+}
+
+static void android51_reset(void *opaque)
+{
+    Android51State *s = opaque;
+    s->kernel_ttbr0 = 0;
+}
+
 bool gf_guest_virtual(Android51State *s, uint32_t address, void *buffer,
                       size_t length, bool write)
 {
@@ -38,7 +64,7 @@ bool gf_guest_virtual(Android51State *s, uint32_t address, void *buffer,
     hwaddr page_size = qemu_target_page_size();
     hwaddr page_mask = ~(page_size - 1);
     for (uint64_t cursor = address, end = cursor + length; cursor < end;) {
-        hwaddr page = cpu_get_phys_page_debug(CPU(s->cpu), cursor & page_mask);
+        hwaddr page = gf_translate_vaddr(s, cursor & page_mask);
         size_t chunk = MIN(end - cursor, page_size - (cursor & ~page_mask));
         uint64_t physical = page + (cursor & ~page_mask);
         if (page == (hwaddr)-1 || physical >= MACHINE(s)->ram_size ||
@@ -47,7 +73,19 @@ bool gf_guest_virtual(Android51State *s, uint32_t address, void *buffer,
         }
         cursor += chunk;
     }
-    return cpu_memory_rw_debug(CPU(s->cpu), address, buffer, length, write) == 0;
+    uint8_t *buf = (uint8_t *)buffer;
+    for (uint64_t cursor = address, end = cursor + length; cursor < end;) {
+        hwaddr page = gf_translate_vaddr(s, cursor & page_mask);
+        size_t chunk = MIN(end - cursor, page_size - (cursor & ~page_mask));
+        uint64_t physical = page + (cursor & ~page_mask);
+        if (address_space_rw(&address_space_memory, physical,
+                             MEMTXATTRS_UNSPECIFIED, buf, chunk, write) != MEMTX_OK) {
+            return false;
+        }
+        buf += chunk;
+        cursor += chunk;
+    }
+    return true;
 }
 
 static void android51_init(MachineState *machine)
@@ -97,6 +135,8 @@ static void android51_init(MachineState *machine)
     s->boot.ram_size = machine->ram_size;
     s->boot.loader_start = 0;
     s->boot.board_id = 1441;
+    s->kernel_ttbr0 = 0;
+    qemu_register_reset(android51_reset, s);
 
     if (strstr(existing_cmd, "qemu.gles=") == NULL) {
         char *cmdline = g_strdup_printf("%s%sqemu.gles=%d",
@@ -147,7 +187,7 @@ static void android51_instance_init(Object *obj)
 static void android51_class_init(ObjectClass *klass, const void *data)
 {
     MachineClass *mc = MACHINE_CLASS(klass);
-    mc->desc = "Android 4/5/6 ARMv7 Goldfish (Android_On_iOS)";
+    mc->desc = "Android 4.4/5/6/7 ARMv7 Goldfish";
     mc->init = android51_init;
     mc->default_cpu_type = ARM_CPU_TYPE_NAME("cortex-a8");
     mc->default_ram_id = "android51.ram";

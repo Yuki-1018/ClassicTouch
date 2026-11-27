@@ -1,6 +1,6 @@
 /*
  * Host UI bridge for Classic Android (`libqemu-android.dylib`),
- * connecting ClassicTouch callbacks to Android_On_iOS's `android51` host ABI.
+ * connecting ClassicTouch callbacks to Goldfish's `android51` host ABI.
  */
 
 #include "qemu/osdep.h"
@@ -50,7 +50,7 @@ typedef struct TouchSlotState {
 static TouchSlotState g_slots[MAX_TOUCH_SLOTS];
 static uint32_t g_next_tracking = 1;
 
-/* PCM output ring fed by Android_On_iOS audio_callback -> android51_host_pcm */
+/* PCM output ring fed by Goldfish audio_callback -> android51_host_pcm */
 static int16_t g_pcm_ring[PCM_RING_SAMPLES];
 static _Atomic uint32_t g_pcm_head = 0;
 static _Atomic uint32_t g_pcm_tail = 0;

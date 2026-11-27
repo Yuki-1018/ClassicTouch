@@ -82,6 +82,10 @@ enum {
     VIRT_NVDIMM_ACPI,
     VIRT_PVTIME,
     VIRT_ACPI_PCIHP,
+    VIRT_EHCI,
+    VIRT_SDHCI,
+    VIRT_OHCI,
+    VIRT_EHCI2,
     VIRT_LOWMEMMAP_LAST,
 };
 
@@ -187,7 +191,10 @@ struct VirtMachineState {
     MemoryRegion *sysmem;
     MemoryRegion *secure_sysmem;
     bool pci_preserve_config;
+    bool winrt;
 };
+
+#define VIRT_SDHCI_CAPABILITIES 0x057834b4
 
 #define VIRT_ECAM_ID(high) (high ? VIRT_HIGH_PCIE_ECAM : VIRT_PCIE_ECAM)
 

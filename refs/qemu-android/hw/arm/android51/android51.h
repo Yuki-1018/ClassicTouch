@@ -1,5 +1,5 @@
 /*
- * Goldfish ARMv7 machine definitions (ported from Android_On_iOS).
+ * Goldfish ARMv7 machine definitions.
  * Licensed under the terms of the GNU General Public License version 2.
  */
 #ifndef ANDROID51_GOLDFISH_H
@@ -31,6 +31,7 @@ struct Android51State {
     bool gpu_enabled;
     bool gpu_ready;
     struct arm_boot_info boot;
+    uint64_t kernel_ttbr0;
     MemoryRegion pic_io, bus_io, tty_io, timer_io, rtc_io;
     qemu_irq *irqs;
     uint32_t levels, enabled;

@@ -127,6 +127,18 @@ static void no_rt_tap(HWVoiceOut *hw, const void *buf, size_t len, size_t due)
     fflush(log);
 }
 
+typedef void (*QemuNoaudioTapFn)(void *opaque, const void *buf, size_t len,
+                                 int freq, int channels, int format);
+static QemuNoaudioTapFn g_noaudio_tap_cb;
+static void *g_noaudio_tap_opaque;
+
+void qemu_noaudio_set_tap(QemuNoaudioTapFn cb, void *opaque);
+void qemu_noaudio_set_tap(QemuNoaudioTapFn cb, void *opaque)
+{
+    g_noaudio_tap_cb = cb;
+    g_noaudio_tap_opaque = opaque;
+}
+
 static size_t no_write(HWVoiceOut *hw, void *buf, size_t len)
 {
     NoVoiceOut *no = (NoVoiceOut *) hw;
@@ -135,6 +147,10 @@ static size_t no_write(HWVoiceOut *hw, void *buf, size_t len)
 
     audio_rate_add_bytes(&no->rate, take);
     no_rt_tap(hw, buf, take, due);
+    if (take > 0 && g_noaudio_tap_cb) {
+        g_noaudio_tap_cb(g_noaudio_tap_opaque, buf, take,
+                         hw->info.freq, hw->info.nchannels, (int)hw->info.af);
+    }
     return take;
 }
 

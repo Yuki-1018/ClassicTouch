@@ -478,7 +478,7 @@ static struct virtio_input_config virtio_multitouch_config[] = {
         .subsel    = ABS_MT_TRACKING_ID,
         .size      = sizeof(virtio_input_absinfo),
         .u.abs.min = const_le32(INPUT_EVENT_SLOTS_MIN),
-        .u.abs.max = const_le32(INPUT_EVENT_SLOTS_MAX),
+        .u.abs.max = const_le32(65535),
     },{
         .select    = VIRTIO_INPUT_CFG_ABS_INFO,
         .subsel    = ABS_MT_POSITION_X,
@@ -509,10 +509,14 @@ static void virtio_multitouch_init(Object *obj)
         ABS_MT_POSITION_Y,
     };
 
+    unsigned short touch_keys[] = {
+        BTN_TOUCH,
+    };
+
     vhid->handler = &virtio_multitouch_handler;
     virtio_input_init_config(vinput, virtio_multitouch_config);
-    virtio_input_extend_config(vinput, keymap_button,
-                               ARRAY_SIZE(keymap_button),
+    virtio_input_extend_config(vinput, touch_keys,
+                               ARRAY_SIZE(touch_keys),
                                VIRTIO_INPUT_CFG_EV_BITS, EV_KEY);
     virtio_input_extend_config(vinput, abs_props,
                                ARRAY_SIZE(abs_props),

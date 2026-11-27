@@ -610,7 +610,14 @@ didFinishDownloadingToURL:(NSURL *)location {
     // Move location synchronously before returning (iOS deletes `location` once this delegate returns).
     NSFileManager *fm = [NSFileManager defaultManager];
     NSString *firmwaresDir = [self firmwaresDirectoryPath];
-    NSString *ext = [currentId hasPrefix:@"android-"] ? @"zip" : @"ipsw";
+    NSString *ext = @"ipsw";
+    if ([currentId hasPrefix:@"fxos-"]) {
+        ext = [currentId hasSuffix:@"-gaia"] ? @"zip" : @"tar.gz";
+    } else if ([currentId hasPrefix:@"ut-"]) {
+        ext = ([currentId hasSuffix:@"-boot"] || [currentId hasSuffix:@"-android-system"]) ? @"img" : @"tar.gz";
+    } else if ([currentId hasPrefix:@"android-"]) {
+        ext = @"zip";
+    }
     NSString *stagingPath = [firmwaresDir stringByAppendingPathComponent:[NSString stringWithFormat:@".downloading-%@.%@", currentId, ext]];
     NSURL *stagingURL = [NSURL fileURLWithPath:stagingPath];
     [fm removeItemAtURL:stagingURL error:nil];
@@ -624,12 +631,16 @@ didFinishDownloadingToURL:(NSURL *)location {
         }
     }
 
-    // Verify SHA-1 if expected
+    // Verify SHA-256 (64 hex chars) or SHA-1 (40 hex chars) if expected
     if (expectedSHA1.length > 0) {
         NSError *hashError = nil;
-        NSString *actualSHA1 = [IPSWDownloader computeSHA1ForFile:stagingURL error:&hashError];
-        if (hashError || ![actualSHA1 isEqualToString:expectedSHA1]) {
-            NSLog(@"[IPSWDownloader] SHA1 mismatch! Expected: %@, Actual: %@", expectedSHA1, actualSHA1);
+        BOOL isSHA256 = (expectedSHA1.length == 64);
+        NSString *actualHash = isSHA256
+            ? [IPSWDownloader computeSHA256ForFile:stagingURL error:&hashError]
+            : [IPSWDownloader computeSHA1ForFile:stagingURL error:&hashError];
+        if (hashError || ![actualHash isEqualToString:expectedSHA1]) {
+            NSLog(@"[IPSWDownloader] %@ mismatch! Expected: %@, Actual: %@",
+                  isSHA256 ? @"SHA256" : @"SHA1", expectedSHA1, actualHash);
             [fm removeItemAtURL:stagingURL error:nil];
 
             BOOL switched = NO;
@@ -642,11 +653,14 @@ didFinishDownloadingToURL:(NSURL *)location {
 
             NSError *mismatchError = [NSError errorWithDomain:@"IPSWDownloader"
                                                          code:1001
-                                                     userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"SHA1 mismatch: expected %@, got %@", expectedSHA1, actualSHA1]}];
+                                                     userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"%@ mismatch: expected %@, got %@",
+                                                                                            isSHA256 ? @"SHA256" : @"SHA1",
+                                                                                            expectedSHA1,
+                                                                                            actualHash]}];
             [self finishWithURL:nil error:mismatchError cancelled:NO];
             return;
         }
-        NSLog(@"[IPSWDownloader] SHA1 verification succeeded: %@", actualSHA1);
+        NSLog(@"[IPSWDownloader] %@ verification succeeded: %@", isSHA256 ? @"SHA256" : @"SHA1", actualHash);
     }
 
     // Move to Documents/Firmwares/<id>.(ipsw|zip)
@@ -744,6 +758,33 @@ didFinishDownloadingToURL:(NSURL *)location {
 
     NSMutableString *hex = [NSMutableString stringWithCapacity:CC_SHA1_DIGEST_LENGTH * 2];
     for (int i = 0; i < CC_SHA1_DIGEST_LENGTH; i++) {
+        [hex appendFormat:@"%02x", digest[i]];
+    }
+    return [hex lowercaseString];
+}
+
++ (NSString *)computeSHA256ForFile:(NSURL *)fileURL error:(NSError **)error {
+    NSFileHandle *handle = [NSFileHandle fileHandleForReadingFromURL:fileURL error:error];
+    if (!handle) return nil;
+
+    CC_SHA256_CTX ctx;
+    CC_SHA256_Init(&ctx);
+
+    const NSUInteger chunkSize = 1024 * 1024; // 1 MB
+    while (1) {
+        @autoreleasepool {
+            NSData *data = [handle readDataOfLength:chunkSize];
+            if (data.length == 0) break;
+            CC_SHA256_Update(&ctx, data.bytes, (CC_LONG)data.length);
+        }
+    }
+    [handle closeFile];
+
+    unsigned char digest[CC_SHA256_DIGEST_LENGTH];
+    CC_SHA256_Final(digest, &ctx);
+
+    NSMutableString *hex = [NSMutableString stringWithCapacity:CC_SHA256_DIGEST_LENGTH * 2];
+    for (int i = 0; i < CC_SHA256_DIGEST_LENGTH; i++) {
         [hex appendFormat:@"%02x", digest[i]];
     }
     return [hex lowercaseString];

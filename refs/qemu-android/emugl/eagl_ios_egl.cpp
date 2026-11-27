@@ -11,6 +11,7 @@
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 
+#ifdef __APPLE__
 #include <atomic>
 #include <dlfcn.h>
 #include <objc/message.h>
@@ -89,6 +90,9 @@ static void (*raw_glGetTexParameteriv)(GLenum, GLenum, GLint*) = nullptr;
 static void (*raw_glGetTexParameterfv)(GLenum, GLenum, GLfloat*) = nullptr;
 static void (*raw_glGenerateMipmap)(GLenum) = nullptr;
 static void (*raw_glShaderSource)(GLuint, GLsizei, const GLchar* const*, const GLint*) = nullptr;
+static void (*raw_glCompileShader)(GLuint) = nullptr;
+static void (*raw_glGetShaderiv)(GLuint, GLenum, GLint*) = nullptr;
+static void (*raw_glGetShaderInfoLog)(GLuint, GLsizei, GLsizei*, GLchar*) = nullptr;
 static void (*raw_glEnable)(GLenum) = nullptr;
 static void (*raw_glDisable)(GLenum) = nullptr;
 static void (*raw_glBindFramebuffer)(GLenum, GLuint) = nullptr;
@@ -132,6 +136,8 @@ static const EaglConfig s_configs[] = {
     { 4, 8, 8, 8, 0, 24, 8, EGL_OPENGL_ES_BIT | EGL_OPENGL_ES2_BIT, EGL_WINDOW_BIT | EGL_PBUFFER_BIT },
     { 5, 5, 6, 5, 0, 16, 0, EGL_OPENGL_ES_BIT | EGL_OPENGL_ES2_BIT, EGL_WINDOW_BIT | EGL_PBUFFER_BIT },
     { 6, 5, 6, 5, 0, 0,  0, EGL_OPENGL_ES_BIT | EGL_OPENGL_ES2_BIT, EGL_WINDOW_BIT | EGL_PBUFFER_BIT },
+    { 7, 8, 8, 8, 0, 16, 0, EGL_OPENGL_ES_BIT | EGL_OPENGL_ES2_BIT, EGL_WINDOW_BIT | EGL_PBUFFER_BIT },
+    { 8, 8, 8, 8, 0, 0,  0, EGL_OPENGL_ES_BIT | EGL_OPENGL_ES2_BIT, EGL_WINDOW_BIT | EGL_PBUFFER_BIT },
 };
 
 struct EaglContextObj {
@@ -203,6 +209,9 @@ static void ensure_eagl_init()
         raw_glGetTexParameterfv = (decltype(raw_glGetTexParameterfv))dlsym(s_gles_fw, "glGetTexParameterfv");
         raw_glGenerateMipmap = (decltype(raw_glGenerateMipmap))dlsym(s_gles_fw, "glGenerateMipmap");
         raw_glShaderSource = (decltype(raw_glShaderSource))dlsym(s_gles_fw, "glShaderSource");
+        raw_glCompileShader = (decltype(raw_glCompileShader))dlsym(s_gles_fw, "glCompileShader");
+        raw_glGetShaderiv = (decltype(raw_glGetShaderiv))dlsym(s_gles_fw, "glGetShaderiv");
+        raw_glGetShaderInfoLog = (decltype(raw_glGetShaderInfoLog))dlsym(s_gles_fw, "glGetShaderInfoLog");
         raw_glEnable = (decltype(raw_glEnable))dlsym(s_gles_fw, "glEnable");
         raw_glDisable = (decltype(raw_glDisable))dlsym(s_gles_fw, "glDisable");
         raw_glBindFramebuffer = (decltype(raw_glBindFramebuffer))dlsym(s_gles_fw, "glBindFramebuffer");
@@ -305,6 +314,11 @@ static GLuint get_or_create_fbo_for_surface(EaglContextObj *ctx, EaglSurfaceObj 
             raw_glRenderbufferStorageOES(0x8D41, 0x8056 /* GL_RGBA4_OES */, surf->width, surf->height);
             raw_glFramebufferRenderbufferOES(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                              0x8D41, surf->color_rbo_es1);
+            GLenum st = raw_glCheckFramebufferStatusOES(GL_FRAMEBUFFER);
+            if (st != 0x8CD5) {
+                fprintf(stderr, "[emugl] ES1 FBO incomplete status=0x%x (%dx%d)\n",
+                        st, surf->width, surf->height);
+            }
         }
     } else {
         raw_glGenFramebuffers(1, &fbo);
@@ -867,6 +881,12 @@ static void wrap_glTexImage2D(GLenum target, GLint level, GLint internalformat,
                               GLenum format, GLenum type, const void *pixels)
 {
     detach_alias_if_target_redefined(target);
+    if (internalformat == 0x80E1 /* GL_BGRA_EXT */ ||
+        internalformat == 0x8058 /* GL_RGBA8_OES */) {
+        internalformat = GL_RGBA;
+    } else if (internalformat == 0x8051 /* GL_RGB8_OES */) {
+        internalformat = GL_RGB;
+    }
     raw_glTexImage2D(normalize_tex_target(target), level, internalformat,
                      width, height, border, format, type, pixels);
 }
@@ -1046,6 +1066,24 @@ static void wrap_glShaderSource(GLuint shader, GLsizei count,
     const GLchar *src_ptr = final_src.c_str();
     GLint src_len = (GLint)final_src.size();
     raw_glShaderSource(shader, 1, &src_ptr, &src_len);
+}
+
+static void wrap_glCompileShader(GLuint shader)
+{
+    raw_glCompileShader(shader);
+    if (raw_glGetShaderiv && raw_glGetShaderInfoLog) {
+        GLint ok = 1;
+        raw_glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
+        if (!ok) {
+            static std::atomic<int> s_shader_err_logs{0};
+            if (s_shader_err_logs.fetch_add(1, std::memory_order_relaxed) < 8) {
+                char logbuf[512] = { 0 };
+                GLsizei len = 0;
+                raw_glGetShaderInfoLog(shader, (GLsizei)sizeof(logbuf) - 1, &len, logbuf);
+                fprintf(stderr, "[emugl] glCompileShader FAILED (shader=%u): %s\n", shader, logbuf);
+            }
+        }
+    }
 }
 
 static void wrap_glBindFramebuffer(GLenum target, GLuint fb)
@@ -1283,26 +1321,21 @@ static const GLubyte *wrap_glGetString(GLenum name)
                 "GL_OES_depth_texture",
                 "GL_OES_element_index_uint",
                 "GL_OES_fbo_render_mipmap",
-                "GL_OES_mapbuffer",
-                "GL_OES_required_internalformat",
                 "GL_OES_standard_derivatives",
                 "GL_OES_texture_float",
                 "GL_OES_texture_float_linear",
                 "GL_OES_texture_half_float",
                 "GL_OES_texture_half_float_linear",
                 "GL_OES_texture_npot",
-                "GL_OES_vertex_array_object",
                 "GL_OES_vertex_half_float",
                 "GL_EXT_blend_minmax",
                 "GL_EXT_color_buffer_half_float",
-                "GL_EXT_discard_framebuffer",
                 "GL_EXT_shader_texture_lod",
                 "GL_EXT_shadow_samplers",
                 "GL_EXT_sRGB",
                 "GL_EXT_texture_compression_s3tc",
                 "GL_EXT_texture_filter_anisotropic",
                 "GL_EXT_texture_rg",
-                "GL_EXT_texture_storage",
             };
             for (const char *ext : kEs2Allow) {
                 if (has_ext_token(host, ext)) {
@@ -1468,6 +1501,7 @@ void *eagl_ios_find_gles2_symbol(const char *name)
     if (strcmp(name, "glGetTexParameterfv") == 0) return (void *)wrap_glGetTexParameterfv;
     if (strcmp(name, "glGenerateMipmap") == 0) return (void *)wrap_glGenerateMipmap;
     if (strcmp(name, "glShaderSource") == 0) return (void *)wrap_glShaderSource;
+    if (strcmp(name, "glCompileShader") == 0) return (void *)wrap_glCompileShader;
     if (strcmp(name, "glGetIntegerv") == 0) return (void *)wrap_glGetIntegerv;
     if (strcmp(name, "glGetString") == 0) return (void *)wrap_glGetString;
     if (strcmp(name, "glEGLImageTargetTexture2DOES") == 0) return (void *)wrap_glEGLImageTargetTexture2DOES;
@@ -1518,3 +1552,67 @@ void *eagl_ios_find_gles1_symbol(const char *name)
 }
 
 } // extern "C"
+#else
+#include <dlfcn.h>
+#include <string.h>
+
+extern "C" {
+
+static void *s_linux_egl = nullptr;
+static void *s_linux_gles2 = nullptr;
+static void *(*s_eglGetProcAddress)(const char *) = nullptr;
+static const unsigned char *(*s_raw_glGetString)(unsigned int) = nullptr;
+
+static const unsigned char *linux_wrap_glGetString(unsigned int name)
+{
+    if (name == 0x1F02 /* GL_VERSION */) {
+        return reinterpret_cast<const unsigned char *>("OpenGL ES 2.0 ClassicTouch");
+    }
+    if (name == 0x8B8C /* GL_SHADING_LANGUAGE_VERSION */) {
+        return reinterpret_cast<const unsigned char *>("OpenGL ES GLSL ES 1.00");
+    }
+    return s_raw_glGetString ? s_raw_glGetString(name) : nullptr;
+}
+
+static void ensure_linux_egl_init()
+{
+    if (!s_linux_egl) {
+        s_linux_egl = dlopen("libEGL.so.1", RTLD_LAZY | RTLD_LOCAL);
+        if (s_linux_egl) {
+            s_eglGetProcAddress = (void *(*)(const char *))dlsym(s_linux_egl, "eglGetProcAddress");
+        }
+    }
+    if (!s_linux_gles2) {
+        s_linux_gles2 = dlopen("libGLESv2.so.2", RTLD_LAZY | RTLD_LOCAL);
+        if (s_linux_gles2) {
+            s_raw_glGetString = (const unsigned char *(*)(unsigned int))dlsym(s_linux_gles2, "glGetString");
+        }
+    }
+}
+
+void *eagl_ios_find_egl_symbol(const char *name)
+{
+    ensure_linux_egl_init();
+    if (!name) return nullptr;
+    void *sym = s_linux_egl ? dlsym(s_linux_egl, name) : nullptr;
+    if (!sym && s_eglGetProcAddress) sym = s_eglGetProcAddress(name);
+    return sym;
+}
+
+void *eagl_ios_find_gles2_symbol(const char *name)
+{
+    ensure_linux_egl_init();
+    if (!name) return nullptr;
+    if (strcmp(name, "glGetString") == 0) return (void *)linux_wrap_glGetString;
+    void *sym = s_linux_gles2 ? dlsym(s_linux_gles2, name) : nullptr;
+    if (!sym && s_eglGetProcAddress) sym = s_eglGetProcAddress(name);
+    return sym;
+}
+
+void *eagl_ios_find_gles1_symbol(const char *name)
+{
+    return eagl_ios_find_gles2_symbol(name);
+}
+
+} // extern "C"
+#endif

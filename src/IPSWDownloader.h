@@ -56,6 +56,7 @@ typedef void (^IPSWDownloadCompletionBlock)(NSURL * _Nullable localURL, NSError 
 - (nullable NSDictionary *)consumePendingCompletedDownloadInfo;
 
 + (NSString *)computeSHA1ForFile:(NSURL *)fileURL error:(NSError **)error;
++ (NSString *)computeSHA256ForFile:(NSURL *)fileURL error:(NSError **)error;
 
 @end
 

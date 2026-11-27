@@ -1,5 +1,5 @@
 /*
- * Goldfish v1 qemu_pipe device (ported from Android_On_iOS).
+ * Goldfish v1 qemu_pipe device.
  */
 #include "qemu/osdep.h"
 #include "android51.h"
@@ -11,7 +11,7 @@
 #include "system/reset.h"
 #include "qemu/bswap.h"
 
-#define GF_PIPE_LIMIT 64
+#define GF_PIPE_LIMIT 512
 #define GF_PIPE_BYTES 8192
 #define MAX_EXTRA_PROPS 32
 
@@ -19,6 +19,7 @@ typedef enum GFService {
     GF_CONNECT,
     GF_GPU,
     GF_BOOT_PROPERTIES,
+    GF_SENSORS,
     GF_PINGPONG,
     GF_GSM,
     GF_ADB_ACCEPT,
@@ -42,7 +43,7 @@ typedef struct GFPipe {
 typedef struct GFPipes {
     Android51State *board;
     MemoryRegion io;
-    GFPipe pipes[GF_PIPE_LIMIT];
+    GFPipe *pipes[GF_PIPE_LIMIT];
     uint32_t channel, address, length, wakes;
     uint64_t params;
     int32_t result;
@@ -158,7 +159,8 @@ static void pipes_irq(GFPipes *s)
 {
     bool wake = false;
     for (unsigned i = 0; i < GF_PIPE_LIMIT; ++i) {
-        wake |= s->pipes[i].used && s->pipes[i].wakes != 0;
+        GFPipe *p = s->pipes[i];
+        wake |= p && p->used && p->wakes != 0;
     }
     qemu_set_irq(s->board->irqs[15], wake);
 }
@@ -188,8 +190,9 @@ static void pipe_wake(GFPipes *s, GFPipe *p)
 static GFPipe *pipe_find(GFPipes *s)
 {
     for (unsigned i = 0; i < GF_PIPE_LIMIT; ++i) {
-        if (s->pipes[i].used && s->pipes[i].channel == s->channel) {
-            return &s->pipes[i];
+        GFPipe *p = s->pipes[i];
+        if (p && p->used && p->channel == s->channel) {
+            return p;
         }
     }
     return NULL;
@@ -262,6 +265,33 @@ static bool boot_properties(GFPipes *s, GFPipe *p)
     return true;
 }
 
+static bool goldfish_sensors(GFPipes *s, GFPipe *p)
+{
+    (void)s;
+    while (p->received >= 4) {
+        unsigned length = 0;
+        for (unsigned i = 0; i < 4; ++i) {
+            int digit = g_ascii_xdigit_value(p->incoming[i]);
+            if (digit < 0) return false;
+            length = length * 16 + digit;
+        }
+        if (length > GF_PIPE_BYTES - 4) return false;
+        if (p->received < length + 4) break;
+
+        const char *cmd = (const char *)(p->incoming + 4);
+        if (length == 12 && memcmp(cmd, "list-sensors", 12) == 0) {
+            if (!framed_reply(p, "1", 1)) return false;
+            if (!framed_reply(p, "acceleration:0:9.77622:0.813417", 31)) return false;
+            if (!framed_reply(p, "sync:1000", 9)) return false;
+        } else if (length == 4 && memcmp(cmd, "wake", 4) == 0) {
+            if (!framed_reply(p, "wake", 4)) return false;
+        }
+        p->received -= length + 4;
+        memmove(p->incoming, p->incoming + length + 4, p->received);
+    }
+    return true;
+}
+
 static int32_t pipe_send(GFPipes *s, GFPipe *p)
 {
     uint8_t buffer[GF_PIPE_BYTES];
@@ -281,6 +311,8 @@ static int32_t pipe_send(GFPipes *s, GFPipe *p)
                 const char *name = (const char *)p->incoming;
                 if (!strcmp(name, "pipe:qemud:boot-properties")) {
                     p->service = GF_BOOT_PROPERTIES;
+                } else if (!strcmp(name, "pipe:qemud:sensors")) {
+                    p->service = GF_SENSORS;
                 } else if (!strcmp(name, "pipe:qemud:gsm")) {
                     p->service = GF_GSM;
                     p->gsm.radio = true;
@@ -392,6 +424,16 @@ static int32_t pipe_send(GFPipes *s, GFPipe *p)
             p->service = GF_CLOSED;
             return -4;
         }
+    } else if (p->service == GF_SENSORS) {
+        if (s->length - offset > sizeof(p->incoming) - p->received) {
+            return -2;
+        }
+        memcpy(p->incoming + p->received, buffer + offset, s->length - offset);
+        p->received += s->length - offset;
+        if (!goldfish_sensors(s, p)) {
+            p->service = GF_CLOSED;
+            return -4;
+        }
     } else if (p->service == GF_PINGPONG) {
         if (s->length - offset > sizeof(p->outgoing) - p->queued) {
             return -2;
@@ -409,15 +451,20 @@ static void pipe_command(GFPipes *s, uint32_t command)
     if (command == 1) {
         if (p || !s->channel) return;
         for (unsigned i = 0; i < GF_PIPE_LIMIT; ++i) {
-            if (!s->pipes[i].used) {
-                p = &s->pipes[i];
-                memset(p, 0, sizeof(*p));
+            if (!s->pipes[i]) {
+                p = g_new0(GFPipe, 1);
                 p->used = true;
                 p->channel = s->channel;
                 p->owner = s;
+                s->pipes[i] = p;
                 s->result = 0;
                 return;
             }
+        }
+        static bool logged_limit = false;
+        if (!logged_limit) {
+            logged_limit = true;
+            fprintf(stderr, "[android51] qemu_pipe: reached GF_PIPE_LIMIT=%d\n", GF_PIPE_LIMIT);
         }
         s->result = -3;
         return;
@@ -429,7 +476,13 @@ static void pipe_command(GFPipes *s, uint32_t command)
             gf_adb_connect(false);
             s->adb = NULL;
         }
-        memset(p, 0, sizeof(*p));
+        for (unsigned i = 0; i < GF_PIPE_LIMIT; ++i) {
+            if (s->pipes[i] == p) {
+                s->pipes[i] = NULL;
+                break;
+            }
+        }
+        g_free(p);
         s->result = 0;
         pipes_irq(s);
         return;
@@ -494,8 +547,8 @@ static uint64_t pipes_read(void *opaque, hwaddr offset, unsigned size)
     case 4: return (uint32_t)s->result;
     case 8:
         for (unsigned i = 0; i < GF_PIPE_LIMIT; ++i) {
-            GFPipe *p = &s->pipes[i];
-            if (p->used && p->wakes) {
+            GFPipe *p = s->pipes[i];
+            if (p && p->used && p->wakes) {
                 s->wakes = p->wakes;
                 p->wakes = 0;
                 pipes_irq(s);
@@ -576,9 +629,12 @@ static void pipes_reset(void *opaque)
     gf_adb_connect(false);
     s->adb = NULL;
     for (unsigned i = 0; i < GF_PIPE_LIMIT; ++i) {
-        gpu_close(&s->pipes[i]);
+        if (s->pipes[i]) {
+            gpu_close(s->pipes[i]);
+            g_free(s->pipes[i]);
+            s->pipes[i] = NULL;
+        }
     }
-    memset(s->pipes, 0, sizeof(s->pipes));
     s->channel = s->address = s->length = s->wakes = s->result = 0;
     s->params = 0;
     pipes_irq(s);

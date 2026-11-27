@@ -1,6 +1,6 @@
 /*
- * C <-> C++ bridge between Android_On_iOS Goldfish pipe/display (`gpu.h`)
- * and our fixed AOSP emugl (`FrameBuffer` / `RenderThread`) on iOS EAGLContext.
+ * C <-> C++ bridge between Goldfish pipe/display (`gpu.h`)
+ * and our fixed AOSP emugl (`FrameBuffer` / `RenderThread`) on host EAGL/EGL.
  */
 
 #include "gpu.h"
@@ -90,7 +90,7 @@ static void on_emugl_post(void *ctx, int w, int h, int direction,
 
     static std::atomic<uint32_t> s_post_count{0};
     uint32_t frame_no = s_post_count.fetch_add(1, std::memory_order_relaxed) + 1;
-    if (frame_no <= 3 || frame_no == 30 || frame_no == 120) {
+    if (frame_no <= 3 || frame_no == 30 || frame_no == 120 || (frame_no % 300 == 0)) {
         size_t total = (size_t)s_width * (size_t)s_height * 4U;
         size_t non_black = 0;
         for (size_t i = 0; i + 3 < total; i += 64) {
@@ -353,7 +353,7 @@ void *ae_gpu_open(void)
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0) {
         return nullptr;
     }
-    int bufferBytes = 512 * 1024;
+    int bufferBytes = 64 * 1024;
     for (int fd : sockets) {
         setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &bufferBytes, sizeof(bufferBytes));
         setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &bufferBytes, sizeof(bufferBytes));

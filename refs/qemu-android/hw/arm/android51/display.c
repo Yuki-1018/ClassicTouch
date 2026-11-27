@@ -1,5 +1,5 @@
 /*
- * Goldfish framebuffer display device (ported from Android_On_iOS).
+ * Goldfish framebuffer display device.
  */
 #include "qemu/osdep.h"
 #include "android51.h"

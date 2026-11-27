@@ -1,5 +1,5 @@
 //
-// AndroidMetalView - Ported from Android_On_iOS MetalDisplay + FrameMailbox.
+// AndroidMetalView - Goldfish MetalDisplay + FrameMailbox view.
 // Dedicated Android renderer leaving IOSMetalView untouched for iOS guests.
 //
 

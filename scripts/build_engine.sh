@@ -78,8 +78,8 @@ ENTRY_CFLAGS="-std=gnu11 -O3 -mcpu=apple-a9 -fPIC -D_GNU_SOURCE -DCOMPILING_SYST
     | awk '$2 == "T" && $3 ~ /^_qemu_ios_/ { print $3 }' | sort -u > "$QEMU_BUILD/libqemu-arm.exports"
 
 echo "=== Linking native iOS libqemu-arm.dylib ==="
-# Clean out any old macOS dylibs / fake OpenGL.framework (preserve libqemu-android.dylib)
-find "$OUT_FRAMEWORKS" -maxdepth 1 ! -path "$OUT_FRAMEWORKS" ! -name "libqemu-android.dylib" -exec rm -rf {} +
+# Clean out any old macOS dylibs / fake OpenGL.framework (preserve libqemu-android.dylib and libqemu-winrt.dylib)
+find "$OUT_FRAMEWORKS" -maxdepth 1 ! -path "$OUT_FRAMEWORKS" ! -name "libqemu-android.dylib" ! -name "libqemu-winrt.dylib" -exec rm -rf {} +
 
 LINK_CMD=$(ninja -C "$QEMU_BUILD" -t commands qemu-system-arm-unsigned | tail -n 1)
 python3 - "$LINK_CMD" "$QEMU_BUILD" "$OUT_FRAMEWORKS/libqemu-arm.dylib" "$PREFIX/lib" <<'PY'

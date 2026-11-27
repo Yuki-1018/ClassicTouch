@@ -19,6 +19,10 @@
 #include <functional>
 #include <stdint.h>
 
+#ifdef None
+#undef None
+#endif
+
 namespace android {
 namespace base {
 

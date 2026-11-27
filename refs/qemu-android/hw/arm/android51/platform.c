@@ -1,5 +1,5 @@
 /*
- * Goldfish platform devices: PIC, device bus, tty, timer, RTC (ported from Android_On_iOS).
+ * Goldfish platform devices: PIC, device bus, tty, timer, RTC.
  */
 #include "qemu/osdep.h"
 #include "android51.h"

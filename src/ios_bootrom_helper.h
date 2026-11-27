@@ -70,51 +70,36 @@ static inline ClassicBootromSoC ClassicClassifyBootromFile(NSString *path, NSStr
     if (outSHA256) *outSHA256 = sha;
 
     if ([sha isEqualToString:kBootromS5L8900SHA256]) return ClassicBootromSoCS5L8900;
-    if ([sha isEqualToString:kBootromS5L8720SHA256]) return ClassicBootromSoCS5L8720;
+    if ([sha isEqualToString:kBootromS5L8720SHA256]) return ClassicBootromSoCInvalid;
 
-    // Accept real 64 KiB ARM32 BootROM hardware dumps (whose SHA-256 differs from patched releases).
+    // Accept real 64 KiB ARM32 S5L8900 BootROM dumps (whose SHA-256 differs from patched releases),
+    // while explicitly rejecting S5L8720 ROMs.
     if (!ClassicBootromDataHasARM32ResetVector(data)) return ClassicBootromSoCInvalid;
 
     if (ClassicBootromDataContainsTag(data, "s5l8720") || ClassicBootromDataContainsTag(data, "iboot-240")) {
-        return ClassicBootromSoCS5L8720;
-    }
-    if (ClassicBootromDataContainsTag(data, "s5l8900") || ClassicBootromDataContainsTag(data, "iboot-121")) {
-        return ClassicBootromSoCS5L8900;
+        return ClassicBootromSoCInvalid;
     }
 
     NSString *name = path.lastPathComponent.lowercaseString;
     if ([name containsString:@"8720"] || [name containsString:@"240_4"] || [name containsString:@"240.4"] || [name containsString:@"n72"]) {
-        return ClassicBootromSoCS5L8720;
+        return ClassicBootromSoCInvalid;
     }
-    if ([name containsString:@"8900"] || [name containsString:@"m68"] || [name containsString:@"n45"] ||
-        [name containsString:@"2g"] || [name containsString:@"1g"]) {
-        return ClassicBootromSoCS5L8900;
-    }
-    return ClassicBootromSoCAmbiguous;
+    return ClassicBootromSoCS5L8900;
 }
 
 static inline BOOL ClassicBootromFileMatchesExpectedType(NSString *path, NSString *romType) {
+    if (![romType isEqualToString:@"s5l8900"]) return NO;
+
     NSData *data = [NSData dataWithContentsOfFile:path];
     if (!data || data.length == 0 || data.length > (1ULL << 20)) return NO;
 
     NSString *sha = ClassicBootromSHA256HexForData(data);
-    if ([romType isEqualToString:@"s5l8900"]) {
-        if ([sha isEqualToString:kBootromS5L8900SHA256]) return YES;
-        if ([sha isEqualToString:kBootromS5L8720SHA256]) return NO;
-        if (!ClassicBootromDataHasARM32ResetVector(data)) return NO;
-        if (ClassicBootromDataContainsTag(data, "s5l8720") || ClassicBootromDataContainsTag(data, "iboot-240")) return NO;
-        if (![path.lastPathComponent.lowercaseString isEqualToString:@"bootrom.bin"]) return YES;
-        return ClassicBootromDataContainsTag(data, "s5l8900") || ClassicBootromDataContainsTag(data, "iboot-121");
-    }
-    if ([romType isEqualToString:@"s5l8720"]) {
-        if ([sha isEqualToString:kBootromS5L8720SHA256]) return YES;
-        if ([sha isEqualToString:kBootromS5L8900SHA256]) return NO;
-        if (!ClassicBootromDataHasARM32ResetVector(data)) return NO;
-        if (ClassicBootromDataContainsTag(data, "s5l8900") || ClassicBootromDataContainsTag(data, "iboot-121")) return NO;
-        if (![path.lastPathComponent.lowercaseString isEqualToString:@"bootrom.bin"]) return YES;
-        return ClassicBootromDataContainsTag(data, "s5l8720") || ClassicBootromDataContainsTag(data, "iboot-240");
-    }
-    return NO;
+    if ([sha isEqualToString:kBootromS5L8900SHA256]) return YES;
+    if ([sha isEqualToString:kBootromS5L8720SHA256]) return NO;
+    if (!ClassicBootromDataHasARM32ResetVector(data)) return NO;
+    if (ClassicBootromDataContainsTag(data, "s5l8720") || ClassicBootromDataContainsTag(data, "iboot-240")) return NO;
+    if (![path.lastPathComponent.lowercaseString isEqualToString:@"bootrom.bin"]) return YES;
+    return ClassicBootromDataContainsTag(data, "s5l8900") || ClassicBootromDataContainsTag(data, "iboot-121");
 }
 
 NS_ASSUME_NONNULL_END

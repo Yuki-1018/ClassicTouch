@@ -1,5 +1,5 @@
 /*
- * Bounded in-process ADB ring transport (ported from Android_On_iOS).
+ * Bounded in-process ADB ring transport.
  */
 #include "qemu/osdep.h"
 #include "qemu/thread.h"

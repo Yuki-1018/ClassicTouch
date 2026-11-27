@@ -127,13 +127,13 @@
 "unused" = "Không dùng";
 "no_bases" = "Chưa có hình ảnh nền nào được chuẩn bị.";
 
-"bootrom_footer_soc" = "iPhone 2G / iPod touch 1G yêu cầu BootROM S5L8900 (64 KB); iPod touch 2G yêu cầu S5L8720 (iBoot-240.4).\niPhone 3GS/4, iPod touch 3G/4G và iPad có thể khởi động trực tiếp không cần BootROM.";
+"bootrom_footer_soc" = "Chỉ iPhone 2G / iPod touch 1G (iPhone OS 1.x) mới cần BootROM S5L8900 64 KB.\niPhone 3GS/4/5, iPod touch 3G/4G và iPad không cần BootROM.";
 "bootrom_invalid_title" = "BootROM không hợp lệ";
-"bootrom_invalid_msg" = "Tệp đã chọn không được nhận dạng là BootROM 64 KB S5L8900 hoặc S5L8720 hợp lệ.";
+"bootrom_invalid_msg" = "Không thể xác minh tệp đã chọn là BootROM S5L8900 64 KB hợp lệ.";
 "bootrom_imported_soc_msg" = "Đã xác minh %@ và đăng ký thành công «%@» (%llu byte).";
 "bootrom_required_s5l8900_msg" = "Thiết bị này yêu cầu BootROM 64 KB S5L8900 (bootrom_s5l8900).";
 "bootrom_required_s5l8720_msg" = "Thiết bị này yêu cầu BootROM 64 KB S5L8720 iBoot-240.4 (bootrom_240_4).";
-"bootrom_missing_detail_fmt" = "%@\n\nHãy chọn BootROM S5L8900 hoặc S5L8720 trong ứng dụng Tệp hoặc đặt vào thư mục Documents của ClassicTouch.";
+"bootrom_missing_detail_fmt" = "%@\n\nVui lòng nhập BootROM S5L8900 từ Tệp hoặc đặt vào thư mục Tài liệu.";
 
 "download_catalog_ipsw" = "Tải phần mềm từ danh mục...";
 "download_catalog_device_msg" = "Chọn kiểu thiết bị để tải về:";
@@ -209,11 +209,11 @@
 "device_ipod_2g" = "iPod touch (Thế hệ 2)";
 "device_ipod_3g" = "iPod touch (Thế hệ 3)";
 "device_ipod_4g" = "iPod touch (Thế hệ 4)";
-"device_iphone_2g_desc" = "iPhone 2G (iPhone OS 1.0–3.1.3 / OS 1.x cần BootROM)";
+"device_iphone_2g_desc" = "iPhone 2G (iPhone OS 1.0 - 1.1.4 / Cần BootROM)";
 "device_iphone_3gs_desc" = "iPhone 3GS (iPhone OS 3.0–iOS 6.1.6)";
 "device_iphone_4_desc" = "iPhone 4 (iOS 4.0–7.1.2)";
 "device_iphone_5_desc" = "iPhone 5 (iOS 6.0–10.3.4)";
-"device_ipod_1g_desc" = "iPod touch 1G (iPhone OS 1.1–3.1.3 / OS 1.x cần BootROM)";
+"device_ipod_1g_desc" = "iPod touch 1G (iPhone OS 1.1 - 1.1.5 / Cần BootROM)";
 "device_ipod_2g_desc" = "iPod touch 2G (iPhone OS 2.1.1–iOS 4.2.1 / cần BootROM)";
 "device_ipod_3g_desc" = "iPod touch 3G (iPhone OS 3.1.1–iOS 5.1.1)";
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1–6.1.6)";
@@ -269,7 +269,7 @@
 "vm_already_running_fmt" = "Máy ảo «%@» hiện đang chạy.\nMỗi lần chỉ có thể chạy một máy ảo duy nhất.";
 "base_rebuild_required" = "Cần xây dựng lại hình ảnh nền";
 "base_rebuild_msg" = "Để áp dụng các bản sửa lỗi khởi động (OpenGLES, sandbox và khởi tạo iPhone 5), vui lòng xóa và tạo lại máy ảo này.";
-"how_to_use_footer" = "Hướng dẫn sử dụng\n1. Chọn thiết bị và phiên bản iOS bên dưới\n2. Kích hoạt JIT với StikDebug (universal.js) trước khi chạy\n3. Chạm vào ▶ bên cạnh thiết bị đã tạo\n※ Chỉ iPhone 2G / iPod 1G và 2G cần BootROM trong Cài đặt (biểu tượng bánh răng)";
+"how_to_use_footer" = "Bắt đầu:\n1. Chọn thiết bị & OS bằng nút bên dưới\n2. Bật JIT qua StikDebug (universal.js) trước khi khởi động\n3. Chạm ▶ trên thiết bị đã tạo\n* Chỉ iPhone 2G / iPod 1G cần S5L8900 BootROM trong Cài đặt";
 "rename_container_title" = "Đổi tên máy ảo";
 "enter_new_name_prompt" = "Nhập tên mới:";
 "delete_container_confirm_title" = "Xóa máy ảo";
@@ -382,8 +382,8 @@
 "settings_ipsw_management" = "Quản lý Phần mềm";
 "settings_ipsw_subtitle_fmt" = "%lu tệp phần mềm";
 "settings_bootrom_management" = "Quản lý BootROM";
-"settings_bootrom_subtitle_fmt" = "Đã cài đặt: %lu / 2";
-"settings_bootrom_subtitle_none" = "Chưa cài đặt (S5L8900 / S5L8720)";
+"settings_bootrom_subtitle_fmt" = "Đã cài %lu / 1";
+"settings_bootrom_subtitle_none" = "Chưa cài đặt (S5L8900)";
 "settings_system_header" = "Hệ thống & Môi trường thực thi";
 "settings_jit_title" = "Trình biên dịch JIT";
 "settings_jit_active" = "Đã bật (Active)";
@@ -420,7 +420,7 @@
 
 /* Android */
 "device_android_arm" = "Android";
-"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"device_android_arm_desc" = "Android (4.4 - 7.1 ARM)";
 "android_variant_aosp" = "AOSP Tiêu chuẩn";
 "android_variant_gapps" = "Google APIs";
 "wizard_name_config_prompt_android" = "Nhập tên máy ảo (có thể đổi sau).\n* Chạy ARMv7 Goldfish với tăng tốc OpenGL ES và màn hình 640×1136.";
@@ -445,3 +445,68 @@
 "android_wipe_userdata_action" = "Xóa dữ liệu người dùng (userdata.img)";
 "android_cfg_ram_custom" = "Tùy chỉnh (MB)...";
 "android_cfg_ram_custom_hint" = "Nhập dung lượng RAM theo MB (256–3072 MB). Vượt quá bộ nhớ khả dụng trên thiết bị 2 GB (như A9) có thể khiến ứng dụng bị đóng.";
+"device_firefoxos_arm" = "Firefox OS";
+"device_firefoxos_arm_desc" = "Firefox OS (1.4 - 2.6 B2G)";
+"device_winrt_arm" = "Windows RT";
+"device_winrt_arm_desc" = "Windows RT 8.0 / 8.1 (ARM32)";
+"winrt_variant_arm32" = "Windows RT (ARM32)";
+"section_winrt_config" = "Cài đặt Windows RT";
+"winrt_cfg_ram" = "Bộ nhớ (RAM)";
+"winrt_cfg_ram_hint" = "Cấp phát RAM (512–2048 MB). Vượt quá bộ nhớ khả dụng có thể khiến iOS đóng ứng dụng.";
+"winrt_cfg_disk" = "Đĩa ảo (Thẻ SD)";
+"winrt_cfg_disk_hint" = "Nhập ảnh đĩa VHD/VHDX/IMG/QCOW2 hoặc tạo đĩa SD ảo trống.";
+"winrt_cfg_iso" = "Bộ cài / Ảnh USB";
+"winrt_cfg_iso_hint" = "Gắn tệp ISO cài đặt hoặc WinPE VHD/VHDX/IMG vào ổ USB.";
+"winrt_cfg_none" = "Không có";
+"winrt_cfg_boot_order" = "Thứ tự khởi động";
+"winrt_boot_usb_first" = "Ưu tiên USB / ISO";
+"winrt_boot_sd_first" = "Ưu tiên đĩa SD";
+"winrt_cfg_rtc" = "Đồng hồ hệ thống (RTC)";
+"winrt_cfg_rtc_hint" = "Bộ cài Windows RT 8.0/8.1 thường cần ngày trong năm 2013–2014 do chứng chỉ hết hạn.";
+"winrt_rtc_today" = "Giờ hiện tại (UTC)";
+"winrt_rtc_custom" = "Ngày tùy chỉnh...";
+"winrt_rtc_custom_hint" = "Nhập ngày theo định dạng YYYY-MM-DD (vd: 2013-07-15).";
+"winrt_cfg_net" = "Mạng (USB RNDIS)";
+"winrt_cfg_audio" = "Âm thanh USB";
+"winrt_enabled" = "Đang bật";
+"winrt_disabled" = "Đang tắt";
+"winrt_import_disk_action" = "Nhập ảnh đĩa...";
+"winrt_create_blank_disk_fmt" = "Tạo đĩa trống (%ld GB)";
+"winrt_attach_iso_action" = "Gắn ảnh ISO / USB...";
+"winrt_eject_iso_action" = "Tháo ảnh đang gắn";
+"winrt_importing_media" = "Đang sao chép ảnh vào VM...";
+"winrt_invalid_image_ext" = "Định dạng không hỗ trợ. Chọn .iso, .vhd, .vhdx, .img, .raw hoặc .qcow2.";
+"wizard_name_config_prompt_winrt" = "Nhập tên máy ảo (có thể đổi sau).\n• Sau khi tạo, hãy gắn ISO hoặc VHD Windows RT ARM32 trong Cài đặt vùng chứa.";
+"winrt_container_created_msg_fmt" = "Đã tạo \"%@\". Hãy gắn ISO cài đặt hoặc VHD/VHDX Windows RT trước khi khởi động.";
+"winrt_configure_media" = "Cấu hình phương tiện...";
+"winrt_send_cad" = "Gửi Ctrl + Alt + Del";
+"winrt_reset_usb" = "Đặt lại thiết bị nhập USB";
+"winrt_usb_reset_toast" = "Đã kết nối lại bàn phím & chuột USB";
+"winrt_quick_keys" = "Phím nhanh";
+"winrt_missing_media_error" = "Chưa gắn đĩa khởi động hoặc ISO. Vui lòng mở Cài đặt vùng chứa để nhập VHD/ISO trước.";
+"winrt_input_mode_touch" = "Chế độ chạm";
+"winrt_input_mode_mouse" = "Chế độ chuột";
+"winrt_mode_touch_toast" = "Nhập liệu: Chạm trực tiếp";
+"winrt_mode_mouse_toast" = "Nhập liệu: Bàn di chuột (Kéo=Di chuyển, Chạm=Nhấp, Giữ=Nhấp phải)";
+"winrt_sticky_mods_section" = "Phím bổ trợ giữ";
+"winrt_sticky_clear" = "Nhả phím bổ trợ";
+"winrt_special_nav_menu" = "Điều hướng & Chỉnh sửa";
+"winrt_fn_keys_menu" = "Phím chức năng (F1–F12)";
+"winrt_right_click_action" = "Nhấp chuột phải";
+"menu_install_apk" = "Cài đặt APK...";
+"apk_install_not_ready" = "Chờ Android khởi động xong và kết nối ADB trước khi cài APK.";
+"apk_install_in_progress" = "Đang có một quá trình cài đặt gói khác.";
+"apk_invalid_extension" = "Vui lòng chọn tệp .apk.";
+"apk_preparing" = "Đang chuẩn bị APK...";
+"apk_connecting_adb" = "Đang kết nối ADB (chấp nhận lời nhắc trên màn hình Android nếu hiện)...";
+"apk_pushing" = "Đang truyền APK...";
+"apk_pushing_pct_fmt" = "Đang truyền APK... %d%%";
+"apk_installing" = "Đang cài đặt APK trên Android...";
+"apk_install_success_title" = "Cài đặt APK hoàn tất";
+"apk_install_success_msg_fmt" = "Đã cài đặt %@.";
+"apk_install_failed_title" = "Cài đặt APK thất bại";
+
+/* Windows RT Diagnostics */
+"winrt_iso_no_eltorito_title" = "No UEFI El Torito Boot Record Found";
+"winrt_iso_no_eltorito_msg" = "This ISO does not contain an ISO-9660 El Torito (\"CD001\") boot record (it appears to be UDF-only or non-bootable). Because the ARM32 UEFI firmware has no UDF driver, booting from it will stop at the UEFI Shell with BLK0 only.\n\nPlease use an El Torito ARM32 UEFI ISO (such as Windows RT 8.1 Update 3 9600.17053 / 9600.17328) or a bootable FAT32 .vhd/.img USB disk image.";
+

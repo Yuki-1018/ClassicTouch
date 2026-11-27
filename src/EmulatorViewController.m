@@ -16,6 +16,7 @@
 #import "ios_motion_manager.h"
 #import "ios_jit_helper.h"
 #import "ios_bootrom_helper.h"
+#import "ios_winrt_media_probe.h"
 #import "ios_network_proxy.h"
 #import "ios_usb_mux.h"
 #import "ios_ipa_installer.h"
@@ -23,6 +24,8 @@
 #import "ios_guest_tools.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #include <dlfcn.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 extern int lighttouch_android_ensure_cache(const char *cache_path, const char *system_path);
 #include <pthread.h>
@@ -166,6 +169,51 @@ typedef NS_ENUM(NSInteger, ClassicMenuPositionMode) {
     void (*_pfnAndroidSync)(void);
     void (*_pfnAndroidQuit)(void);
 
+    BOOL _isWinRTMode;
+    BOOL _isChromeOSMode;
+    BOOL _isUbuntuTouchVirtMode;
+    void *_winrtEngineHandle;
+    _Atomic BOOL _winrtQemuExited;
+    FILE *_winrtSerialFile;
+    int (*_pfnWinrtMain)(int argc, char **argv);
+    void (*_pfnWinrtSetFrameCb)(void (*cb)(void *, int, int, int, const void *), void *);
+    void (*_pfnWinrtSetDirtyFrameCb)(void (*cb)(void *, int, int, int, int, int, int, int, const void *), void *);
+    void (*_pfnWinrtPointerAbs)(int x, int y, int buttons);
+    void (*_pfnWinrtTouch)(int slot, int x, int y, int phase);
+    void (*_pfnWinrtScroll)(int wheel_delta);
+    void (*_pfnWinrtKeyQcode)(int qcode, int down);
+    void (*_pfnWinrtSendCad)(void);
+    void (*_pfnWinrtResetUsb)(void);
+    int (*_pfnWinrtAudioPull)(int16_t *out, int max_frames, int *rate, int *ch);
+    void (*_pfnWinrtSync)(void);
+    void (*_pfnWinrtQuit)(void);
+
+    int _winrtActiveTouches[5];
+    int _utTouchSlots[10];
+    float _winrtTouchX[5];
+    float _winrtTouchY[5];
+    NSTimeInterval _winrtTwoFingerStartTime;
+    float _winrtTwoFingerLastY;
+    BOOL _winrtTwoFingerScrolled;
+    BOOL _winrtMouseMode;
+    float _winrtCursorX;
+    float _winrtCursorY;
+    float _winrtTrackLastX;
+    float _winrtTrackLastY;
+    float _winrtTrackStartX;
+    float _winrtTrackStartY;
+    NSTimeInterval _winrtTrackStartTime;
+    NSTimeInterval _winrtLastTapUpTime;
+    BOOL _winrtTrackMoved;
+    BOOL _winrtTrackLeftDrag;
+    BOOL _winrtMouseDragLock;
+    BOOL _winrtTrackRightSent;
+    uint64_t _winrtTrackGen;
+    BOOL _winrtModCtrl;
+    BOOL _winrtModAlt;
+    BOOL _winrtModShift;
+    BOOL _winrtModWin;
+
     double _accelX, _accelY, _accelZ;
     double _gyroX, _gyroY, _gyroZ;
     double _lastSentAccelX, _lastSentAccelY, _lastSentAccelZ;
@@ -201,6 +249,13 @@ typedef NS_ENUM(NSInteger, ClassicMenuPositionMode) {
 @property (nonatomic, strong) UIButton *volUpButton;
 @property (nonatomic, strong) UIButton *volDownButton;
 @property (nonatomic, strong) UIButton *moreMenuButton;
+@property (nonatomic, strong) UIButton *winrtInputModeButton;
+@property (nonatomic, strong) UIButton *winrtDragButton;
+@property (nonatomic, strong) UIButton *winrtKeyboardButton;
+@property (nonatomic, strong) UIButton *winrtQuickKeysButton;
+@property (nonatomic, strong) UIButton *winrtResetUsbButton;
+@property (nonatomic, strong) UIView *winrtKeyInputView;
+@property (nonatomic, strong) NSDictionary<NSNumber *, UIButton *> *winrtAccessoryModButtons;
 @property (nonatomic, strong) UIButton *hudToggleButton;
 @property (nonatomic, strong) UIButton *restartButton;
 @property (nonatomic, strong) UIButton *exitButton;
@@ -240,6 +295,7 @@ typedef NS_ENUM(NSInteger, ClassicMenuPositionMode) {
 static void s_frame_pixel_listener(void *opaque, const lt_frame_info *info, const void *pixels);
 static void s_direct_iosurface_listener(void *opaque, void *iosurface_ref, int w, int h);
 static void *emulator_worker_thread(void *arg);
+static void *emulator_winrt_worker(EmulatorViewController *vc);
 
 typedef void (*qemu_ios_direct_cb_t)(void *opaque, void *iosurface_ref, int w, int h);
 typedef void (*qemu_ios_set_direct_cb_fn)(qemu_ios_direct_cb_t cb, void *opaque);
@@ -254,6 +310,158 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
         fn(cb, opaque);
     }
 }
+
+static int ClassicWinRTQCodeForHIDUsage(UIKeyboardHIDUsage code) {
+    if (code >= UIKeyboardHIDUsageKeyboardA && code <= UIKeyboardHIDUsageKeyboardZ) {
+        static const int kAlphaQCodes[26] = {
+            36, 53, 51, 38, 25, 39, 40, 41, 30, 42, 43, 44, 55,
+            54, 31, 32, 23, 26, 37, 27, 29, 52, 24, 50, 28, 49
+        };
+        return kAlphaQCodes[(int)code - (int)UIKeyboardHIDUsageKeyboardA];
+    }
+    if (code >= UIKeyboardHIDUsageKeyboard1 && code <= UIKeyboardHIDUsageKeyboard0) {
+        return 9 + ((int)code - (int)UIKeyboardHIDUsageKeyboard1);
+    }
+    if (code >= UIKeyboardHIDUsageKeyboardF1 && code <= UIKeyboardHIDUsageKeyboardF10) {
+        return 62 + ((int)code - (int)UIKeyboardHIDUsageKeyboardF1);
+    }
+    switch (code) {
+    case UIKeyboardHIDUsageKeyboardReturnOrEnter: return 35;
+    case UIKeyboardHIDUsageKeyboardEscape:        return 8;
+    case UIKeyboardHIDUsageKeyboardDeleteOrBackspace: return 21;
+    case UIKeyboardHIDUsageKeyboardTab:           return 22;
+    case UIKeyboardHIDUsageKeyboardSpacebar:      return 60;
+    case UIKeyboardHIDUsageKeyboardHyphen:        return 19;
+    case UIKeyboardHIDUsageKeyboardEqualSign:     return 20;
+    case UIKeyboardHIDUsageKeyboardOpenBracket:   return 33;
+    case UIKeyboardHIDUsageKeyboardCloseBracket:  return 34;
+    case UIKeyboardHIDUsageKeyboardBackslash:     return 48;
+    case UIKeyboardHIDUsageKeyboardSemicolon:     return 45;
+    case UIKeyboardHIDUsageKeyboardQuote:         return 46;
+    case UIKeyboardHIDUsageKeyboardGraveAccentAndTilde: return 47;
+    case UIKeyboardHIDUsageKeyboardComma:         return 56;
+    case UIKeyboardHIDUsageKeyboardPeriod:        return 57;
+    case UIKeyboardHIDUsageKeyboardSlash:         return 58;
+    case UIKeyboardHIDUsageKeyboardCapsLock:      return 61;
+    case UIKeyboardHIDUsageKeyboardF11:           return 92;
+    case UIKeyboardHIDUsageKeyboardF12:           return 93;
+    case UIKeyboardHIDUsageKeyboardHome:          return 95;
+    case UIKeyboardHIDUsageKeyboardPageUp:        return 96;
+    case UIKeyboardHIDUsageKeyboardDeleteForward: return 104;
+    case UIKeyboardHIDUsageKeyboardEnd:           return 98;
+    case UIKeyboardHIDUsageKeyboardPageDown:      return 97;
+    case UIKeyboardHIDUsageKeyboardRightArrow:    return 102;
+    case UIKeyboardHIDUsageKeyboardLeftArrow:     return 99;
+    case UIKeyboardHIDUsageKeyboardDownArrow:     return 101;
+    case UIKeyboardHIDUsageKeyboardUpArrow:       return 100;
+    case UIKeyboardHIDUsageKeyboardInsert:        return 103;
+    case UIKeyboardHIDUsageKeyboardLeftControl:   return 5;
+    case UIKeyboardHIDUsageKeyboardRightControl:  return 6;
+    case UIKeyboardHIDUsageKeyboardLeftShift:     return 1;
+    case UIKeyboardHIDUsageKeyboardRightShift:    return 2;
+    case UIKeyboardHIDUsageKeyboardLeftAlt:       return 3;
+    case UIKeyboardHIDUsageKeyboardRightAlt:      return 4;
+    case UIKeyboardHIDUsageKeyboardLeftGUI:       return 117;
+    case UIKeyboardHIDUsageKeyboardRightGUI:      return 118;
+    default: return 0;
+    }
+}
+
+@interface ClassicWinRTKeyInputView : UIView <UIKeyInput>
+@property (nonatomic, copy) void (^onKeyQcode)(int qcode, int down);
+@property (nonatomic, copy, nullable) void (^onAfterNonModifierKey)(void);
+@property (nonatomic, assign) BOOL externalShiftHeld;
+@property (nonatomic, strong, nullable) UIView *customInputAccessoryView;
+@end
+
+@implementation ClassicWinRTKeyInputView
+
+- (UIView *)inputAccessoryView { return self.customInputAccessoryView; }
+- (BOOL)canBecomeFirstResponder { return YES; }
+- (BOOL)hasText { return YES; }
+
+- (UITextAutocorrectionType)autocorrectionType { return UITextAutocorrectionTypeNo; }
+- (UITextAutocapitalizationType)autocapitalizationType { return UITextAutocapitalizationTypeNone; }
+- (UITextSpellCheckingType)spellCheckingType { return UITextSpellCheckingTypeNo; }
+- (UITextSmartQuotesType)smartQuotesType { return UITextSmartQuotesTypeNo; }
+- (UITextSmartDashesType)smartDashesType { return UITextSmartDashesTypeNo; }
+
+- (void)tapQCode:(int)q shifted:(BOOL)shifted {
+    if (!self.onKeyQcode || q <= 0) return;
+    BOOL needLocalShift = shifted && !self.externalShiftHeld;
+    if (needLocalShift) self.onKeyQcode(1, 1);
+    self.onKeyQcode(q, 1);
+    self.onKeyQcode(q, 0);
+    if (needLocalShift) self.onKeyQcode(1, 0);
+    if (self.onAfterNonModifierKey) {
+        self.onAfterNonModifierKey();
+    }
+}
+
+- (void)insertText:(NSString *)text {
+    if (!self.onKeyQcode || text.length == 0) return;
+    static const int kAlpha[26] = {
+        36, 53, 51, 38, 25, 39, 40, 41, 30, 42, 43, 44, 55,
+        54, 31, 32, 23, 26, 37, 27, 29, 52, 24, 50, 28, 49
+    };
+    for (NSUInteger i = 0; i < text.length; i++) {
+        unichar ch = [text characterAtIndex:i];
+        if (ch >= 'a' && ch <= 'z') {
+            [self tapQCode:kAlpha[ch - 'a'] shifted:NO];
+        } else if (ch >= 'A' && ch <= 'Z') {
+            [self tapQCode:kAlpha[ch - 'A'] shifted:YES];
+        } else if (ch >= '1' && ch <= '9') {
+            [self tapQCode:(9 + (ch - '1')) shifted:NO];
+        } else {
+            switch (ch) {
+            case '0':  [self tapQCode:18 shifted:NO]; break;
+            case ' ':  [self tapQCode:60 shifted:NO]; break;
+            case '\n':
+            case '\r': [self tapQCode:35 shifted:NO]; break;
+            case '\t': [self tapQCode:22 shifted:NO]; break;
+            case '-':  [self tapQCode:19 shifted:NO]; break;
+            case '_':  [self tapQCode:19 shifted:YES]; break;
+            case '=':  [self tapQCode:20 shifted:NO]; break;
+            case '+':  [self tapQCode:20 shifted:YES]; break;
+            case '[':  [self tapQCode:33 shifted:NO]; break;
+            case '{':  [self tapQCode:33 shifted:YES]; break;
+            case ']':  [self tapQCode:34 shifted:NO]; break;
+            case '}':  [self tapQCode:34 shifted:YES]; break;
+            case ';':  [self tapQCode:45 shifted:NO]; break;
+            case ':':  [self tapQCode:45 shifted:YES]; break;
+            case '\'': [self tapQCode:46 shifted:NO]; break;
+            case '"':  [self tapQCode:46 shifted:YES]; break;
+            case '`':  [self tapQCode:47 shifted:NO]; break;
+            case '~':  [self tapQCode:47 shifted:YES]; break;
+            case '\\': [self tapQCode:48 shifted:NO]; break;
+            case '|':  [self tapQCode:48 shifted:YES]; break;
+            case ',':  [self tapQCode:56 shifted:NO]; break;
+            case '<':  [self tapQCode:56 shifted:YES]; break;
+            case '.':  [self tapQCode:57 shifted:NO]; break;
+            case '>':  [self tapQCode:57 shifted:YES]; break;
+            case '/':  [self tapQCode:58 shifted:NO]; break;
+            case '?':  [self tapQCode:58 shifted:YES]; break;
+            case '!':  [self tapQCode:9 shifted:YES]; break;
+            case '@':  [self tapQCode:10 shifted:YES]; break;
+            case '#':  [self tapQCode:11 shifted:YES]; break;
+            case '$':  [self tapQCode:12 shifted:YES]; break;
+            case '%':  [self tapQCode:13 shifted:YES]; break;
+            case '^':  [self tapQCode:14 shifted:YES]; break;
+            case '&':  [self tapQCode:15 shifted:YES]; break;
+            case '*':  [self tapQCode:16 shifted:YES]; break;
+            case '(':  [self tapQCode:17 shifted:YES]; break;
+            case ')':  [self tapQCode:18 shifted:YES]; break;
+            default: break;
+            }
+        }
+    }
+}
+
+- (void)deleteBackward {
+    [self tapQCode:21 shifted:NO];
+}
+
+@end
 
 @implementation EmulatorViewController
 
@@ -311,9 +519,6 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
     if ([boardStr isEqualToString:@"n45ap"] || [boardStr isEqualToString:@"m68ap"]) {
         candidates = @[@"bootrom_s5l8900", @"bootrom_s5l8900.bin", @"s5l8900.bin", @"s5l8900-bootrom.bin", @"bootrom.bin"];
         romType = @"s5l8900";
-    } else if ([boardStr isEqualToString:@"n72ap"]) {
-        candidates = @[@"bootrom_240_4", @"bootrom_240_4.bin", @"bootrom.bin"];
-        romType = @"s5l8720";
     } else {
         return nil;
     }
@@ -401,6 +606,88 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
     return @"@rpath/libqemu-android.dylib";
 }
 
+- (NSString *)locateEngineLibraryNamed:(NSString *)dylibName {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSString *bundleFrameworks = [[NSBundle mainBundle] privateFrameworksPath];
+    if (bundleFrameworks) {
+        NSString *p = [bundleFrameworks stringByAppendingPathComponent:dylibName];
+        if ([fm fileExistsAtPath:p]) return p;
+    }
+    NSString *resPath = [[NSBundle mainBundle] resourcePath];
+    if (resPath) {
+        NSString *p = [resPath stringByAppendingPathComponent:[@"Frameworks" stringByAppendingPathComponent:dylibName]];
+        if ([fm fileExistsAtPath:p]) return p;
+        p = [resPath stringByAppendingPathComponent:dylibName];
+        if ([fm fileExistsAtPath:p]) return p;
+    }
+    NSString *bundlePath = [[NSBundle mainBundle] bundlePath];
+    if (bundlePath) {
+        NSString *p = [bundlePath stringByAppendingPathComponent:[@"Frameworks" stringByAppendingPathComponent:dylibName]];
+        if ([fm fileExistsAtPath:p]) return p;
+        p = [bundlePath stringByAppendingPathComponent:dylibName];
+        if ([fm fileExistsAtPath:p]) return p;
+    }
+    NSString *docDir = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+    NSString *docLib = [docDir stringByAppendingPathComponent:[@"Frameworks" stringByAppendingPathComponent:dylibName]];
+    if ([fm fileExistsAtPath:docLib]) return docLib;
+
+    return [@"@rpath/" stringByAppendingString:dylibName];
+}
+
+- (NSString *)locateWinRTEngineLibrary {
+    return [self locateEngineLibraryNamed:@"libqemu-winrt.dylib"];
+}
+
+- (nullable NSString *)locateWinRTFirmware {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSString *p = [[NSBundle mainBundle] pathForResource:@"QEMU_EFI_1512_driver1998" ofType:@"fd" inDirectory:@"winrt"];
+    if (p.length > 0 && [fm fileExistsAtPath:p]) return p;
+    NSString *resPath = [[NSBundle mainBundle] resourcePath];
+    if (resPath) {
+        NSString *cand = [resPath stringByAppendingPathComponent:@"winrt/QEMU_EFI_1512_driver1998.fd"];
+        if ([fm fileExistsAtPath:cand]) return cand;
+    }
+    NSString *bundlePath = [[NSBundle mainBundle] bundlePath];
+    if (bundlePath) {
+        NSString *cand = [bundlePath stringByAppendingPathComponent:@"winrt/QEMU_EFI_1512_driver1998.fd"];
+        if ([fm fileExistsAtPath:cand]) return cand;
+    }
+    NSString *docDir = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+    NSString *docFw = [docDir stringByAppendingPathComponent:@"winrt/QEMU_EFI_1512_driver1998.fd"];
+    if ([fm fileExistsAtPath:docFw]) return docFw;
+    return nil;
+}
+
+- (nullable NSString *)locateLinuxVirtResource:(NSString *)name ofType:(nullable NSString *)ext {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSString *p = [[NSBundle mainBundle] pathForResource:name ofType:ext inDirectory:@"linux-virt"];
+    if (p.length > 0 && [fm fileExistsAtPath:p]) return p;
+    NSString *fileName = ext.length > 0 ? [name stringByAppendingPathExtension:ext] : name;
+    NSString *rel = [@"linux-virt" stringByAppendingPathComponent:fileName];
+    NSString *resPath = [[NSBundle mainBundle] resourcePath];
+    if (resPath) {
+        NSString *cand = [resPath stringByAppendingPathComponent:rel];
+        if ([fm fileExistsAtPath:cand]) return cand;
+    }
+    NSString *bundlePath = [[NSBundle mainBundle] bundlePath];
+    if (bundlePath) {
+        NSString *cand = [bundlePath stringByAppendingPathComponent:rel];
+        if ([fm fileExistsAtPath:cand]) return cand;
+    }
+    NSString *docDir = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+    NSString *docFile = [docDir stringByAppendingPathComponent:rel];
+    if ([fm fileExistsAtPath:docFile]) return docFile;
+    return nil;
+}
+
+- (nullable NSString *)locateLinuxVirtKernel {
+    return [self locateLinuxVirtResource:@"vmlinuz-virt-armhf" ofType:nil];
+}
+
+- (nullable NSString *)locateLinuxVirtInitrd {
+    return [self locateLinuxVirtResource:@"initrd-virt-armhf.cpio" ofType:@"gz"];
+}
+
 - (BOOL)prefersStatusBarHidden {
     return YES;
 }
@@ -410,12 +697,17 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
 }
 
 - (UIInterfaceOrientationMask)supportedInterfaceOrientations {
-    return (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad)
-        ? UIInterfaceOrientationMaskAll : UIInterfaceOrientationMaskPortrait;
+    if (_isWinRTMode || UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+        return _isWinRTMode
+            ? ((UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad)
+                ? UIInterfaceOrientationMaskAll : UIInterfaceOrientationMaskAllButUpsideDown)
+            : UIInterfaceOrientationMaskAll;
+    }
+    return UIInterfaceOrientationMaskPortrait;
 }
 
 - (BOOL)shouldAutorotate {
-    return (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad);
+    return _isWinRTMode || (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad);
 }
 
 - (UIInterfaceOrientation)preferredInterfaceOrientationForPresentation {
@@ -531,13 +823,17 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
 }
 
 - (void)sendHostPasteboardToGuest:(NSString *)text showToast:(BOOL)showToast {
-    if (_isAndroidMode || !text.length) return;
+    if (_isAndroidMode || _isWinRTMode ||
+        !__atomic_load_n(&_runtime, __ATOMIC_ACQUIRE) ||
+        !__atomic_load_n(&_isEmulating, __ATOMIC_ACQUIRE) ||
+        !text.length) {
+        return;
+    }
     typedef void (*qemu_ios_ui_paste_fn)(const char *utf8);
     static qemu_ios_ui_paste_fn pasteFn = NULL;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
+    if (!pasteFn) {
         pasteFn = (qemu_ios_ui_paste_fn)dlsym(RTLD_DEFAULT, "qemu_ios_ui_paste");
-    });
+    }
     if (!pasteFn) {
         NSLog(@"[EmulatorVC] qemu_ios_ui_paste symbol not found");
         return;
@@ -568,12 +864,16 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
 }
 
 - (void)pollGuestPasteboard {
+    if (_isAndroidMode || _isWinRTMode ||
+        !__atomic_load_n(&_runtime, __ATOMIC_ACQUIRE) ||
+        !__atomic_load_n(&_isEmulating, __ATOMIC_ACQUIRE)) {
+        return;
+    }
     typedef char *(*qemu_ios_ui_guest_pasteboard_fn)(uint64_t *serial);
     static qemu_ios_ui_guest_pasteboard_fn guestPbFn = NULL;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
+    if (!guestPbFn) {
         guestPbFn = (qemu_ios_ui_guest_pasteboard_fn)dlsym(RTLD_DEFAULT, "qemu_ios_ui_guest_pasteboard");
-    });
+    }
     if (!guestPbFn) return;
 
     char *gtext = guestPbFn(&_guestPasteboardSerial);
@@ -608,7 +908,9 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
     BOOL accelCapable = _isAndroidMode || __atomic_load_n(&_boardSupportsAccel, __ATOMIC_ACQUIRE);
 
     NSInteger rot = 0;
-    if (guestLandscape) {
+    if (_isWinRTMode) {
+        rot = 0;
+    } else if (guestLandscape) {
         // Landscape-native guest framebuffers (e.g. iPad 1st gen 1024x768)
         if (isPad && !self.iPadLandscapeRotationEnabled) {
             rot = 90;
@@ -782,6 +1084,9 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
     [self updateMetalDisplayRotation];
+    if (_isWinRTMode && ![self.winrtKeyInputView isFirstResponder]) {
+        [self becomeFirstResponder];
+    }
 }
 
 - (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
@@ -805,15 +1110,37 @@ static void emulator_set_direct_iosurface_cb(qemu_ios_direct_cb_t cb, void *opaq
     self.view.backgroundColor = [UIColor blackColor];
     [self setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
 
-    _isAndroidMode = [[NSFileManager defaultManager] fileExistsAtPath:[self.baseDirPath stringByAppendingPathComponent:@"kernel-qemu"]];
-    for (int i = 0; i < 5; i++) _androidTouchSlots[i] = -1;
-    if (_isAndroidMode && (_screenWidth <= 0 || _screenHeight <= 0)) {
+    _isChromeOSMode = [self.platform isEqualToString:@"chromeos"] ||
+                      [self.baseDirPath.lastPathComponent hasPrefix:@"chromeos-"];
+    _isUbuntuTouchVirtMode = [self.platform isEqualToString:@"ubuntutouch"] ||
+                             [self.baseDirPath.lastPathComponent hasPrefix:@"ut-virt-"];
+    _isWinRTMode = _isChromeOSMode || _isUbuntuTouchVirtMode ||
+                   [self.platform isEqualToString:@"winrt"] ||
+                   [self.baseDirPath.lastPathComponent hasPrefix:@"winrt-"];
+    _isAndroidMode = !_isWinRTMode &&
+                     [[NSFileManager defaultManager] fileExistsAtPath:[self.baseDirPath stringByAppendingPathComponent:@"kernel-qemu"]];
+    for (int i = 0; i < 5; i++) {
+        _androidTouchSlots[i] = -1;
+        _winrtActiveTouches[i] = -1;
+    }
+    for (int i = 0; i < 10; i++) {
+        _utTouchSlots[i] = -1;
+    }
+    _winrtCursorX = 0.5f;
+    _winrtCursorY = 0.5f;
+    if (_isUbuntuTouchVirtMode && (_screenWidth <= 0 || _screenHeight <= 0 || (_screenWidth == 320 && _screenHeight == 480))) {
+        _screenWidth = 432;
+        _screenHeight = 768;
+    } else if (_isWinRTMode && (_screenWidth <= 0 || _screenHeight <= 0 || (_screenWidth == 320 && _screenHeight == 480))) {
+        _screenWidth = 1024;
+        _screenHeight = 768;
+    } else if (_isAndroidMode && (_screenWidth <= 0 || _screenHeight <= 0)) {
         _screenWidth = 750;
         _screenHeight = 1334;
     }
 
-    // Metal rendering view (use Android_On_iOS FrameMailbox + MetalDisplay port for Android; keep IOSMetalView untouched for iOS)
-    if (_isAndroidMode) {
+    // Metal rendering view (use FrameMailbox + MetalDisplay for Goldfish & WinRT; keep IOSMetalView untouched for iOS)
+    if (_isAndroidMode || _isWinRTMode) {
         _androidMetalView = [[AndroidMetalView alloc] initWithFrame:self.view.bounds];
         self.metalView = _androidMetalView;
     } else {
@@ -989,24 +1316,26 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
     // --- 画面操作・ジェスチャメニュー ---
     NSMutableArray<UIMenuElement *> *displayActions = [NSMutableArray array];
 
-    // 1. 通知センターを開く（ホスト iPadOS と競合せず確実に開く）
-    UIAction *notifAct = [UIAction actionWithTitle:L(@"menu_pull_notif")
-                                             image:[UIImage systemImageNamed:@"bell.badge"]
-                                        identifier:nil
-                                           handler:^(__kindof UIAction *action) {
-        [weakSelf pullNotificationCenter];
-    }];
-    [displayActions addObject:notifAct];
-
-    // 2. コントロールセンターを開く（ホストのホームバー/Dockと競合せず確実に開く）
-    if (!_isAndroidMode) {
-        UIAction *ccAct = [UIAction actionWithTitle:L(@"menu_pull_control_center")
-                                              image:[UIImage systemImageNamed:@"slider.horizontal.3"]
-                                         identifier:nil
-                                            handler:^(__kindof UIAction *action) {
-            [weakSelf pullControlCenter];
+    if (!_isWinRTMode) {
+        // 1. 通知センターを開く（ホスト iPadOS と競合せず確実に開く）
+        UIAction *notifAct = [UIAction actionWithTitle:L(@"menu_pull_notif")
+                                                 image:[UIImage systemImageNamed:@"bell.badge"]
+                                            identifier:nil
+                                               handler:^(__kindof UIAction *action) {
+            [weakSelf pullNotificationCenter];
         }];
-        [displayActions addObject:ccAct];
+        [displayActions addObject:notifAct];
+
+        // 2. コントロールセンターを開く（ホストのホームバー/Dockと競合せず確実に開く）
+        if (!_isAndroidMode) {
+            UIAction *ccAct = [UIAction actionWithTitle:L(@"menu_pull_control_center")
+                                                  image:[UIImage systemImageNamed:@"slider.horizontal.3"]
+                                             identifier:nil
+                                                handler:^(__kindof UIAction *action) {
+                [weakSelf pullControlCenter];
+            }];
+            [displayActions addObject:ccAct];
+        }
     }
 
     // 3. 拡大モード (UTMスタイルのピンチ＆パンズーム)
@@ -1023,7 +1352,7 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
     [displayActions addObject:zoomToggle];
 
     // 4. iPad 専用: 横画面時の向き切り替え (iPhoneの操作とは明確に区別)
-    if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+    if (!_isWinRTMode && UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) {
         BOOL rotEnabled = self.iPadLandscapeRotationEnabled;
         UIAction *oriLock = [UIAction actionWithTitle:L(@"menu_ipad_orientation_lock_portrait")
                                                 image:[UIImage systemImageNamed:@"lock.rotation"]
@@ -1208,13 +1537,53 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
         if (s) [s installAPKTapped:nil];
     }];
 
+    UIAction *winrtCadAct = [UIAction actionWithTitle:L(@"winrt_send_cad")
+                                                image:[UIImage systemImageNamed:@"keyboard.chevron.compact.down"]
+                                           identifier:nil
+                                              handler:^(__kindof UIAction *action) {
+        __strong typeof(weakSelf) s = weakSelf;
+        if (s && s->_pfnWinrtSendCad) {
+            s->_pfnWinrtSendCad();
+            [s showToastBannerWithText:@"Ctrl + Alt + Del" icon:@"keyboard"];
+        }
+    }];
+
+    UIAction *winrtResetUsbAct = [UIAction actionWithTitle:L(@"winrt_reset_usb")
+                                                     image:[UIImage systemImageNamed:@"arrow.triangle.2.circlepath"]
+                                                identifier:nil
+                                                   handler:^(__kindof UIAction *action) {
+        __strong typeof(weakSelf) s = weakSelf;
+        if (s) [s resetWinRTUSBInputTapped:nil];
+    }];
+
+    UIAction *winrtInputModeAct = [UIAction actionWithTitle:_winrtMouseMode ? L(@"winrt_input_mode_touch") : L(@"winrt_input_mode_mouse")
+                                                       image:[UIImage systemImageNamed:_winrtMouseMode ? @"hand.tap" : @"computermouse.fill"]
+                                                  identifier:nil
+                                                     handler:^(__kindof UIAction *action) {
+        __strong typeof(weakSelf) s = weakSelf;
+        if (s) [s toggleWinRTInputModeTapped:nil];
+    }];
+
+    BOOL isFirefoxOS = [self.baseDirPath.lastPathComponent hasPrefix:@"fxos-"];
+    NSArray *toolChildren = nil;
+    if (_isUbuntuTouchVirtMode) {
+        toolChildren = @[hudAct];
+    } else if (_isChromeOSMode) {
+        toolChildren = @[hudAct, winrtInputModeAct];
+    } else if (_isWinRTMode) {
+        toolChildren = @[hudAct, winrtInputModeAct, winrtCadAct, winrtResetUsbAct];
+    } else if (_isAndroidMode) {
+        toolChildren = isFirefoxOS
+            ? @[androidBackAct, androidHomeAct, androidMenuAct, hudAct]
+            : @[androidBackAct, androidHomeAct, androidMenuAct, hudAct, installApkAct];
+    } else {
+        toolChildren = @[clipSyncAct, pasteToGuestAct, hudAct, installIpaAct];
+    }
     UIMenu *toolsMenu = [UIMenu menuWithTitle:@""
                                         image:nil
                                    identifier:nil
                                       options:UIMenuOptionsDisplayInline
-                                     children:_isAndroidMode
-                                        ? @[androidBackAct, androidHomeAct, androidMenuAct, hudAct, installApkAct]
-                                        : @[clipSyncAct, pasteToGuestAct, hudAct, installIpaAct]];
+                                     children:toolChildren];
 
     UIAction *restartAct = [UIAction actionWithTitle:L(@"force_restart_title")
                                                image:[UIImage systemImageNamed:@"arrow.clockwise.circle"]
@@ -1235,7 +1604,7 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
                                         image:nil
                                    identifier:nil
                                       options:UIMenuOptionsDisplayInline
-                                     children:_isAndroidMode ? @[exitAct] : @[restartAct, exitAct]];
+                                     children:(_isAndroidMode || _isWinRTMode) ? @[exitAct] : @[restartAct, exitAct]];
 
     return [UIMenu menuWithTitle:@"" children:@[displayMenu, layoutMenu, toolsMenu, powerMenu]];
 }
@@ -1334,12 +1703,72 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
     self.moreMenuButton.accessibilityLabel = L(@"menu_btn_more");
     [self refreshMoreMenu];
 
-    self.hardwareStack = [[UIStackView alloc] initWithArrangedSubviews:_isAndroidMode
-        ? @[self.collapseButton, self.backButton, self.homeButton, self.menuButton, self.powerButton, self.volDownButton, self.volUpButton, self.moreMenuButton]
-        : @[self.collapseButton, self.homeButton, self.powerButton, self.volDownButton, self.volUpButton, self.moreMenuButton]];
-    self.backButton.hidden = !_isAndroidMode;
-    self.menuButton.hidden = !_isAndroidMode;
-    self.homeButton.hidden = NO;
+    if (_isWinRTMode) {
+        self.winrtInputModeButton = [self createCompactHardwareButton:@"hand.tap" title:nil minWidth:30.0 action:@selector(toggleWinRTInputModeTapped:) upAction:nil];
+        self.winrtDragButton = [self createCompactHardwareButton:@"hand.draw" title:nil minWidth:30.0 action:@selector(toggleWinRTDragLockTapped:) upAction:nil];
+        self.winrtDragButton.hidden = YES;
+        self.winrtKeyboardButton = [self createCompactHardwareButton:@"keyboard" title:nil minWidth:32.0 action:@selector(toggleWinRTKeyboardTapped:) upAction:nil];
+        self.winrtQuickKeysButton = [self createCompactHardwareButton:@"command" title:nil minWidth:32.0 action:nil upAction:nil];
+        self.winrtQuickKeysButton.showsMenuAsPrimaryAction = YES;
+        self.winrtResetUsbButton = [self createCompactHardwareButton:@"arrow.triangle.2.circlepath" title:nil minWidth:30.0 action:@selector(resetWinRTUSBInputTapped:) upAction:nil];
+
+        ClassicWinRTKeyInputView *keyView = [[ClassicWinRTKeyInputView alloc] initWithFrame:CGRectZero];
+        keyView.hidden = YES;
+        __weak typeof(self) weakSelf = self;
+        keyView.onKeyQcode = ^(int qcode, int down) {
+            __strong typeof(weakSelf) s = weakSelf;
+            if (s && s->_pfnWinrtKeyQcode) {
+                s->_pfnWinrtKeyQcode(qcode, down);
+            }
+        };
+        keyView.onAfterNonModifierKey = ^{
+            __strong typeof(weakSelf) s = weakSelf;
+            if (s) [s releaseWinRTStickyModifiers];
+        };
+        keyView.customInputAccessoryView = [self buildWinRTInputAccessoryBar];
+        [self.view addSubview:keyView];
+        self.winrtKeyInputView = keyView;
+        [self syncWinRTModifierUI];
+    }
+
+    NSArray *stackItems = nil;
+    if (_isUbuntuTouchVirtMode) {
+        stackItems = @[self.collapseButton, self.winrtKeyboardButton, self.winrtQuickKeysButton, self.moreMenuButton];
+        self.winrtInputModeButton.hidden = YES;
+        self.winrtDragButton.hidden = YES;
+        self.winrtResetUsbButton.hidden = YES;
+        self.backButton.hidden = YES;
+        self.homeButton.hidden = YES;
+        self.menuButton.hidden = YES;
+        self.powerButton.hidden = YES;
+        self.volDownButton.hidden = YES;
+        self.volUpButton.hidden = YES;
+    } else if (_isChromeOSMode) {
+        stackItems = @[self.collapseButton, self.winrtInputModeButton, self.winrtDragButton, self.winrtKeyboardButton, self.winrtQuickKeysButton, self.moreMenuButton];
+        self.winrtResetUsbButton.hidden = YES;
+        self.backButton.hidden = YES;
+        self.homeButton.hidden = YES;
+        self.menuButton.hidden = YES;
+        self.powerButton.hidden = YES;
+        self.volDownButton.hidden = YES;
+        self.volUpButton.hidden = YES;
+    } else if (_isWinRTMode) {
+        stackItems = @[self.collapseButton, self.winrtInputModeButton, self.winrtDragButton, self.winrtKeyboardButton, self.winrtQuickKeysButton, self.winrtResetUsbButton, self.moreMenuButton];
+        self.backButton.hidden = YES;
+        self.homeButton.hidden = YES;
+        self.menuButton.hidden = YES;
+        self.powerButton.hidden = YES;
+        self.volDownButton.hidden = YES;
+        self.volUpButton.hidden = YES;
+    } else {
+        stackItems = _isAndroidMode
+            ? @[self.collapseButton, self.backButton, self.homeButton, self.menuButton, self.powerButton, self.volDownButton, self.volUpButton, self.moreMenuButton]
+            : @[self.collapseButton, self.homeButton, self.powerButton, self.volDownButton, self.volUpButton, self.moreMenuButton];
+        self.backButton.hidden = !_isAndroidMode;
+        self.menuButton.hidden = !_isAndroidMode;
+        self.homeButton.hidden = NO;
+    }
+    self.hardwareStack = [[UIStackView alloc] initWithArrangedSubviews:stackItems];
     self.hardwareStack.translatesAutoresizingMaskIntoConstraints = NO;
     self.hardwareStack.axis = UILayoutConstraintAxisHorizontal;
     self.hardwareStack.distribution = UIStackViewDistributionFill;
@@ -1494,9 +1923,14 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
     CGFloat oldWidth = (self.hardwareBar.bounds.size.width > 0.0) ? self.hardwareBar.bounds.size.width : 32.0;
 
     self.barCollapsed = !self.barCollapsed;
-    NSArray *items = _isAndroidMode
-        ? @[self.backButton, self.homeButton, self.menuButton, self.powerButton, self.volDownButton, self.volUpButton, self.moreMenuButton]
-        : @[self.homeButton, self.powerButton, self.volDownButton, self.volUpButton, self.moreMenuButton];
+    NSArray *items = nil;
+    if (_isWinRTMode) {
+        items = @[self.winrtInputModeButton, self.winrtKeyboardButton, self.winrtQuickKeysButton, self.winrtResetUsbButton, self.moreMenuButton];
+    } else {
+        items = _isAndroidMode
+            ? @[self.backButton, self.homeButton, self.menuButton, self.powerButton, self.volDownButton, self.volUpButton, self.moreMenuButton]
+            : @[self.homeButton, self.powerButton, self.volDownButton, self.volUpButton, self.moreMenuButton];
+    }
     UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:(self.barCollapsed ? 14.0 : 12.0) weight:UIImageSymbolWeightSemibold];
 
     CGFloat targetLeading = oldLeading;
@@ -1559,6 +1993,447 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
         [self clampHardwareBarToSafeArea];
         [self.view layoutIfNeeded];
     } completion:nil];
+}
+
+- (BOOL)canBecomeFirstResponder {
+    return _isWinRTMode || [super canBecomeFirstResponder];
+}
+
+- (BOOL)hasActiveWinRTStickyModifier {
+    return _winrtModCtrl || _winrtModAlt || _winrtModShift || _winrtModWin;
+}
+
+- (void)syncWinRTModifierUI {
+    if (!_isWinRTMode) return;
+    BOOL anyMod = [self hasActiveWinRTStickyModifier];
+    self.winrtQuickKeysButton.tintColor = anyMod ? [UIColor systemCyanColor] : [UIColor whiteColor];
+    self.winrtQuickKeysButton.menu = [self buildWinRTQuickKeysMenu];
+
+    if ([self.winrtKeyInputView isKindOfClass:[ClassicWinRTKeyInputView class]]) {
+        ((ClassicWinRTKeyInputView *)self.winrtKeyInputView).externalShiftHeld = _winrtModShift;
+    }
+
+    NSDictionary<NSNumber *, NSNumber *> *stateMap = @{
+        @5: @(_winrtModCtrl),
+        @3: @(_winrtModAlt),
+        @1: @(_winrtModShift),
+        @117: @(_winrtModWin),
+    };
+    for (NSNumber *qKey in self.winrtAccessoryModButtons) {
+        UIButton *btn = self.winrtAccessoryModButtons[qKey];
+        BOOL active = stateMap[qKey].boolValue;
+        btn.backgroundColor = active
+            ? [UIColor systemCyanColor]
+            : [UIColor colorWithWhite:0.26 alpha:1.0];
+        [btn setTitleColor:(active ? [UIColor blackColor] : [UIColor whiteColor])
+                  forState:UIControlStateNormal];
+    }
+}
+
+- (void)toggleWinRTStickyModifierQCode:(int)qcode {
+    if (!_isWinRTMode || !_pfnWinrtKeyQcode) return;
+    BOOL *flag = NULL;
+    if (qcode == 5) flag = &_winrtModCtrl;
+    else if (qcode == 3) flag = &_winrtModAlt;
+    else if (qcode == 1) flag = &_winrtModShift;
+    else if (qcode == 117) flag = &_winrtModWin;
+    if (!flag) return;
+
+    *flag = !(*flag);
+    _pfnWinrtKeyQcode(qcode, *flag ? 1 : 0);
+    [self syncWinRTModifierUI];
+}
+
+- (void)releaseWinRTStickyModifiers {
+    if (!_isWinRTMode) return;
+    BOOL changed = NO;
+    if (_winrtModCtrl)  { _winrtModCtrl = NO;  if (_pfnWinrtKeyQcode) _pfnWinrtKeyQcode(5, 0);   changed = YES; }
+    if (_winrtModAlt)   { _winrtModAlt = NO;   if (_pfnWinrtKeyQcode) _pfnWinrtKeyQcode(3, 0);   changed = YES; }
+    if (_winrtModShift) { _winrtModShift = NO; if (_pfnWinrtKeyQcode) _pfnWinrtKeyQcode(1, 0);   changed = YES; }
+    if (_winrtModWin)   { _winrtModWin = NO;   if (_pfnWinrtKeyQcode) _pfnWinrtKeyQcode(117, 0); changed = YES; }
+    if (changed) {
+        [self syncWinRTModifierUI];
+    }
+}
+
+- (void)sendWinRTQuickQCode:(int)qcode {
+    if (!_pfnWinrtKeyQcode || qcode <= 0) return;
+    _pfnWinrtKeyQcode(qcode, 1);
+    __weak typeof(self) weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(45 * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+        __strong typeof(weakSelf) s = weakSelf;
+        if (s && s->_pfnWinrtKeyQcode) {
+            s->_pfnWinrtKeyQcode(qcode, 0);
+        }
+        if (s) {
+            [s releaseWinRTStickyModifiers];
+        }
+    });
+}
+
+- (void)sendWinRTComboQCodes:(const int *)qcodes count:(size_t)count {
+    if (!_isWinRTMode || !_pfnWinrtKeyQcode || !qcodes || count == 0) return;
+    NSMutableArray<NSNumber *> *seq = [NSMutableArray arrayWithCapacity:count];
+    for (size_t i = 0; i < count; i++) {
+        int q = qcodes[i];
+        if (q > 0) {
+            _pfnWinrtKeyQcode(q, 1);
+            [seq addObject:@(q)];
+        }
+    }
+    __weak typeof(self) weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(55 * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+        __strong typeof(weakSelf) s = weakSelf;
+        if (s && s->_pfnWinrtKeyQcode) {
+            for (NSInteger i = (NSInteger)seq.count - 1; i >= 0; i--) {
+                s->_pfnWinrtKeyQcode(seq[(NSUInteger)i].intValue, 0);
+            }
+        }
+        if (s) {
+            [s releaseWinRTStickyModifiers];
+        }
+    });
+}
+
+- (void)winrtAccessoryKeyTapped:(UIButton *)sender {
+    [_haptic impactOccurred];
+    int tag = (int)sender.tag;
+    if (tag == -1) {
+        [self toggleWinRTKeyboardTapped:sender];
+        return;
+    }
+    if (tag == 5 || tag == 3 || tag == 1 || tag == 117) {
+        [self toggleWinRTStickyModifierQCode:tag];
+    } else if (tag > 0) {
+        [self sendWinRTQuickQCode:tag];
+    }
+}
+
+- (UIView *)buildWinRTInputAccessoryBar {
+    UIView *bar = [[UIView alloc] initWithFrame:CGRectMake(0, 0, UIScreen.mainScreen.bounds.size.width, 42.0)];
+    bar.backgroundColor = [UIColor colorWithWhite:0.12 alpha:0.96];
+
+    UIScrollView *scroll = [[UIScrollView alloc] initWithFrame:CGRectZero];
+    scroll.translatesAutoresizingMaskIntoConstraints = NO;
+    scroll.showsHorizontalScrollIndicator = NO;
+    scroll.alwaysBounceHorizontal = YES;
+    [bar addSubview:scroll];
+
+    UIStackView *stack = [[UIStackView alloc] initWithFrame:CGRectZero];
+    stack.translatesAutoresizingMaskIntoConstraints = NO;
+    stack.axis = UILayoutConstraintAxisHorizontal;
+    stack.spacing = 6.0;
+    stack.alignment = UIStackViewAlignmentCenter;
+    [scroll addSubview:stack];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [scroll.leadingAnchor constraintEqualToAnchor:bar.leadingAnchor],
+        [scroll.trailingAnchor constraintEqualToAnchor:bar.trailingAnchor],
+        [scroll.topAnchor constraintEqualToAnchor:bar.topAnchor],
+        [scroll.bottomAnchor constraintEqualToAnchor:bar.bottomAnchor],
+        [stack.leadingAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.leadingAnchor constant:8.0],
+        [stack.trailingAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.trailingAnchor constant:-8.0],
+        [stack.topAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.topAnchor],
+        [stack.bottomAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.bottomAnchor],
+    ]];
+
+    struct { NSString *title; int qcode; BOOL isMod; } keys[] = {
+        { @"Esc", 8, NO },
+        { @"Tab", 22, NO },
+        { @"Ctrl", 5, YES },
+        { @"Alt", 3, YES },
+        { @"Shift", 1, YES },
+        { @"Win", 117, YES },
+        { @"↑", 100, NO },
+        { @"↓", 101, NO },
+        { @"←", 99, NO },
+        { @"→", 102, NO },
+        { @"Del", 104, NO },
+        { @"Home", 95, NO },
+        { @"End", 98, NO },
+        { @"PgUp", 96, NO },
+        { @"PgDn", 97, NO },
+        { @"Ins", 103, NO },
+        { @"F1", 62, NO }, { @"F2", 63, NO }, { @"F3", 64, NO }, { @"F4", 65, NO },
+        { @"F5", 66, NO }, { @"F6", 67, NO }, { @"F7", 68, NO }, { @"F8", 69, NO },
+        { @"F9", 70, NO }, { @"F10", 71, NO }, { @"F11", 92, NO }, { @"F12", 93, NO },
+        { @"▼", -1, NO },
+    };
+    NSMutableDictionary<NSNumber *, UIButton *> *modBtns = [NSMutableDictionary dictionary];
+    for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
+        UIButton *btn = [UIButton buttonWithType:UIButtonTypeSystem];
+        btn.translatesAutoresizingMaskIntoConstraints = NO;
+        btn.tag = keys[i].qcode;
+        [btn setTitle:keys[i].title forState:UIControlStateNormal];
+        [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        btn.titleLabel.font = [UIFont systemFontOfSize:13.0 weight:UIFontWeightSemibold];
+        btn.backgroundColor = [UIColor colorWithWhite:0.26 alpha:1.0];
+        btn.layer.cornerRadius = 6.0;
+        btn.contentEdgeInsets = UIEdgeInsetsMake(5.0, 10.0, 5.0, 10.0);
+        [btn addTarget:self action:@selector(winrtAccessoryKeyTapped:) forControlEvents:UIControlEventTouchUpInside];
+        [stack addArrangedSubview:btn];
+        if (keys[i].isMod) {
+            modBtns[@(keys[i].qcode)] = btn;
+        }
+    }
+    self.winrtAccessoryModButtons = [modBtns copy];
+    return bar;
+}
+
+- (UIMenu *)buildWinRTQuickKeysMenu {
+    __weak typeof(self) weakSelf = self;
+
+    UIAction * (^makeModAction)(NSString *, int, BOOL) = ^UIAction *(NSString *title, int qcode, BOOL active) {
+        UIAction *act = [UIAction actionWithTitle:title
+                                            image:[UIImage systemImageNamed:(active ? @"checkmark.circle.fill" : @"circle")]
+                                       identifier:nil
+                                          handler:^(__kindof UIAction *action) {
+            [weakSelf toggleWinRTStickyModifierQCode:qcode];
+        }];
+        act.state = active ? UIMenuElementStateOn : UIMenuElementStateOff;
+        return act;
+    };
+
+    NSMutableArray<UIMenuElement *> *modItems = [NSMutableArray arrayWithArray:@[
+        makeModAction(@"Ctrl", 5, _winrtModCtrl),
+        makeModAction(@"Alt", 3, _winrtModAlt),
+        makeModAction(@"Shift", 1, _winrtModShift),
+        makeModAction(@"Win", 117, _winrtModWin),
+    ]];
+    if ([self hasActiveWinRTStickyModifier]) {
+        [modItems addObject:[UIAction actionWithTitle:L(@"winrt_sticky_clear")
+                                                image:[UIImage systemImageNamed:@"xmark.circle"]
+                                           identifier:nil
+                                              handler:^(__kindof UIAction *action) {
+            [weakSelf releaseWinRTStickyModifiers];
+        }]];
+    }
+    UIMenu *modsMenu = [UIMenu menuWithTitle:L(@"winrt_sticky_mods_section")
+                                       image:[UIImage systemImageNamed:@"command.square"]
+                                  identifier:nil
+                                     options:0
+                                    children:modItems];
+
+    UIAction *winAct = [UIAction actionWithTitle:@"Win" image:[UIImage systemImageNamed:@"window.casement"] identifier:nil handler:^(__kindof UIAction *action) {
+        [weakSelf sendWinRTQuickQCode:117];
+    }];
+    UIAction *winXAct = [UIAction actionWithTitle:@"Win + X" image:nil identifier:nil handler:^(__kindof UIAction *action) {
+        const int c[] = { 117, 50 };
+        [weakSelf sendWinRTComboQCodes:c count:2];
+    }];
+    UIAction *winRAct = [UIAction actionWithTitle:@"Win + R" image:nil identifier:nil handler:^(__kindof UIAction *action) {
+        const int c[] = { 117, 26 };
+        [weakSelf sendWinRTComboQCodes:c count:2];
+    }];
+    UIAction *winEAct = [UIAction actionWithTitle:@"Win + E" image:nil identifier:nil handler:^(__kindof UIAction *action) {
+        const int c[] = { 117, 25 };
+        [weakSelf sendWinRTComboQCodes:c count:2];
+    }];
+    UIAction *winDAct = [UIAction actionWithTitle:@"Win + D" image:nil identifier:nil handler:^(__kindof UIAction *action) {
+        const int c[] = { 117, 38 };
+        [weakSelf sendWinRTComboQCodes:c count:2];
+    }];
+    UIAction *altTabAct = [UIAction actionWithTitle:@"Alt + Tab" image:nil identifier:nil handler:^(__kindof UIAction *action) {
+        const int c[] = { 3, 22 };
+        [weakSelf sendWinRTComboQCodes:c count:2];
+    }];
+    UIAction *altF4Act = [UIAction actionWithTitle:@"Alt + F4" image:nil identifier:nil handler:^(__kindof UIAction *action) {
+        const int c[] = { 3, 65 };
+        [weakSelf sendWinRTComboQCodes:c count:2];
+    }];
+    UIAction *ctrlShiftEscAct = [UIAction actionWithTitle:@"Ctrl + Shift + Esc" image:nil identifier:nil handler:^(__kindof UIAction *action) {
+        const int c[] = { 5, 1, 8 };
+        [weakSelf sendWinRTComboQCodes:c count:3];
+    }];
+    UIAction *cadAct = [UIAction actionWithTitle:@"Ctrl + Alt + Del" image:[UIImage systemImageNamed:@"keyboard.chevron.compact.down"] identifier:nil handler:^(__kindof UIAction *action) {
+        __strong typeof(weakSelf) s = weakSelf;
+        if (s && s->_pfnWinrtSendCad) {
+            [s releaseWinRTStickyModifiers];
+            s->_pfnWinrtSendCad();
+            [s showToastBannerWithText:@"Ctrl + Alt + Del" icon:@"keyboard"];
+        }
+    }];
+    UIAction *rightClickAct = [UIAction actionWithTitle:L(@"winrt_right_click_action")
+                                                  image:[UIImage systemImageNamed:@"contextualmenu.and.cursorarrow"]
+                                             identifier:nil
+                                                handler:^(__kindof UIAction *action) {
+        __strong typeof(weakSelf) s = weakSelf;
+        if (s && s->_pfnWinrtPointerAbs) {
+            int ax = (int)lroundf(s->_winrtCursorX * 32767.0f);
+            int ay = (int)lroundf(s->_winrtCursorY * 32767.0f);
+            s->_pfnWinrtPointerAbs(ax, ay, 2);
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(45 * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+                __strong typeof(weakSelf) s2 = weakSelf;
+                if (s2 && s2->_pfnWinrtPointerAbs && __atomic_load_n(&s2->_isEmulating, __ATOMIC_ACQUIRE)) {
+                    s2->_pfnWinrtPointerAbs(ax, ay, 0);
+                }
+                if (s2) [s2 releaseWinRTStickyModifiers];
+            });
+        }
+    }];
+
+    struct { NSString *title; int qcode; } navKeys[] = {
+        { @"Esc", 8 }, { @"Tab", 22 }, { @"Enter", 35 }, { @"Backspace", 21 },
+        { @"Delete", 104 }, { @"Insert", 103 }, { @"Home", 95 }, { @"End", 98 },
+        { @"Page Up", 96 }, { @"Page Down", 97 }, { @"PrtSc", 94 }, { @"Pause", 120 },
+        { @"↑", 100 }, { @"↓", 101 }, { @"←", 99 }, { @"→", 102 },
+    };
+    NSMutableArray<UIAction *> *navActs = [NSMutableArray array];
+    for (size_t i = 0; i < sizeof(navKeys) / sizeof(navKeys[0]); i++) {
+        int qcode = navKeys[i].qcode;
+        [navActs addObject:[UIAction actionWithTitle:navKeys[i].title image:nil identifier:nil handler:^(__kindof UIAction *action) {
+            [weakSelf sendWinRTQuickQCode:qcode];
+        }]];
+    }
+    UIMenu *navMenu = [UIMenu menuWithTitle:L(@"winrt_special_nav_menu")
+                                      image:[UIImage systemImageNamed:@"arrow.up.arrow.down.square"]
+                                 identifier:nil
+                                    options:0
+                                   children:navActs];
+
+    struct { NSString *title; int qcode; } fnKeys[] = {
+        { @"F1", 62 }, { @"F2", 63 }, { @"F3", 64 }, { @"F4", 65 },
+        { @"F5", 66 }, { @"F6", 67 }, { @"F7", 68 }, { @"F8", 69 },
+        { @"F9", 70 }, { @"F10", 71 }, { @"F11", 92 }, { @"F12", 93 },
+    };
+    NSMutableArray<UIAction *> *fnActs = [NSMutableArray array];
+    for (size_t i = 0; i < sizeof(fnKeys) / sizeof(fnKeys[0]); i++) {
+        int qcode = fnKeys[i].qcode;
+        [fnActs addObject:[UIAction actionWithTitle:fnKeys[i].title image:nil identifier:nil handler:^(__kindof UIAction *action) {
+            [weakSelf sendWinRTQuickQCode:qcode];
+        }]];
+    }
+    UIMenu *fnMenu = [UIMenu menuWithTitle:L(@"winrt_fn_keys_menu")
+                                     image:[UIImage systemImageNamed:@"fn"]
+                                identifier:nil
+                                   options:0
+                                  children:fnActs];
+
+    NSArray<UIMenuElement *> *shortcutChildren = _isUbuntuTouchVirtMode
+        ? @[winAct, altTabAct]
+        : @[winAct, winXAct, winRAct, winEAct, winDAct, altTabAct, altF4Act, ctrlShiftEscAct, cadAct, rightClickAct];
+    UIMenu *shortcutGroup = [UIMenu menuWithTitle:@""
+                                            image:nil
+                                       identifier:nil
+                                          options:UIMenuOptionsDisplayInline
+                                         children:shortcutChildren];
+    return [UIMenu menuWithTitle:L(@"winrt_quick_keys") children:@[modsMenu, shortcutGroup, navMenu, fnMenu]];
+}
+
+- (void)toggleWinRTInputModeTapped:(id)sender {
+    [_haptic impactOccurred];
+    if (!_isWinRTMode) return;
+    _winrtMouseMode = !_winrtMouseMode;
+    _winrtTrackGen++;
+    _winrtTrackLeftDrag = NO;
+    _winrtMouseDragLock = NO;
+    _winrtTrackRightSent = NO;
+
+    UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:14.0 weight:UIImageSymbolWeightSemibold];
+    UIImage *icon = [UIImage systemImageNamed:(_winrtMouseMode ? @"computermouse.fill" : @"hand.tap") withConfiguration:cfg];
+    [self.winrtInputModeButton setImage:icon forState:UIControlStateNormal];
+    self.winrtInputModeButton.tintColor = _winrtMouseMode ? [UIColor systemCyanColor] : [UIColor whiteColor];
+    self.winrtDragButton.hidden = !_winrtMouseMode;
+    self.winrtDragButton.tintColor = [UIColor whiteColor];
+    if (_pfnWinrtPointerAbs) {
+        int ax = (int)lroundf(_winrtCursorX * 32767.0f);
+        int ay = (int)lroundf(_winrtCursorY * 32767.0f);
+        _pfnWinrtPointerAbs(ax, ay, 0);
+    }
+    [self refreshMoreMenu];
+    [self showToastBannerWithText:(_winrtMouseMode ? L(@"winrt_mode_mouse_toast") : L(@"winrt_mode_touch_toast"))
+                             icon:(_winrtMouseMode ? @"computermouse.fill" : @"hand.tap")];
+}
+
+- (void)toggleWinRTDragLockTapped:(id)sender {
+    [_haptic impactOccurred];
+    if (!_isWinRTMode || !_winrtMouseMode) return;
+    _winrtMouseDragLock = !_winrtMouseDragLock;
+    _winrtTrackGen++;
+    _winrtTrackLeftDrag = NO;
+    self.winrtDragButton.tintColor = _winrtMouseDragLock ? [UIColor systemCyanColor] : [UIColor whiteColor];
+    if (_pfnWinrtPointerAbs) {
+        int ax = (int)lroundf(_winrtCursorX * 32767.0f);
+        int ay = (int)lroundf(_winrtCursorY * 32767.0f);
+        _pfnWinrtPointerAbs(ax, ay, _winrtMouseDragLock ? 1 : 0);
+    }
+    [self showToastBannerWithText:(_winrtMouseDragLock ? @"ドラッグ固定 ON（左ボタン押下中）" : @"ドラッグ固定 OFF")
+                             icon:@"hand.draw"];
+}
+
+- (void)toggleWinRTKeyboardTapped:(id)sender {
+    [_haptic impactOccurred];
+    if (!self.winrtKeyInputView) return;
+    if ([self.winrtKeyInputView isFirstResponder]) {
+        [self.winrtKeyInputView resignFirstResponder];
+        [self becomeFirstResponder];
+    } else {
+        [self.winrtKeyInputView becomeFirstResponder];
+    }
+}
+
+- (void)resetWinRTUSBInputTapped:(id)sender {
+    [_haptic impactOccurred];
+    [self releaseWinRTStickyModifiers];
+    if (_pfnWinrtResetUsb) {
+        _pfnWinrtResetUsb();
+    }
+    [self showToastBannerWithText:L(@"winrt_usb_reset_toast") icon:@"arrow.triangle.2.circlepath"];
+}
+
+- (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+    BOOL handled = NO;
+    if (_isWinRTMode && _pfnWinrtKeyQcode) {
+        for (UIPress *press in presses) {
+            if (!press.key) continue;
+            int qcode = ClassicWinRTQCodeForHIDUsage(press.key.keyCode);
+            if (qcode > 0) {
+                _pfnWinrtKeyQcode(qcode, 1);
+                handled = YES;
+            }
+        }
+    }
+    if (!handled) {
+        [super pressesBegan:presses withEvent:event];
+    }
+}
+
+- (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+    BOOL handled = NO;
+    BOOL releasedNonMod = NO;
+    if (_isWinRTMode && _pfnWinrtKeyQcode) {
+        for (UIPress *press in presses) {
+            if (!press.key) continue;
+            int qcode = ClassicWinRTQCodeForHIDUsage(press.key.keyCode);
+            if (qcode > 0) {
+                _pfnWinrtKeyQcode(qcode, 0);
+                handled = YES;
+                if (qcode != 1 && qcode != 2 && qcode != 3 && qcode != 4 &&
+                    qcode != 5 && qcode != 6 && qcode != 117 && qcode != 118) {
+                    releasedNonMod = YES;
+                }
+            }
+        }
+    }
+    if (releasedNonMod) {
+        [self releaseWinRTStickyModifiers];
+    }
+    if (!handled) {
+        [super pressesEnded:presses withEvent:event];
+    }
+}
+
+- (void)pressesCancelled:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+    if (_isWinRTMode && _pfnWinrtKeyQcode) {
+        for (UIPress *press in presses) {
+            if (!press.key) continue;
+            int qcode = ClassicWinRTQCodeForHIDUsage(press.key.keyCode);
+            if (qcode > 0) {
+                _pfnWinrtKeyQcode(qcode, 0);
+            }
+        }
+    }
+    [super pressesCancelled:presses withEvent:event];
 }
 
 - (UIButton *)createHardwareButton:(NSString *)symbolName action:(SEL)downAction upAction:(nullable SEL)upAction {
@@ -2221,7 +3096,277 @@ static UIImage *ClassicHardwareSymbolImage(NSString *symbolName, UIImageSymbolCo
 
 #pragma mark - Touch Dispatch
 
+- (void)handleWinRTTouchId:(int)touchId phase:(int)phase x:(float)x y:(float)y {
+    float cx = fminf(fmaxf(x, 0.0f), 1.0f);
+    float cy = fminf(fmaxf(y, 0.0f), 1.0f);
+
+    int prevActive = 0;
+    for (int i = 0; i < 5; i++) {
+        if (_winrtActiveTouches[i] != -1) {
+            prevActive++;
+        }
+    }
+
+    int slot = -1;
+    for (int i = 0; i < 5; i++) {
+        if (_winrtActiveTouches[i] == touchId) {
+            slot = i;
+            break;
+        }
+    }
+    if (slot < 0 && (phase == 0 || phase == 1)) {
+        for (int i = 0; i < 5; i++) {
+            if (_winrtActiveTouches[i] == -1) {
+                slot = i;
+                _winrtActiveTouches[i] = touchId;
+                break;
+            }
+        }
+    }
+    if (slot >= 0) {
+        _winrtTouchX[slot] = cx;
+        _winrtTouchY[slot] = cy;
+    }
+
+    // Compute midpoint across active touches before removing a lifting finger (needed for 2-finger right-click)
+    float preLiftSumX = 0.0f, preLiftSumY = 0.0f;
+    int preLiftCount = 0;
+    for (int i = 0; i < 5; i++) {
+        if (_winrtActiveTouches[i] != -1) {
+            preLiftSumX += _winrtTouchX[i];
+            preLiftSumY += _winrtTouchY[i];
+            preLiftCount++;
+        }
+    }
+
+    BOOL isUp = (phase == 2 || phase == 3);
+    if (isUp && slot >= 0) {
+        _winrtActiveTouches[slot] = -1;
+    }
+
+    int activeCount = 0;
+    float sumX = 0.0f, sumY = 0.0f;
+    for (int i = 0; i < 5; i++) {
+        if (_winrtActiveTouches[i] != -1) {
+            sumX += _winrtTouchX[i];
+            sumY += _winrtTouchY[i];
+            activeCount++;
+        }
+    }
+
+    if (activeCount >= 2) {
+        _winrtTrackGen++;
+        float avgX = sumX / (float)activeCount;
+        float avgY = sumY / (float)activeCount;
+        int ptrX = (int)lroundf((_winrtMouseMode ? _winrtCursorX : avgX) * 32767.0f);
+        int ptrY = (int)lroundf((_winrtMouseMode ? _winrtCursorY : avgY) * 32767.0f);
+
+        if (prevActive < 2) {
+            if (!_winrtMouseMode) {
+                _winrtCursorX = avgX;
+                _winrtCursorY = avgY;
+            }
+            _pfnWinrtPointerAbs(ptrX, ptrY, 0);
+            _winrtTwoFingerStartTime = CACurrentMediaTime();
+            _winrtTwoFingerLastY = avgY;
+            _winrtTwoFingerScrolled = NO;
+        } else if (phase == 1 && _pfnWinrtScroll) {
+            float dy = avgY - _winrtTwoFingerLastY;
+            if (fabsf(dy) >= 0.03f) {
+                int steps = (int)(dy / 0.03f);
+                if (steps > 5) steps = 5;
+                if (steps < -5) steps = -5;
+                if (steps != 0) {
+                    _pfnWinrtScroll(steps);
+                    _winrtTwoFingerLastY += (float)steps * 0.03f;
+                    _winrtTwoFingerScrolled = YES;
+                }
+            }
+        }
+        return;
+    }
+
+    if (prevActive >= 2 && isUp) {
+        if (!_winrtTwoFingerScrolled &&
+            _winrtTwoFingerStartTime > 0 &&
+            (CACurrentMediaTime() - _winrtTwoFingerStartTime) < 0.35 &&
+            preLiftCount > 0) {
+            int midX = (int)lroundf((_winrtMouseMode ? _winrtCursorX : (preLiftSumX / (float)preLiftCount)) * 32767.0f);
+            int midY = (int)lroundf((_winrtMouseMode ? _winrtCursorY : (preLiftSumY / (float)preLiftCount)) * 32767.0f);
+            _pfnWinrtPointerAbs(midX, midY, 2);
+            __weak typeof(self) weakSelf = self;
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(45 * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+                __strong typeof(weakSelf) s = weakSelf;
+                if (s && s->_pfnWinrtPointerAbs && __atomic_load_n(&s->_isEmulating, __ATOMIC_ACQUIRE)) {
+                    s->_pfnWinrtPointerAbs(midX, midY, 0);
+                }
+                if (s) [s releaseWinRTStickyModifiers];
+            });
+            _winrtTwoFingerScrolled = YES;
+        }
+        if (activeCount == 0) {
+            _winrtTwoFingerStartTime = 0;
+            _winrtTwoFingerScrolled = NO;
+        }
+        return;
+    }
+
+    if (_winrtMouseMode) {
+        if (isUp) {
+            if (activeCount == 0) {
+                uint64_t clickGen = ++_winrtTrackGen;
+                int curAx = (int)lroundf(_winrtCursorX * 32767.0f);
+                int curAy = (int)lroundf(_winrtCursorY * 32767.0f);
+                if (_winrtMouseDragLock) {
+                    // Keep left button held while drag lock is active so the user can reposition finger mid-drag
+                    _pfnWinrtPointerAbs(curAx, curAy, 1);
+                } else if (_winrtTrackLeftDrag) {
+                    _pfnWinrtPointerAbs(curAx, curAy, 0);
+                    _winrtTrackLeftDrag = NO;
+                    [self releaseWinRTStickyModifiers];
+                } else if (!_winrtTrackMoved && !_winrtTrackRightSent &&
+                           _winrtTrackStartTime > 0 &&
+                           (CACurrentMediaTime() - _winrtTrackStartTime) < 0.45 &&
+                           _winrtTwoFingerStartTime == 0) {
+                    _pfnWinrtPointerAbs(curAx, curAy, 1);
+                    __weak typeof(self) weakSelf = self;
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(45 * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+                        __strong typeof(weakSelf) s = weakSelf;
+                        if (s && s->_pfnWinrtPointerAbs && __atomic_load_n(&s->_isEmulating, __ATOMIC_ACQUIRE) &&
+                            s->_winrtTrackGen == clickGen && !s->_winrtTrackLeftDrag && !s->_winrtMouseDragLock) {
+                            s->_pfnWinrtPointerAbs(curAx, curAy, 0);
+                        }
+                        if (s && s->_winrtTrackGen == clickGen) [s releaseWinRTStickyModifiers];
+                    });
+                    _winrtLastTapUpTime = CACurrentMediaTime();
+                }
+                _winrtTrackRightSent = NO;
+                _winrtTrackMoved = NO;
+                _winrtTwoFingerStartTime = 0;
+                _winrtTwoFingerScrolled = NO;
+            }
+            return;
+        }
+
+        if (activeCount == 1 && _winrtTwoFingerStartTime == 0) {
+            if (phase == 0 && prevActive == 0) {
+                _winrtTrackStartX = cx;
+                _winrtTrackStartY = cy;
+                _winrtTrackLastX = cx;
+                _winrtTrackLastY = cy;
+                _winrtTrackStartTime = CACurrentMediaTime();
+                _winrtTrackMoved = NO;
+                _winrtTrackRightSent = NO;
+                uint64_t gen = ++_winrtTrackGen;
+                int curAx = (int)lroundf(_winrtCursorX * 32767.0f);
+                int curAy = (int)lroundf(_winrtCursorY * 32767.0f);
+
+                if (_winrtMouseDragLock) {
+                    _winrtTrackLeftDrag = YES;
+                    _pfnWinrtPointerAbs(curAx, curAy, 1);
+                } else if ((_winrtTrackStartTime - _winrtLastTapUpTime) < 0.38) {
+                    _winrtTrackLeftDrag = YES;
+                    [_haptic impactOccurred];
+                    _pfnWinrtPointerAbs(curAx, curAy, 1);
+                } else {
+                    _winrtTrackLeftDrag = NO;
+                    __weak typeof(self) weakSelf = self;
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(480 * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+                        __strong typeof(weakSelf) s = weakSelf;
+                        if (!s || !s->_winrtMouseMode || s->_winrtTrackGen != gen ||
+                            s->_winrtTrackMoved || s->_winrtTrackLeftDrag || s->_winrtMouseDragLock ||
+                            !s->_pfnWinrtPointerAbs || !__atomic_load_n(&s->_isEmulating, __ATOMIC_ACQUIRE)) {
+                            return;
+                        }
+                        s->_winrtTrackRightSent = YES;
+                        [s->_haptic impactOccurred];
+                        int rx = (int)lroundf(s->_winrtCursorX * 32767.0f);
+                        int ry = (int)lroundf(s->_winrtCursorY * 32767.0f);
+                        s->_pfnWinrtPointerAbs(rx, ry, 2);
+                        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(45 * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+                            __strong typeof(weakSelf) s2 = weakSelf;
+                            if (s2 && s2->_pfnWinrtPointerAbs && __atomic_load_n(&s2->_isEmulating, __ATOMIC_ACQUIRE)) {
+                                s2->_pfnWinrtPointerAbs(rx, ry, 0);
+                            }
+                            if (s2) [s2 releaseWinRTStickyModifiers];
+                        });
+                    });
+                }
+            } else if (phase == 1) {
+                float dx = cx - _winrtTrackLastX;
+                float dy = cy - _winrtTrackLastY;
+                _winrtTrackLastX = cx;
+                _winrtTrackLastY = cy;
+                if (!_winrtTrackMoved && hypotf(cx - _winrtTrackStartX, cy - _winrtTrackStartY) > 0.012f) {
+                    _winrtTrackMoved = YES;
+                }
+                _winrtCursorX = fminf(fmaxf(_winrtCursorX + dx * 1.35f, 0.0f), 1.0f);
+                _winrtCursorY = fminf(fmaxf(_winrtCursorY + dy * 1.35f, 0.0f), 1.0f);
+                int curAx = (int)lroundf(_winrtCursorX * 32767.0f);
+                int curAy = (int)lroundf(_winrtCursorY * 32767.0f);
+                _pfnWinrtPointerAbs(curAx, curAy, (_winrtTrackLeftDrag || _winrtMouseDragLock) ? 1 : 0);
+            }
+        }
+        return;
+    }
+
+    _winrtCursorX = cx;
+    _winrtCursorY = cy;
+    int ax = (int)lroundf(cx * 32767.0f);
+    int ay = (int)lroundf(cy * 32767.0f);
+    if (isUp) {
+        if (activeCount == 0) {
+            _pfnWinrtPointerAbs(ax, ay, 0);
+            if (_winrtTwoFingerStartTime == 0) {
+                [self releaseWinRTStickyModifiers];
+            }
+            _winrtTwoFingerStartTime = 0;
+            _winrtTwoFingerScrolled = NO;
+        }
+    } else if (activeCount == 1) {
+        int btn = (_winrtTwoFingerStartTime > 0) ? 0 : 1;
+        _pfnWinrtPointerAbs(ax, ay, btn);
+    }
+}
+
+- (void)handleUbuntuTouchVirtTouchId:(int)touchId phase:(int)phase x:(float)x y:(float)y {
+    int slot = -1;
+    for (int i = 0; i < 10; i++) {
+        if (_utTouchSlots[i] == touchId) {
+            slot = i;
+            break;
+        }
+    }
+    if (slot < 0 && (phase == 0 || phase == 1)) {
+        for (int i = 0; i < 10; i++) {
+            if (_utTouchSlots[i] == -1) {
+                _utTouchSlots[i] = touchId;
+                slot = i;
+                break;
+            }
+        }
+    }
+    if (slot < 0) return;
+
+    float cx = fminf(fmaxf(x, 0.0f), 1.0f);
+    float cy = fminf(fmaxf(y, 0.0f), 1.0f);
+    int ax = (int)lroundf(cx * 32767.0f);
+    int ay = (int)lroundf(cy * 32767.0f);
+    _pfnWinrtTouch(slot, ax, ay, phase);
+    if (phase == 2 || phase == 3) {
+        _utTouchSlots[slot] = -1;
+    }
+}
+
 - (void)handleTouchId:(int)touchId phase:(int)phase x:(float)x y:(float)y {
+    if (_isUbuntuTouchVirtMode && _pfnWinrtTouch) {
+        [self handleUbuntuTouchVirtTouchId:touchId phase:phase x:x y:y];
+        return;
+    }
+    if (_isWinRTMode && _pfnWinrtPointerAbs) {
+        [self handleWinRTTouchId:touchId phase:phase x:x y:y];
+        return;
+    }
     if (_isAndroidMode && _pfnAndroidTouch) {
         int slot = -1;
         for (int i = 0; i < 5; i++) {
@@ -2566,6 +3711,20 @@ static void ClassicGuestNetworkTrustStep(lt_runtime *runtime, ClassicGuestTrustC
         }
         ctx->pendingRequestId = 0;
         if (res.state != 2 || res.guest_status != 0) {
+            // If the guest rebooted mid-transfer, /tmp helpers are wiped: restart from stage 1!
+            if (((ctx->stage == 2 || ctx->stage == 3) && res.state == 5) ||
+                ((ctx->stage == 4 || ctx->stage == 5) && res.guest_status == -2)) {
+                if (ctx->retryCount < 10) {
+                    ctx->retryCount++;
+                    NSLog(@"[EmulatorVC] Guest restarted or /tmp cleared during proxy setup stage=%ld (state=%u guest_status=%d); resetting to stage 1 in 2.0s (attempt %ld/10)...",
+                          (long)ctx->stage, res.state, res.guest_status, (long)ctx->retryCount);
+                    ctx->stage = 1;
+                    ctx->uploadOffset = 0;
+                    ctx->pendingChunkLen = 0;
+                    ctx->retryAfterTime = CFAbsoluteTimeGetCurrent() + 2.0;
+                    return;
+                }
+            }
             // Stage-specific retry handling
             if (ctx->stage == 1 || ctx->stage == 2) {
                 // it_agent discards .it-agent-part on any error; resend MUST start from offset 0!
@@ -2888,6 +4047,8 @@ static void *emulator_android_qemu_thread(void *arg) {
     return NULL;
 }
 
+static BOOL ClassicCopySparseFile(NSString *srcPath, NSString *dstPath);
+
 static void *emulator_android_worker(EmulatorViewController *vc) {
     NSLog(@"[EmulatorVC] Starting Android worker for %@", vc.machineId);
     __atomic_store_n(&vc->_boardSupportsAccel, YES, __ATOMIC_RELEASE);
@@ -3005,6 +4166,11 @@ static void *emulator_android_worker(EmulatorViewController *vc) {
     if (vc.androidLcdDensity < 160 && metaDpi >= 120) {
         dpi = metaDpi;
     }
+    BOOL isFirefoxOS = ([vc.platform isEqualToString:@"firefoxos"] ||
+                        [meta[@"platform"] isEqualToString:@"firefoxos"] ||
+                        [vc.baseDirPath.lastPathComponent hasPrefix:@"fxos-"]);
+    BOOL isFirefoxOS26 = ([vc.baseDirPath.lastPathComponent hasPrefix:@"fxos-2.6"] ||
+                          [meta[@"entryId"] isEqualToString:@"fxos-2.6"]);
     if (vc.androidRamMB >= 256) {
         ramMB = vc.androidRamMB;
     }
@@ -3013,12 +4179,19 @@ static void *emulator_android_worker(EmulatorViewController *vc) {
             ramMB = 760;
         }
     }
+    if (ramMB > 760 && [NSProcessInfo processInfo].physicalMemory < (3ULL * 1024ULL * 1024ULL * 1024ULL)) {
+        ramMB = 760;
+    }
+    if (isFirefoxOS26 && ramMB > 760) {
+        ramMB = 760;
+    }
     if (ramMB < 128) ramMB = 128;
     if (ramMB > 4080) ramMB = 4080; // android51 MMIO starts at 0xff000000
     // Prepare kernel cmdline; let android51.c append qemu.gles=1/0 from actual GPU readiness.
     NSMutableArray<NSString *> *cmdTokens = [NSMutableArray array];
     BOOL hasHardwareProp = NO;
     BOOL hasBootConsoleProp = NO;
+    BOOL hasSelinuxProp = NO;
     for (NSString *tok in [cmdline componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]]) {
         if (tok.length == 0) continue;
         if ([tok hasPrefix:@"qemu.gles="] || [tok hasPrefix:@"qemu.sf.lcd_density="] ||
@@ -3030,6 +4203,8 @@ static void *emulator_android_worker(EmulatorViewController *vc) {
             hasHardwareProp = YES;
         } else if ([tok hasPrefix:@"androidboot.console="]) {
             hasBootConsoleProp = YES;
+        } else if ([tok hasPrefix:@"androidboot.selinux="]) {
+            hasSelinuxProp = YES;
         }
         [cmdTokens addObject:tok];
     }
@@ -3038,6 +4213,9 @@ static void *emulator_android_worker(EmulatorViewController *vc) {
     }
     if (!hasBootConsoleProp) {
         [cmdTokens addObject:@"androidboot.console=ttyS0"];
+    }
+    if (isFirefoxOS && !hasSelinuxProp) {
+        [cmdTokens addObject:@"androidboot.selinux=permissive"];
     }
     [cmdTokens addObject:@"android.qemud=1"];
     if (!gpuEnabled) {
@@ -3052,7 +4230,7 @@ static void *emulator_android_worker(EmulatorViewController *vc) {
         emulator_finish_thread_ui(vc, @"Missing Android base firmware images (kernel-qemu / ramdisk.img / system.img).");
         return NULL;
     }
-    if (apiLevel >= 14 && ramMB > 760) {
+    if (!isFirefoxOS26 && apiLevel >= 14 && ramMB > 760) {
         NSString *highmemPath = [[NSBundle mainBundle] pathForResource:@"goldfish-highmem" ofType:@"zImage"];
         if (highmemPath.length == 0 || ![fm fileExistsAtPath:highmemPath]) {
             NSString *basesRoot = [vc.baseDirPath stringByDeletingLastPathComponent];
@@ -3124,9 +4302,11 @@ static void *emulator_android_worker(EmulatorViewController *vc) {
         vc->_pfnAndroidAddProp("qemu.sf.lcd_height", hBuf);
         vc->_pfnAndroidAddProp("qemu.sf.fake_camera", "none");
         vc->_pfnAndroidAddProp("qemu.hw.mainkeys", "0");
-        if (gpuEnabled) {
-            vc->_pfnAndroidAddProp("ro.opengles.version", "131072");
-        } else {
+        if (apiLevel > 0 && apiLevel <= 19 && ramMB >= 512) {
+            vc->_pfnAndroidAddProp("dalvik.vm.heapgrowthlimit", "128m");
+            vc->_pfnAndroidAddProp("dalvik.vm.heapsize", "256m");
+        }
+        if (!gpuEnabled) {
             vc->_pfnAndroidAddProp("qemu.gles", "0");
         }
     }
@@ -3265,12 +4445,616 @@ static void *emulator_android_worker(EmulatorViewController *vc) {
     return NULL;
 }
 
+static void emulator_winrt_frame_cb(void *opaque, int width, int height,
+                                    int stride_bytes, const void *pixels) {
+    EmulatorViewController *vc = (__bridge EmulatorViewController *)opaque;
+    if (!vc || !pixels || width <= 0 || height <= 0 || stride_bytes <= 0) return;
+
+    NSInteger fw = (NSInteger)width;
+    NSInteger fh = (NSInteger)height;
+    BOOL dimsChanged = (vc->_screenWidth != fw || vc->_screenHeight != fh);
+    vc->_screenWidth = fw;
+    vc->_screenHeight = fh;
+
+    [vc.metalView updateFramePixels:pixels width:width height:height stride:stride_bytes];
+
+    if (dimsChanged) {
+        emulator_android_notify_dims_changed(vc, fw, fh);
+    }
+}
+
+static void emulator_winrt_dirty_frame_cb(void *opaque, int full_w, int full_h,
+                                          int x, int y, int width, int height,
+                                          int stride_bytes, const void *pixels) {
+    EmulatorViewController *vc = (__bridge EmulatorViewController *)opaque;
+    if (!vc || !pixels || full_w <= 0 || full_h <= 0 || width <= 0 || height <= 0 || stride_bytes <= 0) return;
+
+    NSInteger fw = (NSInteger)full_w;
+    NSInteger fh = (NSInteger)full_h;
+    BOOL dimsChanged = (vc->_screenWidth != fw || vc->_screenHeight != fh);
+    vc->_screenWidth = fw;
+    vc->_screenHeight = fh;
+
+    if (vc->_androidMetalView) {
+        [vc->_androidMetalView updateDirtyPixels:pixels
+                                               x:x
+                                               y:y
+                                           width:width
+                                          height:height
+                                          stride:stride_bytes
+                                       fullWidth:full_w
+                                      fullHeight:full_h];
+    } else {
+        [vc.metalView updateFramePixels:pixels width:full_w height:full_h stride:stride_bytes];
+    }
+
+    if (dimsChanged) {
+        emulator_android_notify_dims_changed(vc, fw, fh);
+    }
+}
+
+typedef struct {
+    int (*main_fn)(int, char **);
+    int argc;
+    char **argv;
+    EmulatorViewController *vc;
+} WinRTQemuRunArgs;
+
+static void *emulator_winrt_qemu_thread(void *arg) {
+    pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+    WinRTQemuRunArgs *run = (WinRTQemuRunArgs *)arg;
+    EmulatorViewController *vc = run->vc;
+    @autoreleasepool {
+        if (run->main_fn) {
+            run->main_fn(run->argc, run->argv);
+        }
+    }
+    for (int i = 0; i < run->argc; i++) {
+        free(run->argv[i]);
+    }
+    free(run->argv);
+    free(run);
+    __c11_atomic_store(&vc->_winrtQemuExited, YES, __ATOMIC_RELEASE);
+    return NULL;
+}
+
+static NSString *ClassicEscapeQemuDrivePath(NSString *path) {
+    return [path stringByReplacingOccurrencesOfString:@"," withString:@",,"];
+}
+
+static BOOL ClassicCopySparseFile(NSString *srcPath, NSString *dstPath) {
+    if (srcPath.length == 0 || dstPath.length == 0) return NO;
+
+    int srcFd = open([srcPath fileSystemRepresentation], O_RDONLY);
+    if (srcFd < 0) return NO;
+
+    struct stat st;
+    if (fstat(srcFd, &st) != 0 || !S_ISREG(st.st_mode)) {
+        close(srcFd);
+        return NO;
+    }
+
+    NSString *tmpPath = [dstPath stringByAppendingString:@".tmp"];
+    unlink([tmpPath fileSystemRepresentation]);
+    int dstFd = open([tmpPath fileSystemRepresentation], O_CREAT | O_TRUNC | O_RDWR, 0644);
+    if (dstFd < 0) {
+        close(srcFd);
+        return NO;
+    }
+
+    const size_t kChunk = 65536;
+    uint8_t *buf = (uint8_t *)malloc(kChunk);
+    if (!buf) {
+        close(srcFd);
+        close(dstFd);
+        unlink([tmpPath fileSystemRepresentation]);
+        return NO;
+    }
+
+    BOOL ok = YES;
+    ssize_t n = 0;
+    while ((n = read(srcFd, buf, kChunk)) > 0) {
+        BOOL allZero = YES;
+        const uint8_t *p = buf;
+        size_t len = (size_t)n;
+        for (size_t i = 0; i < len; i++) {
+            if (p[i] != 0) {
+                allZero = NO;
+                break;
+            }
+        }
+        if (allZero) {
+            if (lseek(dstFd, (off_t)len, SEEK_CUR) < 0) {
+                ok = NO;
+                break;
+            }
+        } else {
+            size_t written = 0;
+            while (written < len) {
+                ssize_t w = write(dstFd, buf + written, len - written);
+                if (w <= 0) {
+                    ok = NO;
+                    break;
+                }
+                written += (size_t)w;
+            }
+            if (!ok) break;
+        }
+    }
+    if (n < 0) {
+        ok = NO;
+    }
+    free(buf);
+    close(srcFd);
+
+    if (ok && ftruncate(dstFd, st.st_size) != 0) {
+        ok = NO;
+    }
+    close(dstFd);
+
+    if (!ok) {
+        unlink([tmpPath fileSystemRepresentation]);
+        return NO;
+    }
+    if (rename([tmpPath fileSystemRepresentation], [dstPath fileSystemRepresentation]) != 0) {
+        unlink([tmpPath fileSystemRepresentation]);
+        return NO;
+    }
+    return YES;
+}
+
+static BOOL ClassicLoadWinRTEngine(EmulatorViewController *vc, const char *tag) {
+    bool jitTimedOut = false;
+    bool jitReady = ios_jit_is_available_detailed(1200, &jitTimedOut);
+    vc.cachedJitAvailable = jitReady;
+    if (!jitReady) {
+        NSLog(@"[EmulatorVC] JIT unavailable for %s (%d); aborting", tag, (int)jitTimedOut);
+        NSString *jitLostMsg = jitTimedOut ? L(@"jit_stikdebug_timeout_msg") : L(@"jit_disconnected_before_start_msg");
+        emulator_finish_thread_ui(vc, jitLostMsg);
+        return NO;
+    }
+
+    NSString *enginePath = [vc locateWinRTEngineLibrary];
+    void *handle = dlopen([enginePath UTF8String], RTLD_LOCAL | RTLD_NOW);
+    if (!handle) {
+        const char *dlerr = dlerror();
+        NSString *msg = [NSString stringWithFormat:@"Failed to load libqemu-winrt.dylib (%s)", dlerr ? dlerr : "unknown error"];
+        NSLog(@"[EmulatorVC] %@", msg);
+        emulator_finish_thread_ui(vc, msg);
+        return NO;
+    }
+
+    vc->_winrtEngineHandle = handle;
+    vc->_pfnWinrtMain = (int (*)(int, char **))dlsym(handle, "qemu_winrt_main");
+    vc->_pfnWinrtSetFrameCb = (void (*)(void (*)(void *, int, int, int, const void *), void *))dlsym(handle, "qemu_winrt_ui_set_frame_callback");
+    vc->_pfnWinrtSetDirtyFrameCb = (void (*)(void (*)(void *, int, int, int, int, int, int, int, const void *), void *))dlsym(handle, "qemu_winrt_ui_set_dirty_frame_callback");
+    vc->_pfnWinrtPointerAbs = (void (*)(int, int, int))dlsym(handle, "qemu_winrt_ui_pointer_abs");
+    vc->_pfnWinrtTouch = (void (*)(int, int, int, int))dlsym(handle, "qemu_winrt_ui_touch");
+    vc->_pfnWinrtScroll = (void (*)(int))dlsym(handle, "qemu_winrt_ui_scroll");
+    vc->_pfnWinrtKeyQcode = (void (*)(int, int))dlsym(handle, "qemu_winrt_ui_key_qcode");
+    vc->_pfnWinrtSendCad = (void (*)(void))dlsym(handle, "qemu_winrt_ui_send_cad");
+    vc->_pfnWinrtResetUsb = (void (*)(void))dlsym(handle, "qemu_winrt_ui_reset_usb_input");
+    vc->_pfnWinrtAudioPull = (int (*)(int16_t *, int, int *, int *))dlsym(handle, "qemu_winrt_ui_audio_pull");
+    vc->_pfnWinrtSync = (void (*)(void))dlsym(handle, "qemu_winrt_ui_sync");
+    vc->_pfnWinrtQuit = (void (*)(void))dlsym(handle, "qemu_winrt_ui_quit");
+
+    if (!vc->_pfnWinrtMain || !vc->_pfnWinrtSetFrameCb ||
+        !vc->_pfnWinrtPointerAbs || !vc->_pfnWinrtKeyQcode || !vc->_pfnWinrtQuit) {
+        NSLog(@"[EmulatorVC] Missing symbols in libqemu-winrt.dylib");
+        emulator_finish_thread_ui(vc, @"Invalid libqemu-winrt.dylib symbol table.");
+        return NO;
+    }
+    return YES;
+}
+
+static void ClassicRunVirtQemuSession(EmulatorViewController *vc,
+                                      NSArray<NSString *> *argStrings,
+                                      BOOL enableAudio,
+                                      NSString *spawnFailMsg) {
+    if (vc->_pfnWinrtSetDirtyFrameCb) {
+        vc->_pfnWinrtSetDirtyFrameCb(emulator_winrt_dirty_frame_cb, (__bridge void *)vc);
+    } else {
+        vc->_pfnWinrtSetFrameCb(emulator_winrt_frame_cb, (__bridge void *)vc);
+    }
+
+    int argc = (int)argStrings.count;
+    char **argv = calloc((size_t)(argc + 1), sizeof(char *));
+    for (int i = 0; i < argc; i++) {
+        argv[i] = strdup([argStrings[i] UTF8String]);
+    }
+
+    if (vc.onEngineProcessConsumed) {
+        void (^consumedBlock)(void) = vc.onEngineProcessConsumed;
+        dispatch_async(dispatch_get_main_queue(), consumedBlock);
+    }
+
+    WinRTQemuRunArgs *runArgs = malloc(sizeof(WinRTQemuRunArgs));
+    runArgs->main_fn = vc->_pfnWinrtMain;
+    runArgs->argc = argc;
+    runArgs->argv = argv;
+    runArgs->vc = vc;
+
+    pthread_t qemuThread;
+    pthread_attr_t qAttr;
+    pthread_attr_init(&qAttr);
+    pthread_attr_setstacksize(&qAttr, 4 * 1024 * 1024);
+    pthread_attr_set_qos_class_np(&qAttr, QOS_CLASS_USER_INTERACTIVE, 0);
+    int qrc = pthread_create(&qemuThread, &qAttr, emulator_winrt_qemu_thread, runArgs);
+    pthread_attr_destroy(&qAttr);
+    if (qrc != 0) {
+        for (int i = 0; i < argc; i++) free(argv[i]);
+        free(argv);
+        free(runArgs);
+        emulator_finish_thread_ui(vc, spawnFailMsg);
+        return;
+    }
+    pthread_detach(qemuThread);
+
+    int16_t pcmBuf[2048];
+    BOOL loggedFirstPCM = NO;
+    uint32_t syncTicks = 0;
+    while (__atomic_load_n(&vc->_isEmulating, __ATOMIC_ACQUIRE) &&
+           !__c11_atomic_load(&vc->_winrtQemuExited, __ATOMIC_ACQUIRE)) {
+        BOOL drainedAudio = NO;
+        if (enableAudio && vc->_pfnWinrtAudioPull && vc.audioBridge) {
+            int rate = 44100;
+            int ch = 2;
+            int frames = vc->_pfnWinrtAudioPull(pcmBuf, 1024, &rate, &ch);
+            if (frames > 0) {
+                drainedAudio = YES;
+                if (rate >= 8000 &&
+                    ((int)vc.audioBridge.sampleRate != rate ||
+                     (ch > 0 && (int)vc.audioBridge.channels != ch))) {
+                    [vc.audioBridge startPlaybackWithSampleRate:(double)rate channels:(ch > 0 ? ch : 2)];
+                }
+                if (!loggedFirstPCM) {
+                    loggedFirstPCM = YES;
+                    NSLog(@"[EmulatorVC] First VirtIO/WinRT audio packet: %d frames @ %d Hz (%d ch)", frames, rate, ch);
+                }
+                [vc.audioBridge pushPCMData:pcmBuf count:(uint32_t)frames];
+            }
+        }
+        if ((++syncTicks % 3000u) == 0u && vc->_pfnWinrtSync) {
+            vc->_pfnWinrtSync();
+        }
+        usleep(drainedAudio ? 3000 : 10000);
+    }
+
+    NSString *unexpectedErrorMsg = nil;
+    if (__c11_atomic_load(&vc->_winrtQemuExited, __ATOMIC_ACQUIRE) &&
+        __atomic_load_n(&vc->_isEmulating, __ATOMIC_ACQUIRE) &&
+        !vc->_isStopping) {
+        unexpectedErrorMsg = L(@"vm_unexpected_stop_msg");
+    }
+
+    if (vc->_pfnWinrtQuit) {
+        vc->_pfnWinrtQuit();
+    }
+    for (int i = 0; i < 300; i++) {
+        if (__c11_atomic_load(&vc->_winrtQemuExited, __ATOMIC_ACQUIRE) ||
+            __atomic_load_n(&vc->_forceStopRequested, __ATOMIC_ACQUIRE)) {
+            break;
+        }
+        usleep(10000);
+    }
+
+    if (vc->_pfnWinrtSync) {
+        vc->_pfnWinrtSync();
+    }
+    if (vc->_pfnWinrtSetDirtyFrameCb) {
+        vc->_pfnWinrtSetDirtyFrameCb(NULL, NULL);
+    }
+    if (vc->_pfnWinrtSetFrameCb) {
+        vc->_pfnWinrtSetFrameCb(NULL, NULL);
+    }
+
+    emulator_finish_thread_ui(vc, unexpectedErrorMsg);
+}
+
+static void *emulator_winrt_worker(EmulatorViewController *vc) {
+    NSLog(@"[EmulatorVC] Starting ARM Virt worker for %@ (platform=%@)", vc.machineId, vc.platform ?: @"winrt");
+    __atomic_store_n(&vc->_boardSupportsAccel, NO, __ATOMIC_RELEASE);
+    __atomic_store_n(&vc->_boardSupportsGyro, NO, __ATOMIC_RELEASE);
+    __c11_atomic_init(&vc->_winrtQemuExited, NO);
+
+    const char *engineLabel = vc->_isChromeOSMode ? "ChromeOS" : (vc->_isUbuntuTouchVirtMode ? "UbuntuTouch" : "WinRT");
+    if (!ClassicLoadWinRTEngine(vc, engineLabel)) {
+        return NULL;
+    }
+
+    NSFileManager *fm = [NSFileManager defaultManager];
+    [fm createDirectoryAtPath:vc.stateDirPath withIntermediateDirectories:YES attributes:nil error:nil];
+
+    NSString * (^resolveWinRTPath)(NSString *) = ^NSString *(NSString *pathOrName) {
+        if (pathOrName.length == 0) return @"";
+        if ([pathOrName isAbsolutePath]) return pathOrName;
+        return [vc.stateDirPath stringByAppendingPathComponent:pathOrName];
+    };
+
+    NSString *diskFull = resolveWinRTPath(vc.winrtDiskPath);
+    if (diskFull.length == 0) {
+        NSString *qcowFallback = [vc.stateDirPath stringByAppendingPathComponent:(vc->_isUbuntuTouchVirtMode ? @"userdata.qcow2" : @"sdcard.qcow2")];
+        NSString *rawFallback = [vc.stateDirPath stringByAppendingPathComponent:@"sdcard.img"];
+        if ([fm fileExistsAtPath:qcowFallback]) {
+            diskFull = qcowFallback;
+        } else if ([fm fileExistsAtPath:rawFallback]) {
+            diskFull = rawFallback;
+        }
+    }
+    NSString *isoFull = resolveWinRTPath(vc.winrtIsoPath);
+    BOOL hasDisk = (diskFull.length > 0 && [fm fileExistsAtPath:diskFull]);
+    BOOL hasIso = (isoFull.length > 0 && [fm fileExistsAtPath:isoFull]);
+
+    NSInteger defaultRam = (vc->_isChromeOSMode || vc->_isUbuntuTouchVirtMode) ? 1536 : 2048;
+    NSInteger ramMB = (vc.androidRamMB >= 512) ? vc.androidRamMB : defaultRam;
+    if (ramMB < 512) ramMB = 512;
+    if (ramMB > 2048) ramMB = 2048;
+    uint64_t physMem = [NSProcessInfo processInfo].physicalMemory;
+    if (physMem < (3ULL * 1024ULL * 1024ULL * 1024ULL) && ramMB > 768) {
+        ramMB = 768;
+    } else if (physMem < (4ULL * 1024ULL * 1024ULL * 1024ULL) && ramMB > 1536) {
+        ramMB = 1536;
+    }
+
+    NSString * (^formatForImagePath)(NSString *) = ^NSString *(NSString *path) {
+        NSString *ext = path.pathExtension.lowercaseString;
+        if ([ext isEqualToString:@"vhd"]) return @"vpc";
+        if ([ext isEqualToString:@"vhdx"]) return @"vhdx";
+        if ([ext isEqualToString:@"qcow2"]) return @"qcow2";
+        return @"raw";
+    };
+
+    NSString *serialPath = [vc.stateDirPath stringByAppendingPathComponent:@"serial.log"];
+
+    if (vc->_isChromeOSMode || vc->_isUbuntuTouchVirtMode) {
+        NSString *kernelPath = [vc locateLinuxVirtKernel];
+        NSString *initrdPath = [vc locateLinuxVirtInitrd];
+        if (kernelPath.length == 0 || ![fm fileExistsAtPath:kernelPath] ||
+            initrdPath.length == 0 || ![fm fileExistsAtPath:initrdPath]) {
+            emulator_finish_thread_ui(vc, @"Missing bundled Linux Virt kernel/initrd (linux-virt/vmlinuz-virt-armhf).");
+            return NULL;
+        }
+
+        NSUInteger hostCores = [NSProcessInfo processInfo].processorCount;
+        NSInteger linuxVcpus = (hostCores >= 6) ? 4 : 2;
+        NSString *linuxVcpusStr = [NSString stringWithFormat:@"%ld", (long)linuxVcpus];
+
+        void (^appendCommonVirtTail)(NSMutableArray<NSString *> *) = ^(NSMutableArray<NSString *> *args) {
+            if (vc.winrtEnableNet) {
+                [args addObject:@"-netdev"];
+                [args addObject:@"user,id=net0,ipv6=off,net=10.0.2.0/24,host=10.0.2.2,dns=10.0.2.3,dhcpstart=10.0.2.15"];
+                [args addObject:@"-device"];
+                [args addObject:@"virtio-net-pci,netdev=net0,romfile="];
+            }
+            if (vc.winrtEnableAudio) {
+                [args addObject:@"-device"];
+                [args addObject:@"qemu-xhci,id=xhci"];
+                [args addObject:@"-audiodev"];
+                [args addObject:@"none,id=audio"];
+                [args addObject:@"-device"];
+                [args addObject:@"usb-audio,audiodev=audio,bus=xhci.0"];
+            } else {
+                [vc.audioBridge stop];
+            }
+            [args addObject:@"-rtc"];
+            [args addObject:@"base=utc,clock=vm"];
+        };
+
+        if (vc->_isChromeOSMode) {
+            if (!hasIso) {
+                emulator_finish_thread_ui(vc, @"Chrome OS recovery image is missing. Download it from Container Settings.");
+                return NULL;
+            }
+            NSMutableArray<NSString *> *crosArgs = [@[
+                @"qemu-system-arm",
+                @"-M", @"virt,highmem=false",
+                @"-cpu", @"cortex-a15",
+                @"-smp", linuxVcpusStr,
+                @"-accel", @"tcg,thread=multi",
+                @"-m", [NSString stringWithFormat:@"%ld", (long)ramMB],
+                @"-kernel", kernelPath,
+                @"-initrd", initrdPath,
+                @"-append", @"console=ttyAMA0,115200 rw cros_debug ct_mode=chromeos ct_gfx=bochs video=1024x768-32",
+                @"-nodefaults",
+                @"-display", @"none",
+                @"-monitor", @"none",
+                @"-serial", [NSString stringWithFormat:@"file:%@", serialPath],
+                @"-device", @"VGA,vgamem_mb=16,romfile=",
+                @"-device", @"virtio-keyboard-pci",
+                @"-device", @"virtio-tablet-pci",
+                @"-device", @"virtio-rng-pci",
+                @"-drive", [NSString stringWithFormat:@"id=hd0,if=none,format=raw,readonly=on,file.locking=off,file=%@",
+                            ClassicEscapeQemuDrivePath(isoFull)],
+                @"-device", @"virtio-blk-pci,drive=hd0"
+            ] mutableCopy];
+            if (hasDisk) {
+                [crosArgs addObject:@"-drive"];
+                [crosArgs addObject:[NSString stringWithFormat:@"id=hd1,if=none,format=%@,cache=writeback,file=%@",
+                                     formatForImagePath(diskFull), ClassicEscapeQemuDrivePath(diskFull)]];
+                [crosArgs addObject:@"-device"];
+                [crosArgs addObject:@"virtio-blk-pci,drive=hd1"];
+            }
+            appendCommonVirtTail(crosArgs);
+            ClassicRunVirtQemuSession(vc, crosArgs, vc.winrtEnableAudio, @"Failed to spawn Chrome OS ARM QEMU thread.");
+            return NULL;
+        }
+
+        // Isolated Ubuntu Touch Virt (-M virt + virtio-gpu-pci, completely independent of Goldfish)
+        NSString *rootfsPath = [vc.stateDirPath stringByAppendingPathComponent:@"rootfs.ext4"];
+        if (![fm fileExistsAtPath:rootfsPath]) {
+            NSString *baseRootfs = [vc.baseDirPath stringByAppendingPathComponent:@"rootfs.ext4"];
+            if ([fm fileExistsAtPath:baseRootfs]) {
+                NSError *cpErr = nil;
+                [fm copyItemAtPath:baseRootfs toPath:rootfsPath error:&cpErr];
+            }
+        }
+        if (![fm fileExistsAtPath:rootfsPath]) {
+            emulator_finish_thread_ui(vc, @"Ubuntu Touch rootfs.ext4 is missing. Recreate the container from Settings.");
+            return NULL;
+        }
+        NSString *userdataPath = hasDisk ? diskFull : [vc.stateDirPath stringByAppendingPathComponent:@"userdata.qcow2"];
+        BOOL hasUserdata = (userdataPath.length > 0 && [fm fileExistsAtPath:userdataPath]);
+
+        NSMutableArray<NSString *> *utArgs = [@[
+            @"qemu-system-arm",
+            @"-M", @"virt,highmem=false",
+            @"-cpu", @"cortex-a15",
+            @"-smp", linuxVcpusStr,
+            @"-accel", @"tcg,thread=multi",
+            @"-m", [NSString stringWithFormat:@"%ld", (long)ramMB],
+            @"-kernel", kernelPath,
+            @"-initrd", initrdPath,
+            @"-append", @"console=ttyAMA0,115200 rw ct_mode=ubuntutouch ct_gfx=virtio",
+            @"-nodefaults",
+            @"-display", @"none",
+            @"-monitor", @"none",
+            @"-serial", [NSString stringWithFormat:@"file:%@", serialPath],
+            @"-device", @"virtio-gpu-pci,xres=432,yres=768,romfile=",
+            @"-device", @"virtio-keyboard-pci",
+            @"-device", @"virtio-multitouch-pci",
+            @"-device", @"virtio-rng-pci",
+            @"-drive", [NSString stringWithFormat:@"id=hd0,if=none,format=raw,cache=writeback,file=%@",
+                        ClassicEscapeQemuDrivePath(rootfsPath)],
+            @"-device", @"virtio-blk-pci,drive=hd0"
+        ] mutableCopy];
+        if (hasUserdata) {
+            [utArgs addObject:@"-drive"];
+            [utArgs addObject:[NSString stringWithFormat:@"id=hd1,if=none,format=%@,cache=writeback,file=%@",
+                                 formatForImagePath(userdataPath), ClassicEscapeQemuDrivePath(userdataPath)]];
+            [utArgs addObject:@"-device"];
+            [utArgs addObject:@"virtio-blk-pci,drive=hd1"];
+        }
+        appendCommonVirtTail(utArgs);
+        ClassicRunVirtQemuSession(vc, utArgs, vc.winrtEnableAudio, @"Failed to spawn Ubuntu Touch Virt QEMU thread.");
+        return NULL;
+    }
+
+    NSString *fwPath = [vc locateWinRTFirmware];
+    if (fwPath.length == 0 || ![fm fileExistsAtPath:fwPath]) {
+        emulator_finish_thread_ui(vc, @"Missing UEFI firmware (QEMU_EFI_1512_driver1998.fd).");
+        return NULL;
+    }
+
+    if (!hasDisk && !hasIso) {
+        emulator_finish_thread_ui(vc, L(@"winrt_missing_media_error"));
+        return NULL;
+    }
+
+    if (hasDisk) {
+        ClassicWinRTMediaInfo diskProbe = ClassicProbeWinRTMedia(diskFull);
+        NSLog(@"[WinRT] SD disk probe: %@ (%llu bytes)", ClassicDescribeWinRTMedia(diskProbe), diskProbe.fileSize);
+    }
+    if (hasIso) {
+        ClassicWinRTMediaInfo isoProbe = ClassicProbeWinRTMedia(isoFull);
+        NSLog(@"[WinRT] USB/ISO probe: %@ (%llu bytes)", ClassicDescribeWinRTMedia(isoProbe), isoProbe.fileSize);
+    }
+
+    NSString *nvramPath = [vc.stateDirPath stringByAppendingPathComponent:@"nvram.bin"];
+    const uint64_t kWinRTNvramBytes = 64ULL * 1024ULL * 1024ULL;
+    NSDictionary *nvramAttrs = [fm attributesOfItemAtPath:nvramPath error:nil];
+    if (!nvramAttrs || [nvramAttrs fileSize] != kWinRTNvramBytes) {
+        int nfd = open([nvramPath UTF8String], O_CREAT | O_RDWR, 0644);
+        if (nfd >= 0) {
+            if (ftruncate(nfd, (off_t)kWinRTNvramBytes) != 0) {
+                NSLog(@"[EmulatorVC] Warning: failed sizing WinRT NVRAM %@", nvramPath);
+            }
+            close(nfd);
+        }
+    }
+    nvramAttrs = [fm attributesOfItemAtPath:nvramPath error:nil];
+    BOOL hasNvram = (nvramAttrs && [nvramAttrs fileSize] == kWinRTNvramBytes);
+
+    NSMutableArray<NSString *> *argStrings = [@[
+        @"qemu-system-arm",
+        @"-M", @"virt,winrt=on,highmem=false",
+        @"-cpu", @"cortex-a15",
+        @"-smp", @"1",
+        @"-accel", @"tcg,thread=single",
+        @"-m", [NSString stringWithFormat:@"%ld", (long)ramMB],
+        @"-bios", fwPath,
+        @"-nodefaults",
+        @"-display", @"none",
+        @"-monitor", @"none",
+        @"-serial", [NSString stringWithFormat:@"file:%@", serialPath],
+        @"-device", @"VGA,romfile=",
+        @"-device", @"usb-kbd,id=kbd,bus=usb-bus.0",
+        @"-device", @"usb-tablet,id=mice,bus=usb-bus.0"
+    ] mutableCopy];
+    if (hasNvram) {
+        NSUInteger biosIdx = [argStrings indexOfObject:@"-bios"];
+        NSUInteger insertIdx = (biosIdx != NSNotFound) ? (biosIdx + 2) : argStrings.count;
+        [argStrings insertObject:[NSString stringWithFormat:@"if=pflash,format=raw,unit=1,file=%@", ClassicEscapeQemuDrivePath(nvramPath)]
+                         atIndex:insertIdx];
+        [argStrings insertObject:@"-drive" atIndex:insertIdx];
+    }
+
+    void (^appendSdCardArgs)(void) = ^{
+        [argStrings addObject:@"-drive"];
+        [argStrings addObject:[NSString stringWithFormat:@"id=mydrive,if=none,format=%@,cache=writeback,file=%@",
+                               formatForImagePath(diskFull), ClassicEscapeQemuDrivePath(diskFull)]];
+        [argStrings addObject:@"-device"];
+        [argStrings addObject:@"sd-card,drive=mydrive"];
+    };
+    void (^appendUsbMediaArgs)(void) = ^{
+        BOOL isIso = [isoFull.pathExtension.lowercaseString isEqualToString:@"iso"];
+        if (isIso) {
+            [argStrings addObject:@"-drive"];
+            [argStrings addObject:[NSString stringWithFormat:@"id=usbcdrom,if=none,media=cdrom,format=raw,readonly=on,file.locking=off,file=%@",
+                                   ClassicEscapeQemuDrivePath(isoFull)]];
+            [argStrings addObject:@"-device"];
+            [argStrings addObject:@"usb-storage,drive=usbcdrom,bus=usb-bus.0"];
+        } else {
+            [argStrings addObject:@"-drive"];
+            [argStrings addObject:[NSString stringWithFormat:@"id=usbstick,if=none,format=%@,cache=writeback,file.locking=off,file=%@",
+                                   formatForImagePath(isoFull), ClassicEscapeQemuDrivePath(isoFull)]];
+            [argStrings addObject:@"-device"];
+            [argStrings addObject:@"usb-storage,drive=usbstick,bus=usb-bus.0"];
+        }
+    };
+
+    if (vc.winrtBootFromIso && hasIso) {
+        appendUsbMediaArgs();
+        if (hasDisk) appendSdCardArgs();
+    } else {
+        if (hasDisk) appendSdCardArgs();
+        if (hasIso) appendUsbMediaArgs();
+    }
+
+    if (vc.winrtEnableNet) {
+        [argStrings addObject:@"-netdev"];
+        [argStrings addObject:@"user,id=net0,ipv6=off,net=10.0.2.0/24,host=10.0.2.2,dns=10.0.2.3,dhcpstart=10.0.2.15"];
+        [argStrings addObject:@"-device"];
+        [argStrings addObject:@"usb-net,netdev=net0,winrt-rndis=on,bus=usb-bus.0"];
+    }
+    if (vc.winrtEnableAudio) {
+        [argStrings addObject:@"-audiodev"];
+        [argStrings addObject:@"none,id=audio"];
+        [argStrings addObject:@"-device"];
+        [argStrings addObject:@"usb-audio,audiodev=audio,bus=usb-bus.1"];
+    } else {
+        [vc.audioBridge stop];
+    }
+
+    NSString *rtcDate = vc.winrtRtcDate;
+    NSString *rtcArg = (rtcDate.length > 0 && ![rtcDate isEqualToString:@"today"] && ![rtcDate isEqualToString:@"utc"])
+        ? [NSString stringWithFormat:@"base=%@,clock=vm", rtcDate]
+        : @"base=utc,clock=vm";
+    [argStrings addObject:@"-rtc"];
+    [argStrings addObject:rtcArg];
+
+    ClassicRunVirtQemuSession(vc, argStrings, vc.winrtEnableAudio, @"Failed to spawn Windows RT QEMU thread.");
+    return NULL;
+}
+
 static void *emulator_worker_thread(void *arg) {
     // Keep supervisor slightly below QEMU vCPU USER_INTERACTIVE so A11 dual P-cores prioritize TCG execution.
     pthread_set_qos_class_self_np(QOS_CLASS_USER_INITIATED, 0);
     EmulatorViewController *vc = (__bridge_transfer EmulatorViewController *)arg;
     NSLog(@"[EmulatorVC] Starting emulator worker for %@", vc.machineId);
 
+    if (vc->_isWinRTMode) {
+        return emulator_winrt_worker(vc);
+    }
     if (vc->_isAndroidMode) {
         return emulator_android_worker(vc);
     }
@@ -3871,9 +5655,16 @@ cleanup:
 - (void)stopEmulation {
     dispatch_async(dispatch_get_main_queue(), ^{
         [UIApplication sharedApplication].idleTimerDisabled = NO;
+        if (self->_isWinRTMode) {
+            [self releaseWinRTStickyModifiers];
+            [self.winrtKeyInputView resignFirstResponder];
+        }
     });
     if (!__atomic_load_n(&_isEmulating, __ATOMIC_ACQUIRE)) return;
     __atomic_store_n(&_isEmulating, NO, __ATOMIC_RELEASE);
+    if (_isWinRTMode && _pfnWinrtQuit) {
+        _pfnWinrtQuit();
+    }
     if (_isAndroidMode && _pfnAndroidQuit) {
         _pfnAndroidQuit();
     }
@@ -3906,6 +5697,13 @@ cleanup:
 - (void)handleAppDidEnterBackground:(NSNotification *)note {
     [self setQemuGlesAllowed:NO];
     self.metalView.paused = YES;
+    if (_isWinRTMode) {
+        [self releaseWinRTStickyModifiers];
+        [self.winrtKeyInputView resignFirstResponder];
+        if (_pfnWinrtSync && __atomic_load_n(&_isEmulating, __ATOMIC_ACQUIRE)) {
+            _pfnWinrtSync();
+        }
+    }
     if (_isAndroidMode && _pfnAndroidSync && __atomic_load_n(&_isEmulating, __ATOMIC_ACQUIRE)) {
         _pfnAndroidSync();
     }
@@ -3926,6 +5724,15 @@ cleanup:
         [UIApplication sharedApplication].idleTimerDisabled = YES;
         lt_error err = LT_INIT(lt_error);
         lt_runtime_pause(rt, 0, &err);
+        IOSAudioBridge *audio = self.audioBridge;
+        if (audio) {
+            dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                [audio startPlaybackWithSampleRate:44100 channels:2];
+            });
+        }
+    } else if ((_isAndroidMode || (_isWinRTMode && self.winrtEnableAudio)) &&
+               __atomic_load_n(&_isEmulating, __ATOMIC_ACQUIRE)) {
+        [UIApplication sharedApplication].idleTimerDisabled = YES;
         IOSAudioBridge *audio = self.audioBridge;
         if (audio) {
             dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{

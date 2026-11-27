@@ -278,6 +278,16 @@ qemu_pixman_shareable_alloc(const char *name, size_t size,
 {
 #ifdef WIN32
     return qemu_win32_map_alloc(size, handle, errp);
+#elif defined(__APPLE__)
+    size_t alloc_size = size ? size : 4096;
+    void *ptr = mmap(NULL, alloc_size, PROT_READ | PROT_WRITE,
+                     MAP_PRIVATE | MAP_ANON, -1, 0);
+    if (ptr == MAP_FAILED) {
+        error_setg_errno(errp, errno, "failed to allocate anonymous pixman surface");
+        return NULL;
+    }
+    *handle = -1;
+    return ptr;
 #else
     return qemu_memfd_alloc(name, size, 0, handle, errp);
 #endif
@@ -293,6 +303,12 @@ qemu_pixman_shareable_free(qemu_pixman_shareable handle,
     qemu_win32_map_free(ptr, handle, &err);
     if (err) {
         error_report_err(err);
+    }
+#elif defined(__APPLE__)
+    (void)handle;
+    if (ptr) {
+        size_t alloc_size = size ? size : 4096;
+        munmap(ptr, alloc_size);
     }
 #else
     qemu_memfd_free(ptr, size, handle);

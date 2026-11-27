@@ -127,13 +127,13 @@
 "unused" = "未被使用";
 "no_bases" = "暂无已准备的底包。";
 
-"bootrom_footer_soc" = "iPhone 2G / iPod touch 1G 需要 S5L8900，iPod touch 2G 需要 S5L8720 (iBoot-240.4) 64 KB BootROM。\niPhone 3GS/4、iPod touch 3G/4G 以及 iPad 无需 BootROM 即可直接启动。";
+"bootrom_footer_soc" = "仅 iPhone 2G / iPod touch 1G（iPhone OS 1.x）需要 64 KB 的 S5L8900 BootROM。\niPhone 3GS/4/5、iPod touch 3G/4G 和 iPad 无需 BootROM。";
 "bootrom_invalid_title" = "无效的 BootROM";
-"bootrom_invalid_msg" = "所选文件无法识别为有效的 64 KB S5L8900 或 S5L8720 (iBoot-240.4) BootROM。";
+"bootrom_invalid_msg" = "所选文件无法验证为有效的 64 KB S5L8900 BootROM。";
 "bootrom_imported_soc_msg" = "已验证 %@ 并成功注册“%@”(%llu 字节)。";
 "bootrom_required_s5l8900_msg" = "启动该机型需要 64 KB 的 S5L8900 BootROM (bootrom_s5l8900)。";
 "bootrom_required_s5l8720_msg" = "启动该机型需要 64 KB 的 S5L8720 iBoot-240.4 BootROM (bootrom_240_4)。";
-"bootrom_missing_detail_fmt" = "%@\n\n请在“文件”应用中选择对应的 S5L8900 或 S5L8720 BootROM，或直接放入 ClassicTouch 的“文稿”(Documents) 文件夹中。";
+"bootrom_missing_detail_fmt" = "%@\n\n请从“文件”应用导入 S5L8900 BootROM 或将其放入“文稿”文件夹。";
 
 "download_catalog_ipsw" = "从目录下载固件...";
 "download_catalog_device_msg" = "请选择要下载固件的设备型号：";
@@ -209,11 +209,11 @@
 "device_ipod_2g" = "iPod touch (第2代)";
 "device_ipod_3g" = "iPod touch (第3代)";
 "device_ipod_4g" = "iPod touch (第4代)";
-"device_iphone_2g_desc" = "iPhone 2G (iPhone OS 1.0～3.1.3 / OS 1.x 需 BootROM)";
+"device_iphone_2g_desc" = "iPhone 2G (iPhone OS 1.0 - 1.1.4 / 需 BootROM)";
 "device_iphone_3gs_desc" = "iPhone 3GS (iPhone OS 3.0～iOS 6.1.6)";
 "device_iphone_4_desc" = "iPhone 4 (iOS 4.0～7.1.2)";
 "device_iphone_5_desc" = "iPhone 5 (iOS 6.0～10.3.4)";
-"device_ipod_1g_desc" = "iPod touch 1G (iPhone OS 1.1～3.1.3 / OS 1.x 需 BootROM)";
+"device_ipod_1g_desc" = "iPod touch 1G (iPhone OS 1.1 - 1.1.5 / 需 BootROM)";
 "device_ipod_2g_desc" = "iPod touch 2G (iPhone OS 2.1.1～iOS 4.2.1 / 需 BootROM)";
 "device_ipod_3g_desc" = "iPod touch 3G (iPhone OS 3.1.1～iOS 5.1.1)";
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1～6.1.6)";
@@ -269,7 +269,7 @@
 "vm_already_running_fmt" = "虚拟机“%@”正在运行中。\n同一时间只能运行一台虚拟机。";
 "base_rebuild_required" = "需要重建底包镜像";
 "base_rebuild_msg" = "为应用启动修复（OpenGLES、沙盒及 iPhone 5 初始化更新），请先删除该容器并重新创建。";
-"how_to_use_footer" = "新手入门指南\n1. 点击下方按钮选择设备与系统版本\n2. 启动前使用 StikDebug（universal.js）启用 JIT\n3. 点击设备右侧的 ▶ 开始启动\n※ 仅 iPhone 2G / iPod 1G・2G 需要在设置（齿轮图标）中导入 BootROM";
+"how_to_use_footer" = "快速上手：\n1. 使用下方按钮选择设备和系统\n2. 启动前先通过 StikDebug（universal.js）启用 JIT\n3. 点击已创建设备旁的 ▶ 开始启动\n* 仅 iPhone 2G / iPod 1G 需在设置中导入 S5L8900 BootROM";
 "rename_container_title" = "重命名容器";
 "enter_new_name_prompt" = "请输入新的名称：";
 "delete_container_confirm_title" = "删除容器";
@@ -382,8 +382,8 @@
 "settings_ipsw_management" = "固件管理";
 "settings_ipsw_subtitle_fmt" = "%lu 个固件文件";
 "settings_bootrom_management" = "BootROM 管理";
-"settings_bootrom_subtitle_fmt" = "已安装 %lu / 2";
-"settings_bootrom_subtitle_none" = "未安装 (S5L8900 / S5L8720)";
+"settings_bootrom_subtitle_fmt" = "已安装 %lu / 1";
+"settings_bootrom_subtitle_none" = "未安装 (S5L8900)";
 "settings_system_header" = "系统与运行环境";
 "settings_jit_title" = "JIT 编译器";
 "settings_jit_active" = "已启用 (Active)";
@@ -420,7 +420,7 @@
 
 /* Android */
 "device_android_arm" = "Android";
-"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"device_android_arm_desc" = "Android (4.4 - 7.1 ARM)";
 "android_variant_aosp" = "AOSP 标准版";
 "android_variant_gapps" = "Google APIs 版";
 "wizard_name_config_prompt_android" = "请输入虚拟机名称（之后可更改）。\n* 使用 ARMv7 Goldfish + OpenGL ES 硬件加速及 640×1136 分辨率运行。";
@@ -445,3 +445,68 @@
 "android_wipe_userdata_action" = "抹掉用户数据 (userdata.img)";
 "android_cfg_ram_custom" = "自定义输入 (MB)...";
 "android_cfg_ram_custom_hint" = "请输入分配的 RAM 大小（256–3072 MB）。在 2 GB 内存设备（如 A9）上过高设置可能导致系统强行终止应用。";
+"device_firefoxos_arm" = "Firefox OS";
+"device_firefoxos_arm_desc" = "Firefox OS (1.4 - 2.6 B2G)";
+"device_winrt_arm" = "Windows RT";
+"device_winrt_arm_desc" = "Windows RT 8.0 / 8.1 (ARM32)";
+"winrt_variant_arm32" = "Windows RT (ARM32)";
+"section_winrt_config" = "Windows RT 设置";
+"winrt_cfg_ram" = "内存 (RAM)";
+"winrt_cfg_ram_hint" = "分配内存大小（512–2048 MB）。超出设备可用内存可能导致 iOS 强制终止应用。";
+"winrt_cfg_disk" = "虚拟磁盘 (SD 卡)";
+"winrt_cfg_disk_hint" = "导入 VHD/VHDX/IMG/QCOW2 磁盘镜像或创建空白虚拟 SD 磁盘。";
+"winrt_cfg_iso" = "安装镜像 / USB 镜像";
+"winrt_cfg_iso_hint" = "将 ISO 安装镜像或 WinPE VHD/VHDX/IMG 挂载到 USB 存储。";
+"winrt_cfg_none" = "无";
+"winrt_cfg_boot_order" = "启动顺序";
+"winrt_boot_usb_first" = "USB / ISO 优先";
+"winrt_boot_sd_first" = "SD 磁盘优先";
+"winrt_cfg_rtc" = "系统时钟 (RTC)";
+"winrt_cfg_rtc_hint" = "由于证书有效期限制，Windows RT 8.0/8.1 安装通常需要将日期设为 2013–2014 年。";
+"winrt_rtc_today" = "当前时间 (UTC)";
+"winrt_rtc_custom" = "自定义日期...";
+"winrt_rtc_custom_hint" = "请按 YYYY-MM-DD 格式输入日期（例如 2013-07-15）。";
+"winrt_cfg_net" = "网络 (USB RNDIS)";
+"winrt_cfg_audio" = "USB 音频";
+"winrt_enabled" = "已启用";
+"winrt_disabled" = "已禁用";
+"winrt_import_disk_action" = "导入磁盘镜像...";
+"winrt_create_blank_disk_fmt" = "创建空白磁盘 (%ld GB)";
+"winrt_attach_iso_action" = "挂载 ISO / USB 镜像...";
+"winrt_eject_iso_action" = "弹出已挂载镜像";
+"winrt_importing_media" = "正在复制镜像到虚拟机...";
+"winrt_invalid_image_ext" = "不支持的镜像格式。请选择 .iso、.vhd、.vhdx、.img、.raw 或 .qcow2。";
+"wizard_name_config_prompt_winrt" = "请输入虚拟机名称（稍后可更改）。\n• 创建后请在容器设置中挂载 Windows RT ARM32 的 ISO 或 VHD 镜像。";
+"winrt_container_created_msg_fmt" = "已创建“%@”。启动前请先在设置中挂载安装 ISO 或 Windows RT VHD/VHDX。";
+"winrt_configure_media" = "配置介质...";
+"winrt_send_cad" = "发送 Ctrl + Alt + Del";
+"winrt_reset_usb" = "重置 USB 输入";
+"winrt_usb_reset_toast" = "已重新连接 USB 键盘和鼠标";
+"winrt_quick_keys" = "快捷按键";
+"winrt_missing_media_error" = "未挂载可启动的磁盘或 ISO。请先打开容器设置导入 VHD/ISO。";
+"winrt_input_mode_touch" = "触控模式";
+"winrt_input_mode_mouse" = "鼠标模式";
+"winrt_mode_touch_toast" = "输入切换: 直接触控";
+"winrt_mode_mouse_toast" = "输入切换: 鼠标触控板（拖动移动 / 轻点左键 / 长按或双指右键）";
+"winrt_sticky_mods_section" = "粘滞修饰键";
+"winrt_sticky_clear" = "释放所有修饰键";
+"winrt_special_nav_menu" = "导航与编辑键";
+"winrt_fn_keys_menu" = "功能键 (F1–F12)";
+"winrt_right_click_action" = "右键单击";
+"menu_install_apk" = "安装 APK...";
+"apk_install_not_ready" = "请等待 Android 启动完成且 ADB 连接后再安装 APK。";
+"apk_install_in_progress" = "另一个软件包正在安装中。";
+"apk_invalid_extension" = "请选择 .apk 文件。";
+"apk_preparing" = "正在准备 APK...";
+"apk_connecting_adb" = "正在连接 ADB（如屏幕上出现提示请点击允许）...";
+"apk_pushing" = "正在传输 APK...";
+"apk_pushing_pct_fmt" = "正在传输 APK... %d%%";
+"apk_installing" = "正在 Android 上安装 APK...";
+"apk_install_success_title" = "APK 安装完成";
+"apk_install_success_msg_fmt" = "已安装 %@。";
+"apk_install_failed_title" = "APK 安装失败";
+
+/* Windows RT Diagnostics */
+"winrt_iso_no_eltorito_title" = "未检测到 UEFI El Torito 引导记录";
+"winrt_iso_no_eltorito_msg" = "该 ISO 不包含 ISO-9660 El Torito（\"CD001\"）引导记录（可能是纯 UDF 映像）。ARM32 UEFI 不含 UDF 驱动，启动后将停在仅显示 BLK0 的 UEFI Shell。\n\n请改用支持 El Torito 的 ARM32 UEFI ISO（如 Windows RT 8.1 Update 3 9600.17053 / 9600.17328）或 FAT32 VHD/IMG USB 磁盘。";
+

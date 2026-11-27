@@ -1,5 +1,5 @@
 /*
- * Goldfish input events device (ported from Android_On_iOS).
+ * Goldfish input events device.
  */
 #include "qemu/osdep.h"
 #include "android51.h"

@@ -98,13 +98,11 @@ static void mttcg_request_performance_core(CPUState *cpu)
 #ifdef CONFIG_DARWIN
     qos_class_t qos = QOS_CLASS_UNSPECIFIED;
     int relpri = 0;
-    /* Keep both AP cores on A6 (max_cpus >= 4) at USER_INTERACTIVE so cpu0
-     * and cpu1 run symmetrically on P-cores; single-AP boards keep cpu0 at
-     * USER_INTERACTIVE and IOP at USER_INITIATED, with AE2 at UTILITY. */
-    int ap_cores = (current_machine && current_machine->smp.max_cpus >= 4) ? 2 : 1;
+    /* Keep vcpu0/vcpu1 on P-cores (USER_INTERACTIVE) and remaining vCPUs at
+     * USER_INITIATED (never throttled UTILITY) for symmetric SMP guests. */
+    int ap_cores = (current_machine && current_machine->smp.max_cpus >= 2) ? 2 : 1;
     qos_class_t target = (cpu->cpu_index < ap_cores) ? QOS_CLASS_USER_INTERACTIVE
-                       : (cpu->cpu_index <= 2)       ? QOS_CLASS_USER_INITIATED
-                                                     : QOS_CLASS_UTILITY;
+                                                     : QOS_CLASS_USER_INITIATED;
 
     pthread_get_qos_class_np(pthread_self(), &qos, &relpri);
     if (qos != target) {

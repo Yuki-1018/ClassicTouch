@@ -127,13 +127,13 @@
 "unused" = "Tidak Digunakan";
 "no_bases" = "Belum ada citra dasar yang disiapkan.";
 
-"bootrom_footer_soc" = "iPhone 2G / iPod touch 1G memerlukan BootROM S5L8900 (64 KB); iPod touch 2G memerlukan S5L8720 (iBoot-240.4).\niPhone 3GS/4, iPod touch 3G/4G, dan iPad dapat langsung menyala tanpa BootROM.";
+"bootrom_footer_soc" = "BootROM S5L8900 64 KB hanya diperlukan untuk iPhone 2G / iPod touch 1G (iPhone OS 1.x).\niPhone 3GS/4/5, iPod touch 3G/4G, dan iPad tidak memerlukan BootROM.";
 "bootrom_invalid_title" = "BootROM Tidak Valid";
-"bootrom_invalid_msg" = "Berkas yang dipilih tidak dikenali sebagai BootROM 64 KB S5L8900 atau S5L8720 yang valid.";
+"bootrom_invalid_msg" = "File yang dipilih tidak dapat diverifikasi sebagai BootROM S5L8900 64 KB yang valid.";
 "bootrom_imported_soc_msg" = "%@ diverifikasi dan «%@» (%llu byte) berhasil didaftarkan.";
 "bootrom_required_s5l8900_msg" = "Perangkat ini memerlukan BootROM 64 KB S5L8900 (bootrom_s5l8900).";
 "bootrom_required_s5l8720_msg" = "Perangkat ini memerlukan BootROM 64 KB S5L8720 iBoot-240.4 (bootrom_240_4).";
-"bootrom_missing_detail_fmt" = "%@\n\nPilih BootROM S5L8900 atau S5L8720 yang sesuai di aplikasi Berkas atau letakkan di folder Dokumen ClassicTouch.";
+"bootrom_missing_detail_fmt" = "%@\n\nSilakan impor BootROM S5L8900 dari File atau letakkan di Documents.";
 
 "download_catalog_ipsw" = "Unduh Firmware dari Katalog...";
 "download_catalog_device_msg" = "Pilih model perangkat untuk diunduh:";
@@ -209,11 +209,11 @@
 "device_ipod_2g" = "iPod touch (Generasi ke-2)";
 "device_ipod_3g" = "iPod touch (Generasi ke-3)";
 "device_ipod_4g" = "iPod touch (Generasi ke-4)";
-"device_iphone_2g_desc" = "iPhone 2G (iPhone OS 1.0–3.1.3 / OS 1.x butuh BootROM)";
+"device_iphone_2g_desc" = "iPhone 2G (iPhone OS 1.0 - 1.1.4 / Perlu BootROM)";
 "device_iphone_3gs_desc" = "iPhone 3GS (iPhone OS 3.0–iOS 6.1.6)";
 "device_iphone_4_desc" = "iPhone 4 (iOS 4.0–7.1.2)";
 "device_iphone_5_desc" = "iPhone 5 (iOS 6.0–10.3.4)";
-"device_ipod_1g_desc" = "iPod touch 1G (iPhone OS 1.1–3.1.3 / OS 1.x butuh BootROM)";
+"device_ipod_1g_desc" = "iPod touch 1G (iPhone OS 1.1 - 1.1.5 / Perlu BootROM)";
 "device_ipod_2g_desc" = "iPod touch 2G (iPhone OS 2.1.1–iOS 4.2.1 / butuh BootROM)";
 "device_ipod_3g_desc" = "iPod touch 3G (iPhone OS 3.1.1–iOS 5.1.1)";
 "device_ipod_4g_desc" = "iPod touch 4G (iOS 4.1–6.1.6)";
@@ -269,7 +269,7 @@
 "vm_already_running_fmt" = "Mesin virtual «%@» saat ini sedang berjalan.\nHanya satu mesin virtual yang dapat berjalan dalam satu waktu.";
 "base_rebuild_required" = "Diperlukan Pembuatan Ulang Citra Dasar";
 "base_rebuild_msg" = "Untuk menerapkan perbaikan boot (OpenGLES, sandbox, dan inisialisasi iPhone 5), silakan hapus dan buat ulang kontainer ini.";
-"how_to_use_footer" = "Panduan Mulai\n1. Pilih perangkat dan versi iOS di bawah\n2. Aktifkan JIT dengan StikDebug (universal.js) sebelum mulai\n3. Ketuk ▶ di sebelah perangkat yang dibuat\n※ Hanya iPhone 2G / iPod 1G & 2G yang memerlukan BootROM di Pengaturan (ikon roda gigi)";
+"how_to_use_footer" = "Memulai:\n1. Pilih perangkat & OS dengan tombol di bawah\n2. Aktifkan JIT dengan StikDebug (universal.js) sebelum boot\n3. Ketuk ▶ pada perangkat untuk menyalakan\n* BootROM S5L8900 lewat Pengaturan hanya untuk iPhone 2G / iPod 1G";
 "rename_container_title" = "Ubah Nama Kontainer";
 "enter_new_name_prompt" = "Masukkan nama baru:";
 "delete_container_confirm_title" = "Hapus Kontainer";
@@ -382,8 +382,8 @@
 "settings_ipsw_management" = "Manajemen Firmware";
 "settings_ipsw_subtitle_fmt" = "%lu berkas firmware";
 "settings_bootrom_management" = "Manajemen BootROM";
-"settings_bootrom_subtitle_fmt" = "Terpasang %lu / 2";
-"settings_bootrom_subtitle_none" = "Belum Terpasang (S5L8900 / S5L8720)";
+"settings_bootrom_subtitle_fmt" = "%lu dari 1 terpasang";
+"settings_bootrom_subtitle_none" = "Belum terpasang (S5L8900)";
 "settings_system_header" = "Sistem & Lingkungan Eksekusi";
 "settings_jit_title" = "Kompilator JIT";
 "settings_jit_active" = "Aktif (Active)";
@@ -420,7 +420,7 @@
 
 /* Android */
 "device_android_arm" = "Android";
-"device_android_arm_desc" = "Android (4.0 - 7.1 ARM)";
+"device_android_arm_desc" = "Android (4.4 - 7.1 ARM)";
 "android_variant_aosp" = "AOSP Standar";
 "android_variant_gapps" = "Google APIs";
 "wizard_name_config_prompt_android" = "Masukkan nama mesin virtual (dapat diubah nanti).\n* Berjalan di ARMv7 Goldfish dengan akselerasi GPU OpenGL ES dan layar 640×1136.";
@@ -445,3 +445,68 @@
 "android_wipe_userdata_action" = "Hapus Data Pengguna (userdata.img)";
 "android_cfg_ram_custom" = "Kustom (MB)...";
 "android_cfg_ram_custom_hint" = "Masukkan ukuran RAM dalam MB (256–3072 MB). Melebihi memori yang tersedia pada perangkat 2 GB (mis. A9) dapat menutup aplikasi.";
+"device_firefoxos_arm" = "Firefox OS";
+"device_firefoxos_arm_desc" = "Firefox OS (1.4 - 2.6 B2G)";
+"device_winrt_arm" = "Windows RT";
+"device_winrt_arm_desc" = "Windows RT 8.0 / 8.1 (ARM32)";
+"winrt_variant_arm32" = "Windows RT (ARM32)";
+"section_winrt_config" = "Pengaturan Windows RT";
+"winrt_cfg_ram" = "Memori (RAM)";
+"winrt_cfg_ram_hint" = "Atur RAM (512–2048 MB). Melebihi memori yang tersedia dapat menyebabkan iOS menghentikan aplikasi.";
+"winrt_cfg_disk" = "Disk Virtual (Kartu SD)";
+"winrt_cfg_disk_hint" = "Impor citra disk VHD/VHDX/IMG/QCOW2 atau buat disk SD virtual kosong.";
+"winrt_cfg_iso" = "Citra Penginstal / USB";
+"winrt_cfg_iso_hint" = "Pasang ISO penginstal atau WinPE VHD/VHDX/IMG ke drive USB.";
+"winrt_cfg_none" = "Tidak ada";
+"winrt_cfg_boot_order" = "Prioritas Boot";
+"winrt_boot_usb_first" = "USB / ISO Dulu";
+"winrt_boot_sd_first" = "Disk SD Dulu";
+"winrt_cfg_rtc" = "Jam Sistem (RTC)";
+"winrt_cfg_rtc_hint" = "Penginstal Windows RT 8.0/8.1 sering memerlukan tanggal 2013–2014 karena kedaluwarsa sertifikat.";
+"winrt_rtc_today" = "Waktu Saat Ini (UTC)";
+"winrt_rtc_custom" = "Tanggal Kustom...";
+"winrt_rtc_custom_hint" = "Masukkan tanggal sebagai YYYY-MM-DD (mis. 2013-07-15).";
+"winrt_cfg_net" = "Jaringan (USB RNDIS)";
+"winrt_cfg_audio" = "Audio USB";
+"winrt_enabled" = "Aktif";
+"winrt_disabled" = "Nonaktif";
+"winrt_import_disk_action" = "Impor Citra Disk...";
+"winrt_create_blank_disk_fmt" = "Buat Disk Kosong (%ld GB)";
+"winrt_attach_iso_action" = "Pasang Citra ISO / USB...";
+"winrt_eject_iso_action" = "Keluarkan Citra";
+"winrt_importing_media" = "Menyalin citra ke VM...";
+"winrt_invalid_image_ext" = "Format citra tidak didukung. Pilih .iso, .vhd, .vhdx, .img, .raw, atau .qcow2.";
+"wizard_name_config_prompt_winrt" = "Masukkan nama mesin virtual (dapat diubah nanti).\n• Setelah dibuat, pasang ISO atau VHD Windows RT ARM32 di Pengaturan Kontainer.";
+"winrt_container_created_msg_fmt" = "\"%@\" dibuat. Pasang ISO penginstal atau VHD/VHDX Windows RT sebelum memulai.";
+"winrt_configure_media" = "Atur Media...";
+"winrt_send_cad" = "Kirim Ctrl + Alt + Del";
+"winrt_reset_usb" = "Reset Input USB";
+"winrt_usb_reset_toast" = "Keyboard & mouse USB tersambung kembali";
+"winrt_quick_keys" = "Tombol Cepat";
+"winrt_missing_media_error" = "Tidak ada disk atau ISO yang dapat di-boot. Buka Pengaturan Kontainer untuk mengimpor VHD/ISO dulu.";
+"winrt_input_mode_touch" = "Mode Sentuh";
+"winrt_input_mode_mouse" = "Mode Mouse";
+"winrt_mode_touch_toast" = "Input: Sentuhan Langsung";
+"winrt_mode_mouse_toast" = "Input: Trackpad Mouse (Geser=Gerak, Ketuk=Klik, Tahan=Klik Kanan)";
+"winrt_sticky_mods_section" = "Tombol Pengubah Lekat";
+"winrt_sticky_clear" = "Lepaskan Semua Pengubah";
+"winrt_special_nav_menu" = "Navigasi & Edit";
+"winrt_fn_keys_menu" = "Tombol Fungsi (F1–F12)";
+"winrt_right_click_action" = "Klik Kanan";
+"menu_install_apk" = "Pasang APK...";
+"apk_install_not_ready" = "Tunggu hingga Android selesai boot dan ADB terhubung sebelum memasang APK.";
+"apk_install_in_progress" = "Pemasangan paket lain sedang berlangsung.";
+"apk_invalid_extension" = "Pilih file .apk.";
+"apk_preparing" = "Menyiapkan APK...";
+"apk_connecting_adb" = "Menghubungkan ADB (terima permintaan di layar Android jika muncul)...";
+"apk_pushing" = "Mengirim APK...";
+"apk_pushing_pct_fmt" = "Mengirim APK... %d%%";
+"apk_installing" = "Memasang APK di Android...";
+"apk_install_success_title" = "Pemasangan APK Selesai";
+"apk_install_success_msg_fmt" = "Terpasang %@.";
+"apk_install_failed_title" = "Pemasangan APK Gagal";
+
+/* Windows RT Diagnostics */
+"winrt_iso_no_eltorito_title" = "No UEFI El Torito Boot Record Found";
+"winrt_iso_no_eltorito_msg" = "This ISO does not contain an ISO-9660 El Torito (\"CD001\") boot record (it appears to be UDF-only or non-bootable). Because the ARM32 UEFI firmware has no UDF driver, booting from it will stop at the UEFI Shell with BLK0 only.\n\nPlease use an El Torito ARM32 UEFI ISO (such as Windows RT 8.1 Update 3 9600.17053 / 9600.17328) or a bootable FAT32 .vhd/.img USB disk image.";
+

@@ -1,5 +1,5 @@
 /*
- * In-process ADB transport over Goldfish qemud pipe (ported from Android_On_iOS).
+ * In-process ADB transport over Goldfish qemud pipe.
  */
 #ifndef ANDROID51_ADB_H
 #define ANDROID51_ADB_H

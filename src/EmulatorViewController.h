@@ -27,6 +27,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) NSInteger androidRamMB;
 @property (nonatomic, assign) NSInteger androidLcdDensity;
 @property (nonatomic, assign) NSInteger androidGpuMode;
+@property (nonatomic, copy, nullable) NSString *platform;
+@property (nonatomic, copy, nullable) NSString *winrtDiskPath;
+@property (nonatomic, copy, nullable) NSString *winrtIsoPath;
+@property (nonatomic, assign) BOOL winrtBootFromIso;
+@property (nonatomic, copy, nullable) NSString *winrtRtcDate;
+@property (nonatomic, assign) BOOL winrtEnableNet;
+@property (nonatomic, assign) BOOL winrtEnableAudio;
 @property (nonatomic, copy, nullable) void (^onEngineProcessConsumed)(void);
 
 - (instancetype)initWithMachineId:(NSString *)machineId
