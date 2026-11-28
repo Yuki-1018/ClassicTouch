@@ -387,12 +387,15 @@ static int ClassicWinRTQCodeForHIDUsage(UIKeyboardHIDUsage code) {
 - (UITextSmartDashesType)smartDashesType { return UITextSmartDashesTypeNo; }
 
 - (void)tapQCode:(int)q shifted:(BOOL)shifted {
-    if (!self.onKeyQcode || q <= 0) return;
+    void (^sendKey)(int, int) = self.onKeyQcode;
+    if (!sendKey || q <= 0) return;
     BOOL needLocalShift = shifted && !self.externalShiftHeld;
-    if (needLocalShift) self.onKeyQcode(1, 1);
-    self.onKeyQcode(q, 1);
-    self.onKeyQcode(q, 0);
-    if (needLocalShift) self.onKeyQcode(1, 0);
+    if (needLocalShift) sendKey(1, 1);
+    sendKey(q, 1);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(45 * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+        sendKey(q, 0);
+        if (needLocalShift) sendKey(1, 0);
+    });
     if (self.onAfterNonModifierKey) {
         self.onAfterNonModifierKey();
     }
@@ -4997,18 +5000,19 @@ static void *emulator_winrt_worker(EmulatorViewController *vc) {
     };
     void (^appendUsbMediaArgs)(void) = ^{
         BOOL isIso = [isoFull.pathExtension.lowercaseString isEqualToString:@"iso"];
+        NSString *bootProp = (vc.winrtBootFromIso || !hasDisk) ? @",bootindex=0" : @"";
         if (isIso) {
             [argStrings addObject:@"-drive"];
             [argStrings addObject:[NSString stringWithFormat:@"id=usbcdrom,if=none,media=cdrom,format=raw,readonly=on,file.locking=off,file=%@",
                                    ClassicEscapeQemuDrivePath(isoFull)]];
             [argStrings addObject:@"-device"];
-            [argStrings addObject:@"usb-storage,drive=usbcdrom,bus=usb-bus.0"];
+            [argStrings addObject:[NSString stringWithFormat:@"usb-storage,drive=usbcdrom,bus=usb-bus.0%@", bootProp]];
         } else {
             [argStrings addObject:@"-drive"];
             [argStrings addObject:[NSString stringWithFormat:@"id=usbstick,if=none,format=%@,cache=writeback,file.locking=off,file=%@",
                                    formatForImagePath(isoFull), ClassicEscapeQemuDrivePath(isoFull)]];
             [argStrings addObject:@"-device"];
-            [argStrings addObject:@"usb-storage,drive=usbstick,bus=usb-bus.0"];
+            [argStrings addObject:[NSString stringWithFormat:@"usb-storage,drive=usbstick,bus=usb-bus.0%@", bootProp]];
         }
     };
 

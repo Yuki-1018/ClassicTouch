@@ -752,6 +752,8 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
                 [[NSFileManager defaultManager] removeItemAtPath:isoFull error:nil];
             }
             self.container.winrtIsoPath = nil;
+            self.container.winrtBootFromIso = NO;
+            [[NSFileManager defaultManager] removeItemAtPath:[statePath stringByAppendingPathComponent:@"nvram.bin"] error:nil];
             [self.container saveMetadataWithRoot:[self.mainVC containersDirectory]];
             [self.tableView reloadData];
             [self refreshDiskUsage];
@@ -985,6 +987,8 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
                                                       indexPath:indexPath];
             } else if (indexPath.row == 3) {
                 self.container.winrtBootFromIso = !self.container.winrtBootFromIso;
+                NSString *statePath = [self.container statePathWithRoot:[self.mainVC containersDirectory]];
+                [[NSFileManager defaultManager] removeItemAtPath:[statePath stringByAppendingPathComponent:@"nvram.bin"] error:nil];
                 [self.container saveMetadataWithRoot:[self.mainVC containersDirectory]];
                 [self.tableView reloadRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
             } else if (indexPath.row == 4) {
@@ -1384,6 +1388,7 @@ static UIViewController *TopPresentedViewController(UIViewController *root) {
             } else {
                 s.container.winrtIsoPath = fileName;
                 s.container.winrtBootFromIso = YES;
+                [fm removeItemAtPath:[statePath stringByAppendingPathComponent:@"nvram.bin"] error:nil];
             }
             [s.container saveMetadataWithRoot:[s.mainVC containersDirectory]];
             [s.tableView reloadData];
